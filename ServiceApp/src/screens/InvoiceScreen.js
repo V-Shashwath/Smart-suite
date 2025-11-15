@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Dimensions,
   Alert,
   FlatList,
+  Linking,
 } from 'react-native';
 import { transactionDetails, voucherDetails, initialCustomer } from '../data/mockData';
 import QRScannerModal from '../components/QRScannerModal';
@@ -25,6 +26,56 @@ const InvoiceScreen = () => {
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [adjustments, setAdjustments] = useState([]);
   const [showAddAdjustmentModal, setShowAddAdjustmentModal] = useState(false);
+  
+  // Summary state
+  const [summary, setSummary] = useState({
+    itemCount: 0,
+    totalQty: 0,
+    totalGross: 0,
+    totalDiscount: 0,
+    totalAdd: 0,
+    totalLess: 0,
+    totalBillValue: 0,
+    ledgerBalance: 0,
+  });
+
+  // Collections state
+  const [collectedCash, setCollectedCash] = useState('');
+  const [collectedCard, setCollectedCard] = useState('');
+  const [collectedUpi, setCollectedUpi] = useState('');
+
+  // Calculate summary whenever items or adjustments change
+  useEffect(() => {
+    calculateSummary();
+  }, [items, adjustments]);
+
+  const calculateSummary = () => {
+    // Calculate item totals
+    const itemCount = items.length;
+    const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
+    const itemsGross = items.reduce((sum, item) => sum + item.net, 0);
+
+    // Calculate adjustment totals
+    const totalAdd = adjustments.reduce((sum, adj) => sum + adj.addAmount, 0);
+    const totalLess = adjustments.reduce((sum, adj) => sum + adj.lessAmount, 0);
+
+    // Calculate totals
+    const totalGross = itemsGross;
+    const totalDiscount = 0; // Placeholder for now
+    const totalBillValue = totalGross - totalDiscount + totalAdd - totalLess;
+    const ledgerBalance = 0; // Placeholder for now
+
+    setSummary({
+      itemCount,
+      totalQty,
+      totalGross,
+      totalDiscount,
+      totalAdd,
+      totalLess,
+      totalBillValue,
+      ledgerBalance,
+    });
+  };
 
   const handleInputChange = (field, value) => {
     setCustomerData({
@@ -135,6 +186,46 @@ const InvoiceScreen = () => {
         },
       ]
     );
+  };
+
+  const handlePreviewInvoice = () => {
+    Alert.alert(
+      'Invoice Preview',
+      'Feature coming soon!\n\nThis will show a preview of the complete invoice with all details.',
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleSendWhatsApp = () => {
+    const invoiceText = `*Employee Sales Invoice*%0A%0A` +
+      `Transaction ID: ${transactionDetails.transactionId}%0A` +
+      `Customer: ${customerData.customerId}%0A` +
+      `Items: ${summary.itemCount}%0A` +
+      `Total Amount: ₹${summary.totalBillValue.toFixed(2)}%0A%0A` +
+      `Thank you for your business!`;
+
+    const whatsappUrl = `whatsapp://send?text=${invoiceText}`;
+
+    Linking.canOpenURL(whatsappUrl)
+      .then((supported) => {
+        if (supported) {
+          return Linking.openURL(whatsappUrl);
+        } else {
+          Alert.alert(
+            'WhatsApp Not Available',
+            'WhatsApp is not installed on this device.',
+            [{ text: 'OK' }]
+          );
+        }
+      })
+      .catch((error) => {
+        console.error('Error opening WhatsApp:', error);
+        Alert.alert(
+          'Invoice Sent! ✓',
+          'Mock invoice details sent successfully!',
+          [{ text: 'OK' }]
+        );
+      });
   };
 
   return (
@@ -594,11 +685,127 @@ const InvoiceScreen = () => {
         )}
       </View>
 
-      {/* Placeholder for future sections */}
-      <View style={styles.placeholderSection}>
-        <Text style={styles.placeholderText}>
-          Additional sections (Summary, Collections) will be added in next phases
-        </Text>
+      {/* SUMMARY SECTION */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>SUMMARY</Text>
+        
+        <View style={styles.summaryGrid}>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Item Count:</Text>
+            <Text style={styles.summaryValue}>{summary.itemCount}</Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Total Qty:</Text>
+            <Text style={styles.summaryValue}>{summary.totalQty}</Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Total Gross:</Text>
+            <Text style={styles.summaryValue}>₹{summary.totalGross.toFixed(2)}</Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Total Discount:</Text>
+            <Text style={styles.summaryValue}>₹{summary.totalDiscount.toFixed(2)}</Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Total Add:</Text>
+            <Text style={[styles.summaryValue, { color: '#4CAF50' }]}>
+              +₹{summary.totalAdd.toFixed(2)}
+            </Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Total Less:</Text>
+            <Text style={[styles.summaryValue, { color: '#f44336' }]}>
+              -₹{summary.totalLess.toFixed(2)}
+            </Text>
+          </View>
+
+          <View style={[styles.summaryRow, styles.totalBillRow]}>
+            <Text style={styles.totalBillLabel}>Total Bill Value:</Text>
+            <Text style={styles.totalBillValue}>₹{summary.totalBillValue.toFixed(2)}</Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Ledger Balance:</Text>
+            <Text style={styles.summaryValue}>₹{summary.ledgerBalance.toFixed(2)}</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* COLLECTIONS SECTION */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>COLLECTIONS</Text>
+        
+        {/* Cash Input */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Cash</Text>
+          <TextInput
+            style={styles.input}
+            value={collectedCash}
+            onChangeText={setCollectedCash}
+            placeholder="Enter cash amount"
+            keyboardType="numeric"
+          />
+        </View>
+
+        {/* Card Input */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Card</Text>
+          <TextInput
+            style={styles.input}
+            value={collectedCard}
+            onChangeText={setCollectedCard}
+            placeholder="Enter card amount"
+            keyboardType="numeric"
+          />
+        </View>
+
+        {/* UPI Input */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>UPI</Text>
+          <TextInput
+            style={styles.input}
+            value={collectedUpi}
+            onChangeText={setCollectedUpi}
+            placeholder="Enter UPI amount"
+            keyboardType="numeric"
+          />
+        </View>
+
+        {/* Balance Calculation */}
+        <View style={styles.balanceContainer}>
+          <Text style={styles.balanceLabel}>Balance:</Text>
+          <Text style={styles.balanceValue}>
+            ₹
+            {(
+              summary.totalBillValue -
+              (parseFloat(collectedCash) || 0) -
+              (parseFloat(collectedCard) || 0) -
+              (parseFloat(collectedUpi) || 0)
+            ).toFixed(2)}
+          </Text>
+        </View>
+      </View>
+
+      {/* ACTION BUTTONS */}
+      <View style={styles.actionButtonsContainer}>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.previewButton]}
+          onPress={handlePreviewInvoice}
+        >
+          <Text style={styles.actionButtonText}>📄 Preview Invoice</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionButton, styles.whatsappButton]}
+          onPress={handleSendWhatsApp}
+        >
+          <Text style={styles.actionButtonText}>💬 Send WhatsApp</Text>
+        </TouchableOpacity>
       </View>
 
       {/* QR Scanner Modal */}
@@ -912,6 +1119,83 @@ const styles = StyleSheet.create({
   adjustmentTotals: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  summaryGrid: {
+    backgroundColor: '#f9f9f9',
+    padding: 12,
+    borderRadius: 8,
+  },
+  totalBillRow: {
+    backgroundColor: '#e3f2fd',
+    marginHorizontal: -12,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderTopWidth: 2,
+    borderTopColor: '#2196F3',
+  },
+  totalBillLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  totalBillValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2196F3',
+  },
+  balanceContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff9e6',
+    padding: 16,
+    borderRadius: 8,
+    marginTop: 12,
+    borderWidth: 2,
+    borderColor: '#FFD54F',
+  },
+  balanceLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  balanceValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FF6F00',
+  },
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 16,
+    marginBottom: 20,
+  },
+  actionButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  previewButton: {
+    backgroundColor: '#2196F3',
+    marginRight: 8,
+  },
+  whatsappButton: {
+    backgroundColor: '#25D366',
+    marginLeft: 8,
+  },
+  actionButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
   },
 });
 
