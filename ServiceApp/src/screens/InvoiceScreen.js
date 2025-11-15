@@ -13,6 +13,7 @@ import {
 import { transactionDetails, voucherDetails, initialCustomer } from '../data/mockData';
 import QRScannerModal from '../components/QRScannerModal';
 import AddItemModal from '../components/AddItemModal';
+import AddAdjustmentModal from '../components/AddAdjustmentModal';
 
 const { width } = Dimensions.get('window');
 
@@ -22,6 +23,8 @@ const InvoiceScreen = () => {
   const [showScanner, setShowScanner] = useState(false);
   const [items, setItems] = useState([]);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [adjustments, setAdjustments] = useState([]);
+  const [showAddAdjustmentModal, setShowAddAdjustmentModal] = useState(false);
 
   const handleInputChange = (field, value) => {
     setCustomerData({
@@ -99,6 +102,35 @@ const InvoiceScreen = () => {
           style: 'destructive',
           onPress: () => {
             setItems(items.filter((item) => item.id !== itemId));
+          },
+        },
+      ]
+    );
+  };
+
+  const handleAddAdjustment = (newAdjustment) => {
+    setAdjustments([...adjustments, newAdjustment]);
+    setShowAddAdjustmentModal(false);
+    const amountType = newAdjustment.addAmount > 0 ? 'Add' : 'Less';
+    const amount = newAdjustment.addAmount > 0 ? newAdjustment.addAmount : newAdjustment.lessAmount;
+    Alert.alert(
+      'Adjustment Added Successfully! ✓',
+      `${newAdjustment.accountName}\n${amountType}: ₹${amount.toFixed(2)}`,
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleDeleteAdjustment = (adjustmentId) => {
+    Alert.alert(
+      'Delete Adjustment',
+      'Are you sure you want to delete this adjustment?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            setAdjustments(adjustments.filter((adj) => adj.id !== adjustmentId));
           },
         },
       ]
@@ -469,10 +501,103 @@ const InvoiceScreen = () => {
         )}
       </View>
 
+      {/* ADJUSTMENTS BODY SECTION */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>ADJUSTMENTS BODY</Text>
+        
+        {/* Add Adjustment Button */}
+        <TouchableOpacity
+          style={styles.addAdjustmentButton}
+          onPress={() => setShowAddAdjustmentModal(true)}
+        >
+          <Text style={styles.addAdjustmentButtonText}>+ Add Adjustment</Text>
+        </TouchableOpacity>
+
+        {/* Adjustments List */}
+        {adjustments.length > 0 ? (
+          <View style={styles.itemsContainer}>
+            {/* Table Header */}
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableHeaderText, { flex: 0.5 }]}>S.No</Text>
+              <Text style={[styles.tableHeaderText, { flex: 2 }]}>Account</Text>
+              <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Add</Text>
+              <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Less</Text>
+              <Text style={[styles.tableHeaderText, { flex: 1.5 }]}>Comments1</Text>
+              <Text style={[styles.tableHeaderText, { flex: 0.6 }]}></Text>
+            </View>
+
+            {/* Adjustments List with FlatList */}
+            <FlatList
+              data={adjustments}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={({ item, index }) => (
+                <View style={styles.itemRow}>
+                  <Text style={[styles.itemCell, { flex: 0.5 }]}>{index + 1}</Text>
+                  <Text style={[styles.itemCell, { flex: 2 }]} numberOfLines={2}>
+                    {item.accountName}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.itemCell,
+                      { flex: 1, textAlign: 'right', color: '#4CAF50', fontWeight: 'bold' },
+                    ]}
+                  >
+                    {item.addAmount > 0 ? `₹${item.addAmount.toFixed(2)}` : '-'}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.itemCell,
+                      { flex: 1, textAlign: 'right', color: '#f44336', fontWeight: 'bold' },
+                    ]}
+                  >
+                    {item.lessAmount > 0 ? `₹${item.lessAmount.toFixed(2)}` : '-'}
+                  </Text>
+                  <Text style={[styles.itemCell, { flex: 1.5, fontSize: 11 }]} numberOfLines={2}>
+                    {item.comments || '-'}
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.itemCell, { flex: 0.6, alignItems: 'center' }]}
+                    onPress={() => handleDeleteAdjustment(item.id)}
+                  >
+                    <Text style={styles.deleteIcon}>🗑️</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              scrollEnabled={false}
+            />
+
+            {/* Summary Row */}
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Total Adjustments: {adjustments.length}</Text>
+              <View style={styles.adjustmentTotals}>
+                <Text style={[styles.summaryAmount, { color: '#4CAF50' }]}>
+                  Add: ₹
+                  {adjustments
+                    .reduce((sum, adj) => sum + adj.addAmount, 0)
+                    .toFixed(2)}
+                </Text>
+                <Text style={[styles.summaryAmount, { color: '#f44336', marginLeft: 12 }]}>
+                  Less: ₹
+                  {adjustments
+                    .reduce((sum, adj) => sum + adj.lessAmount, 0)
+                    .toFixed(2)}
+                </Text>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateIcon}>💰</Text>
+            <Text style={styles.emptyStateText}>No adjustments added yet</Text>
+            <Text style={styles.emptyStateSubtext}>Tap "Add Adjustment" to add discounts, taxes, etc.</Text>
+          </View>
+        )}
+      </View>
+
       {/* Placeholder for future sections */}
       <View style={styles.placeholderSection}>
         <Text style={styles.placeholderText}>
-          Additional sections (Adjustments, Summary, Collections) will be added in next phases
+          Additional sections (Summary, Collections) will be added in next phases
         </Text>
       </View>
 
@@ -488,6 +613,13 @@ const InvoiceScreen = () => {
         isVisible={showAddItemModal}
         onAddItem={handleAddItem}
         onClose={() => setShowAddItemModal(false)}
+      />
+
+      {/* Add Adjustment Modal */}
+      <AddAdjustmentModal
+        isVisible={showAddAdjustmentModal}
+        onAddAdjustment={handleAddAdjustment}
+        onClose={() => setShowAddAdjustmentModal(false)}
       />
     </ScrollView>
   );
@@ -758,6 +890,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999',
     textAlign: 'center',
+  },
+  addAdjustmentButton: {
+    backgroundColor: '#FF9800',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 16,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  addAdjustmentButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  adjustmentTotals: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 });
 
