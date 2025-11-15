@@ -7,20 +7,71 @@ import {
   TouchableOpacity,
   ScrollView,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { transactionDetails, voucherDetails, initialCustomer } from '../data/mockData';
+import QRScannerModal from '../components/QRScannerModal';
 
 const { width } = Dimensions.get('window');
 
 const InvoiceScreen = () => {
   const [customerData, setCustomerData] = useState(initialCustomer);
   const [gstBill, setGstBill] = useState(initialCustomer.gstBill);
+  const [showScanner, setShowScanner] = useState(false);
 
   const handleInputChange = (field, value) => {
     setCustomerData({
       ...customerData,
       [field]: value,
     });
+  };
+
+  const handleScannedQr = (data) => {
+    console.log('QR Data received:', data);
+    
+    // Parse comma-separated data: customerId,mobileNo,customerType,whatsappNo
+    // Example: "CUST-007,9876543210,CrystalCopier,9876543210"
+    try {
+      const parts = data.split(',');
+      
+      if (parts.length >= 4) {
+        const [customerId, mobileNo, customerType, whatsappNo] = parts;
+        
+        // Update customer state with scanned data
+        setCustomerData({
+          ...customerData,
+          customerId: customerId.trim(),
+          mobileNo: mobileNo.trim(),
+          customerType: customerType.trim(),
+          whatsappNo: whatsappNo.trim(),
+        });
+        
+        Alert.alert(
+          'QR Code Scanned Successfully! ✓',
+          `Customer ID: ${customerId.trim()}\nMobile: ${mobileNo.trim()}`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        // If format is different, just use the raw data as customer ID
+        setCustomerData({
+          ...customerData,
+          customerId: data.trim(),
+        });
+        
+        Alert.alert(
+          'QR Code Scanned',
+          `Data: ${data}`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error parsing QR data:', error);
+      Alert.alert(
+        'Scan Error',
+        'Could not parse QR code data',
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   return (
@@ -201,7 +252,10 @@ const InvoiceScreen = () => {
                 onChangeText={(value) => handleInputChange('customerId', value)}
                 placeholder="Enter customer ID"
               />
-              <TouchableOpacity style={styles.qrButton}>
+              <TouchableOpacity 
+                style={styles.qrButton}
+                onPress={() => setShowScanner(true)}
+              >
                 <Text style={styles.qrButtonText}>📷</Text>
               </TouchableOpacity>
             </View>
@@ -314,6 +368,13 @@ const InvoiceScreen = () => {
           Additional sections (Items, Adjustments, Summary, etc.) will be added in next phases
         </Text>
       </View>
+
+      {/* QR Scanner Modal */}
+      <QRScannerModal
+        isVisible={showScanner}
+        onScan={handleScannedQr}
+        onClose={() => setShowScanner(false)}
+      />
     </ScrollView>
   );
 };
