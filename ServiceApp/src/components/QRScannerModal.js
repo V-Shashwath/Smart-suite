@@ -1,18 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, Alert } from 'react-native';
-import { Camera } from 'expo-camera';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 
 const QRScannerModal = ({ isVisible, onScan, onClose }) => {
-  const [hasPermission, setHasPermission] = useState(null);
+  const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
 
   useEffect(() => {
-    // Request camera permissions when component mounts
-    (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === 'granted');
-    })();
-  }, []);
+    // Request camera permissions when modal opens
+    if (isVisible && !permission) {
+      requestPermission();
+    }
+  }, [isVisible]);
 
   useEffect(() => {
     // Reset scanned state when modal is opened
@@ -33,7 +32,7 @@ const QRScannerModal = ({ isVisible, onScan, onClose }) => {
     }
   };
 
-  if (hasPermission === null) {
+  if (!permission) {
     return (
       <Modal visible={isVisible} animationType="slide" transparent={false}>
         <View style={styles.centerContainer}>
@@ -46,7 +45,7 @@ const QRScannerModal = ({ isVisible, onScan, onClose }) => {
     );
   }
 
-  if (hasPermission === false) {
+  if (!permission.granted) {
     return (
       <Modal visible={isVisible} animationType="slide" transparent={false}>
         <View style={styles.centerContainer}>
@@ -54,8 +53,11 @@ const QRScannerModal = ({ isVisible, onScan, onClose }) => {
           <Text style={styles.subMessageText}>
             Please enable camera access in your device settings to scan QR codes.
           </Text>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Text style={styles.closeButtonText}>Close</Text>
+          <TouchableOpacity style={styles.closeButton} onPress={requestPermission}>
+            <Text style={styles.closeButtonText}>Grant Permission</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.closeButton, { marginTop: 10, backgroundColor: '#f5f5f5' }]} onPress={onClose}>
+            <Text style={[styles.closeButtonText, { color: '#666' }]}>Close</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -66,11 +68,11 @@ const QRScannerModal = ({ isVisible, onScan, onClose }) => {
     <Modal visible={isVisible} animationType="slide" transparent={false}>
       <View style={styles.container}>
         {/* Camera View */}
-        <Camera
+        <CameraView
           style={styles.camera}
-          onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
-          barCodeScannerSettings={{
-            barCodeTypes: ['qr'],
+          onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+          barcodeScannerSettings={{
+            barcodeTypes: ['qr'],
           }}
         >
           {/* Overlay */}
@@ -120,7 +122,7 @@ const QRScannerModal = ({ isVisible, onScan, onClose }) => {
               </Text>
             </View>
           </View>
-        </Camera>
+        </CameraView>
 
         {/* Close Button */}
         <TouchableOpacity style={styles.closeButtonFloating} onPress={onClose}>

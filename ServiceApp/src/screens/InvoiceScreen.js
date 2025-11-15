@@ -15,6 +15,7 @@ import { transactionDetails, voucherDetails, initialCustomer } from '../data/moc
 import QRScannerModal from '../components/QRScannerModal';
 import AddItemModal from '../components/AddItemModal';
 import AddAdjustmentModal from '../components/AddAdjustmentModal';
+import PreviewInvoiceModal from '../components/PreviewInvoiceModal';
 
 const { width } = Dimensions.get('window');
 
@@ -26,6 +27,7 @@ const InvoiceScreen = () => {
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [adjustments, setAdjustments] = useState([]);
   const [showAddAdjustmentModal, setShowAddAdjustmentModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   
   // Summary state
   const [summary, setSummary] = useState({
@@ -189,22 +191,121 @@ const InvoiceScreen = () => {
   };
 
   const handlePreviewInvoice = () => {
-    Alert.alert(
-      'Invoice Preview',
-      'Feature coming soon!\n\nThis will show a preview of the complete invoice with all details.',
-      [{ text: 'OK' }]
-    );
+    // Validate that invoice has items
+    if (items.length === 0) {
+      Alert.alert(
+        'No Items',
+        'Please add at least one item to preview the invoice.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    setShowPreviewModal(true);
   };
 
   const handleSendWhatsApp = () => {
-    const invoiceText = `*Employee Sales Invoice*%0A%0A` +
-      `Transaction ID: ${transactionDetails.transactionId}%0A` +
-      `Customer: ${customerData.customerId}%0A` +
-      `Items: ${summary.itemCount}%0A` +
-      `Total Amount: ₹${summary.totalBillValue.toFixed(2)}%0A%0A` +
-      `Thank you for your business!`;
+    // Validate that invoice has items
+    if (items.length === 0) {
+      Alert.alert(
+        'No Items',
+        'Please add at least one item before sending the invoice.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
 
-    const whatsappUrl = `whatsapp://send?text=${invoiceText}`;
+    // Build a concise but complete invoice message
+    let msg = `*EMPLOYEE SALES INVOICE*\n`;
+    msg += `===========================\n\n`;
+    
+    // Transaction & Voucher
+    msg += `*Invoice:* ${voucherDetails.voucherNo}\n`;
+    msg += `*Date:* ${transactionDetails.date}\n`;
+    msg += `*TXN ID:* ${transactionDetails.transactionId}\n\n`;
+    
+    // Customer
+    msg += `*Customer Details*\n`;
+    msg += `ID: ${customerData.customerId || 'Walk-in'}\n`;
+    msg += `Mobile: ${customerData.mobileNo || 'N/A'}\n`;
+    if (customerData.customerType) {
+      msg += `Type: ${customerData.customerType}\n`;
+    }
+    msg += `\n`;
+    
+    // Items
+    msg += `*Items (${items.length})*\n`;
+    msg += `---------------------------\n`;
+    items.forEach((item, idx) => {
+      msg += `${idx + 1}. ${item.productName}\n`;
+      msg += `   ${item.quantity} × ₹${item.rate.toFixed(2)} = ₹${item.net.toFixed(2)}\n`;
+    });
+    msg += `\n`;
+    
+    // Adjustments (if any)
+    if (adjustments.length > 0) {
+      msg += `*Adjustments*\n`;
+      adjustments.forEach((adj) => {
+        if (adj.addAmount > 0) {
+          msg += `• ${adj.accountName}: +₹${adj.addAmount.toFixed(2)}\n`;
+        }
+        if (adj.lessAmount > 0) {
+          msg += `• ${adj.accountName}: -₹${adj.lessAmount.toFixed(2)}\n`;
+        }
+      });
+      msg += `\n`;
+    }
+    
+    // Summary
+    msg += `*SUMMARY*\n`;
+    msg += `---------------------------\n`;
+    msg += `Items: ${summary.itemCount} | Qty: ${summary.totalQty}\n`;
+    msg += `Gross: ₹${summary.totalGross.toFixed(2)}\n`;
+    
+    if (summary.totalAdd > 0) {
+      msg += `Add: +₹${summary.totalAdd.toFixed(2)}\n`;
+    }
+    if (summary.totalLess > 0) {
+      msg += `Less: -₹${summary.totalLess.toFixed(2)}\n`;
+    }
+    
+    msg += `\n*TOTAL BILL: ₹${summary.totalBillValue.toFixed(2)}*\n`;
+    
+    // Collections
+    const totalCollected = (parseFloat(collectedCash) || 0) + 
+                          (parseFloat(collectedCard) || 0) + 
+                          (parseFloat(collectedUpi) || 0);
+    const balance = summary.totalBillValue - totalCollected;
+    
+    if (totalCollected > 0) {
+      msg += `\n*PAYMENT RECEIVED*\n`;
+      if (parseFloat(collectedCash) > 0) {
+        msg += `Cash: ₹${parseFloat(collectedCash).toFixed(2)}\n`;
+      }
+      if (parseFloat(collectedCard) > 0) {
+        msg += `Card: ₹${parseFloat(collectedCard).toFixed(2)}\n`;
+      }
+      if (parseFloat(collectedUpi) > 0) {
+        msg += `UPI: ₹${parseFloat(collectedUpi).toFixed(2)}\n`;
+      }
+      msg += `*Balance: ₹${balance.toFixed(2)}*\n`;
+    }
+    
+    msg += `\n===========================\n`;
+    msg += `Thank you for your business! 🙏`;
+
+    // URL encode for WhatsApp
+    const encodedMessage = encodeURIComponent(msg);
+    
+    // Try to send via WhatsApp with customer's WhatsApp number if available
+    const phoneNumber = customerData.whatsappNo || customerData.mobileNo || '';
+    const cleanPhone = phoneNumber.replace(/\D/g, '');
+    
+    const whatsappUrl = cleanPhone 
+      ? `whatsapp://send?phone=${cleanPhone}&text=${encodedMessage}`
+      : `whatsapp://send?text=${encodedMessage}`;
+
+    console.log('WhatsApp URL length:', whatsappUrl.length);
+    console.log('Message preview:', msg.substring(0, 200));
 
     Linking.canOpenURL(whatsappUrl)
       .then((supported) => {
@@ -213,7 +314,7 @@ const InvoiceScreen = () => {
         } else {
           Alert.alert(
             'WhatsApp Not Available',
-            'WhatsApp is not installed on this device.',
+            'WhatsApp is not installed on this device. Please install WhatsApp to send invoices.',
             [{ text: 'OK' }]
           );
         }
@@ -221,8 +322,8 @@ const InvoiceScreen = () => {
       .catch((error) => {
         console.error('Error opening WhatsApp:', error);
         Alert.alert(
-          'Invoice Sent! ✓',
-          'Mock invoice details sent successfully!',
+          'Error',
+          'Could not open WhatsApp. Please make sure it is installed and try again.',
           [{ text: 'OK' }]
         );
       });
@@ -827,6 +928,27 @@ const InvoiceScreen = () => {
         isVisible={showAddAdjustmentModal}
         onAddAdjustment={handleAddAdjustment}
         onClose={() => setShowAddAdjustmentModal(false)}
+      />
+
+      {/* Preview Invoice Modal */}
+      <PreviewInvoiceModal
+        isVisible={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
+        transactionDetails={transactionDetails}
+        voucherDetails={voucherDetails}
+        customerData={customerData}
+        items={items}
+        adjustments={adjustments}
+        summary={summary}
+        collections={{
+          cash: parseFloat(collectedCash) || 0,
+          card: parseFloat(collectedCard) || 0,
+          upi: parseFloat(collectedUpi) || 0,
+          balance: summary.totalBillValue - 
+                  (parseFloat(collectedCash) || 0) - 
+                  (parseFloat(collectedCard) || 0) - 
+                  (parseFloat(collectedUpi) || 0),
+        }}
       />
     </ScrollView>
   );
