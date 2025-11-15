@@ -36,9 +36,25 @@ export const initialCustomer = {
   gstBill: false,
 };
 
+export const products = [
+  { id: 1, name: 'A4 Xerox - Black & White', rate: 2.00 },
+  { id: 2, name: 'A4 Xerox - Color', rate: 5.00 },
+  { id: 3, name: 'A3 Xerox - Black & White', rate: 4.00 },
+  { id: 4, name: 'A3 Xerox - Color', rate: 10.00 },
+  { id: 5, name: 'Lamination - A4', rate: 15.00 },
+  { id: 6, name: 'Lamination - A3', rate: 25.00 },
+  { id: 7, name: 'Binding - Spiral', rate: 30.00 },
+  { id: 8, name: 'Binding - Thermal', rate: 40.00 },
+  { id: 9, name: 'Printing - Single Side', rate: 3.00 },
+  { id: 10, name: 'Printing - Double Side', rate: 5.00 },
+  { id: 11, name: 'Scanning Service', rate: 10.00 },
+  { id: 12, name: 'Photo Printing - 4x6', rate: 20.00 },
+];
+
 export const mockInvoiceData = {
   transaction: transactionDetails,
   voucher: voucherDetails,
   customer: initialCustomer,
+  products: products,
 };
 

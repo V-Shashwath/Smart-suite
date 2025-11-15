@@ -8,9 +8,11 @@ import {
   ScrollView,
   Dimensions,
   Alert,
+  FlatList,
 } from 'react-native';
 import { transactionDetails, voucherDetails, initialCustomer } from '../data/mockData';
 import QRScannerModal from '../components/QRScannerModal';
+import AddItemModal from '../components/AddItemModal';
 
 const { width } = Dimensions.get('window');
 
@@ -18,6 +20,8 @@ const InvoiceScreen = () => {
   const [customerData, setCustomerData] = useState(initialCustomer);
   const [gstBill, setGstBill] = useState(initialCustomer.gstBill);
   const [showScanner, setShowScanner] = useState(false);
+  const [items, setItems] = useState([]);
+  const [showAddItemModal, setShowAddItemModal] = useState(false);
 
   const handleInputChange = (field, value) => {
     setCustomerData({
@@ -72,6 +76,33 @@ const InvoiceScreen = () => {
         [{ text: 'OK' }]
       );
     }
+  };
+
+  const handleAddItem = (newItem) => {
+    setItems([...items, newItem]);
+    setShowAddItemModal(false);
+    Alert.alert(
+      'Item Added Successfully! ✓',
+      `${newItem.productName}\nQty: ${newItem.quantity} × ₹${newItem.rate.toFixed(2)} = ₹${newItem.net.toFixed(2)}`,
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleDeleteItem = (itemId) => {
+    Alert.alert(
+      'Delete Item',
+      'Are you sure you want to delete this item?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            setItems(items.filter((item) => item.id !== itemId));
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -362,10 +393,86 @@ const InvoiceScreen = () => {
         </View>
       </View>
 
+      {/* ITEM BODY SECTION */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>ITEM BODY</Text>
+        
+        {/* Add Item Button */}
+        <TouchableOpacity
+          style={styles.addItemButton}
+          onPress={() => setShowAddItemModal(true)}
+        >
+          <Text style={styles.addItemButtonText}>+ Add Item</Text>
+        </TouchableOpacity>
+
+        {/* Items List */}
+        {items.length > 0 ? (
+          <View style={styles.itemsContainer}>
+            {/* Table Header */}
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableHeaderText, { flex: 0.5 }]}>S.No</Text>
+              <Text style={[styles.tableHeaderText, { flex: 2 }]}>Product Name</Text>
+              <Text style={[styles.tableHeaderText, { flex: 0.8, textAlign: 'right' }]}>Qty</Text>
+              <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Rate</Text>
+              <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Gross</Text>
+              <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Net</Text>
+              <Text style={[styles.tableHeaderText, { flex: 0.6 }]}></Text>
+            </View>
+
+            {/* Items List with FlatList */}
+            <FlatList
+              data={items}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={({ item, index }) => (
+                <View style={styles.itemRow}>
+                  <Text style={[styles.itemCell, { flex: 0.5 }]}>{index + 1}</Text>
+                  <Text style={[styles.itemCell, { flex: 2 }]} numberOfLines={2}>
+                    {item.productName}
+                  </Text>
+                  <Text style={[styles.itemCell, { flex: 0.8, textAlign: 'right' }]}>
+                    {item.quantity}
+                  </Text>
+                  <Text style={[styles.itemCell, { flex: 1, textAlign: 'right' }]}>
+                    ₹{item.rate.toFixed(2)}
+                  </Text>
+                  <Text style={[styles.itemCell, { flex: 1, textAlign: 'right' }]}>
+                    ₹{item.gross.toFixed(2)}
+                  </Text>
+                  <Text style={[styles.itemCell, { flex: 1, textAlign: 'right', fontWeight: 'bold' }]}>
+                    ₹{item.net.toFixed(2)}
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.itemCell, { flex: 0.6, alignItems: 'center' }]}
+                    onPress={() => handleDeleteItem(item.id)}
+                  >
+                    <Text style={styles.deleteIcon}>🗑️</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              scrollEnabled={false}
+            />
+
+            {/* Summary Row */}
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Total Items: {items.length}</Text>
+              <Text style={styles.summaryAmount}>
+                Total: ₹{items.reduce((sum, item) => sum + item.net, 0).toFixed(2)}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateIcon}>📦</Text>
+            <Text style={styles.emptyStateText}>No items added yet</Text>
+            <Text style={styles.emptyStateSubtext}>Tap "Add Item" button to get started</Text>
+          </View>
+        )}
+      </View>
+
       {/* Placeholder for future sections */}
       <View style={styles.placeholderSection}>
         <Text style={styles.placeholderText}>
-          Additional sections (Items, Adjustments, Summary, etc.) will be added in next phases
+          Additional sections (Adjustments, Summary, Collections) will be added in next phases
         </Text>
       </View>
 
@@ -374,6 +481,13 @@ const InvoiceScreen = () => {
         isVisible={showScanner}
         onScan={handleScannedQr}
         onClose={() => setShowScanner(false)}
+      />
+
+      {/* Add Item Modal */}
+      <AddItemModal
+        isVisible={showAddItemModal}
+        onAddItem={handleAddItem}
+        onClose={() => setShowAddItemModal(false)}
       />
     </ScrollView>
   );
@@ -553,6 +667,97 @@ const styles = StyleSheet.create({
     color: '#999',
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  addItemButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 16,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  addItemButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  itemsContainer: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#2196F3',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+  },
+  tableHeaderText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  itemRow: {
+    flexDirection: 'row',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+  },
+  itemCell: {
+    fontSize: 12,
+    color: '#333',
+  },
+  deleteIcon: {
+    fontSize: 18,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: '#e3f2fd',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderTopWidth: 2,
+    borderTopColor: '#2196F3',
+  },
+  summaryLabel: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  summaryAmount: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2196F3',
+  },
+  emptyState: {
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyStateIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 4,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
   },
 });
 
