@@ -227,29 +227,64 @@ const InvoiceScreen = () => {
       return;
     }
 
-    // CRITICAL LOGIC: Check by EXACT BARCODE (unique ID/serial no), not by product ID
-    // This ensures each unique barcode is tracked individually
-    const existingItemIndex = items.findIndex(
-      (item) => item.productSerialNo === trimmedBarcode && item.productSerialNo !== ''
-    );
+    // CRITICAL LOGIC: Check if product has unique serial numbers
+    // Scenario 1: Product with unique serial (iPhone, electronics) → Check by barcode, increment if same
+    // Scenario 2: Product without unique serial (generic items) → Always add new row
+    // Scenario 3: Manually added without barcode → Always add new row
+    
+    const hasUniqueSerialNo = product.hasUniqueSerialNo === true;
 
-    if (existingItemIndex !== -1) {
-      // SAME BARCODE EXISTS - Increment quantity
-      const updatedItems = [...items];
-      const existingItem = updatedItems[existingItemIndex];
-      existingItem.quantity += 1;
-      existingItem.gross = existingItem.rate * existingItem.quantity;
-      existingItem.net = existingItem.gross;
-      
-      setItems(updatedItems);
-      
-      Alert.alert(
-        'Same Barcode - Quantity Updated! ✓',
-        `${product.name}\nBarcode: ${trimmedBarcode}\nNew Qty: ${existingItem.quantity}`,
-        [{ text: 'OK' }]
+    if (hasUniqueSerialNo) {
+      // SCENARIO 1: Product tracks unique serial numbers (e.g., iPhone IMEI)
+      // Check if this EXACT barcode already exists
+      const existingItemIndex = items.findIndex(
+        (item) => item.productSerialNo === trimmedBarcode && item.productSerialNo !== ''
       );
+
+      if (existingItemIndex !== -1) {
+        // SAME UNIQUE BARCODE EXISTS - Increment quantity
+        const updatedItems = [...items];
+        const existingItem = updatedItems[existingItemIndex];
+        existingItem.quantity += 1;
+        existingItem.gross = existingItem.rate * existingItem.quantity;
+        existingItem.net = existingItem.gross;
+        
+        setItems(updatedItems);
+        
+        Alert.alert(
+          'Same Serial No - Quantity Updated! ✓',
+          `${product.name}\nSerial No: ${trimmedBarcode}\nNew Qty: ${existingItem.quantity}`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        // DIFFERENT UNIQUE BARCODE - Add as NEW row
+        const newItem = {
+          id: Date.now(),
+          productId: product.id,
+          productName: product.name,
+          quantity: 1,
+          rate: product.rate,
+          gross: product.rate,
+          net: product.rate,
+          comments1: '',
+          salesMan: '',
+          freeQty: '',
+          productSerialNo: trimmedBarcode, // Store unique serial number
+          comments6: '',
+        };
+        
+        setItems([...items, newItem]);
+        
+        Alert.alert(
+          'New Item Added! ✓',
+          `${product.name}\nUnique Serial: ${trimmedBarcode}\nRate: ₹${product.rate.toFixed(2)}`,
+          [{ text: 'OK' }]
+        );
+      }
     } else {
-      // DIFFERENT BARCODE or NO BARCODE - Add as NEW row
+      // SCENARIO 2 & 3: Product does NOT have unique serial numbers (generic barcode)
+      // OR manually added without barcode
+      // ALWAYS add as NEW row (never increment)
       const newItem = {
         id: Date.now(),
         productId: product.id,
@@ -261,7 +296,7 @@ const InvoiceScreen = () => {
         comments1: '',
         salesMan: '',
         freeQty: '',
-        productSerialNo: trimmedBarcode, // Store the scanned barcode as unique ID/serial number
+        productSerialNo: trimmedBarcode, // Store barcode even if not unique (for reference)
         comments6: '',
       };
       
@@ -269,7 +304,7 @@ const InvoiceScreen = () => {
       
       Alert.alert(
         'New Item Added! ✓',
-        `${product.name}\nUnique Barcode: ${trimmedBarcode}\nRate: ₹${product.rate.toFixed(2)}`,
+        `${product.name}\nBarcode: ${trimmedBarcode}\nRate: ₹${product.rate.toFixed(2)}\n\nNote: Generic barcode - each scan creates new row`,
         [{ text: 'OK' }]
       );
     }
