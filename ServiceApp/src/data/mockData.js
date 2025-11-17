@@ -1,23 +1,77 @@
 // Mock data for InvoiceScreen
 
+// Dropdown Options
+export const branches = [
+  'Godown Spares (Ho)',
+  'Head Office',
+  'Namakkal',
+  'Pattukottai',
+  'Perambalur',
+  'Pudukottai',
+  'TAB Complex',
+  'Thanjavur',
+  'Thiruvarur',
+  'Trichy',
+  'Work Shop (Ho)',
+];
+
+export const locations = [
+  'Moorthy Location',
+  'Murugan Location',
+  'Muruganantham Location',
+];
+
+export const employeeUsernames = [
+  'Satya',
+  'SSS',
+  'Supervisor',
+  'USER',
+];
+
+export const productOptions = [
+  '3025 Main Drive Assembly',
+  '3045 Main Drive Assembly',
+  '3245 Main Drive Assembly',
+  '33 Main Drive Assembly',
+  '3530 Main Drive Assembly',
+  'A3 70 Gsm -JK',
+  'A3 70 Gsm - TNPL',
+  'A3 75 Gsm - TNPL',
+  'A3 80 Gsm - TNPL',
+  'A4 100 Gsm - JK- Cedar',
+  'A4 100 Gsm - JK Bond (100 Sheets)',
+];
+
+export const adjustmentAccounts = [
+  'Service Charge',
+  'Per Call Charges',
+  'Discount',
+  'Other Adjustment',
+];
+
+export const machineTypes = [
+  'Xerox Machine Model XYZ',
+  'Canon ImageRunner',
+  'HP LaserJet Pro',
+  'Ricoh MP Series',
+  'Konica Minolta Bizhub',
+];
+
 export const transactionDetails = {
   transactionId: 'TXN-2025-001234',
-  transactionDate: '15-Nov-2025',
-  transactionTime: '14:30:45',
-  status: 'Completed',
-  transactionType: 'Sales Invoice',
-  paymentMethod: 'Cash',
-  reference: 'REF-2025-ABC',
+  date: '17-11-2025',
+  time: '19:29:05',
+  status: 'Pending',
+  branch: 'Head Office',
+  location: 'Moorthy Location',
+  employeeLocation: 'Moorthy Location',
+  username: 'Supervisor',
 };
 
 export const voucherDetails = {
-  voucherNumber: 'VCH-2025-5678',
-  voucherDate: '15-Nov-2025',
-  voucherType: 'Sales',
-  series: 'INV-2025',
-  prefix: 'SI',
-  suffix: '001',
-  fiscalYear: '2025-2026',
+  voucherSeries: 'RS24',
+  voucherNo: '1',
+  voucherDatetime: '17-11-2025 19:29:05',
 };
 
 export const initialCustomer = {

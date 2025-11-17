@@ -11,7 +11,19 @@ import {
   FlatList,
   Linking,
 } from 'react-native';
-import { transactionDetails, voucherDetails, initialCustomer } from '../data/mockData';
+import { Picker } from '@react-native-picker/picker';
+import {
+  transactionDetails,
+  voucherDetails,
+  initialCustomer,
+  branches,
+  locations,
+  employeeUsernames,
+  machineTypes,
+  products,
+  adjustmentAccounts,
+  adjustmentsList,
+} from '../data/mockData';
 import QRScannerModal from '../components/QRScannerModal';
 import AddItemModal from '../components/AddItemModal';
 import AddAdjustmentModal from '../components/AddAdjustmentModal';
@@ -20,14 +32,30 @@ import PreviewInvoiceModal from '../components/PreviewInvoiceModal';
 const { width } = Dimensions.get('window');
 
 const InvoiceScreen = () => {
+  // Transaction state
+  const [transactionData, setTransactionData] = useState(transactionDetails);
+  
+  // Voucher state
+  const [voucherData, setVoucherData] = useState(voucherDetails);
+  
+  // Customer state
   const [customerData, setCustomerData] = useState(initialCustomer);
   const [gstBill, setGstBill] = useState(initialCustomer.gstBill);
-  const [showScanner, setShowScanner] = useState(false);
+  
+  // Barcode state (integrated into ITEM BODY)
+  const [barcode, setBarcode] = useState('');
+  
+  // Items state with extended fields
   const [items, setItems] = useState([]);
+  
+  // Modals state
+  const [showScanner, setShowScanner] = useState(false);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
-  const [adjustments, setAdjustments] = useState([]);
   const [showAddAdjustmentModal, setShowAddAdjustmentModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  
+  // Adjustments state
+  const [adjustments, setAdjustments] = useState([]);
   
   // Summary state
   const [summary, setSummary] = useState({
@@ -79,6 +107,13 @@ const InvoiceScreen = () => {
     });
   };
 
+  const handleTransactionChange = (field, value) => {
+    setTransactionData({
+      ...transactionData,
+      [field]: value,
+    });
+  };
+
   const handleInputChange = (field, value) => {
     setCustomerData({
       ...customerData,
@@ -89,15 +124,12 @@ const InvoiceScreen = () => {
   const handleScannedQr = (data) => {
     console.log('QR Data received:', data);
     
-    // Parse comma-separated data: customerId,mobileNo,customerType,whatsappNo
-    // Example: "CUST-007,9876543210,CrystalCopier,9876543210"
     try {
       const parts = data.split(',');
       
       if (parts.length >= 4) {
         const [customerId, mobileNo, customerType, whatsappNo] = parts;
         
-        // Update customer state with scanned data
         setCustomerData({
           ...customerData,
           customerId: customerId.trim(),
@@ -112,7 +144,6 @@ const InvoiceScreen = () => {
           [{ text: 'OK' }]
         );
       } else {
-        // If format is different, just use the raw data as customer ID
         setCustomerData({
           ...customerData,
           customerId: data.trim(),
@@ -134,8 +165,86 @@ const InvoiceScreen = () => {
     }
   };
 
+  // Barcode Get Handler - Main logic for barcode scanning
+  const handleBarcodeGet = () => {
+    if (!barcode.trim()) {
+      Alert.alert('Error', 'Please enter or scan a barcode', [{ text: 'OK' }]);
+      return;
+    }
+
+    // Try to find the product by barcode (assuming barcode maps to product ID)
+    const productId = parseInt(barcode);
+    const product = products.find((p) => p.id === productId);
+
+    if (!product) {
+      Alert.alert(
+        'Product Not Found',
+        `No product found with barcode: ${barcode}`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // Check if this product already exists in items
+    const existingItemIndex = items.findIndex((item) => item.productId === product.id);
+
+    if (existingItemIndex !== -1) {
+      // Item exists - increment quantity
+      const updatedItems = [...items];
+      const existingItem = updatedItems[existingItemIndex];
+      existingItem.quantity += 1;
+      existingItem.gross = existingItem.rate * existingItem.quantity;
+      existingItem.net = existingItem.gross;
+      
+      setItems(updatedItems);
+      
+      Alert.alert(
+        'Quantity Updated! ✓',
+        `${product.name}\nNew Qty: ${existingItem.quantity}`,
+        [{ text: 'OK' }]
+      );
+    } else {
+      // New item - add to list
+      const newItem = {
+        id: Date.now(),
+        productId: product.id,
+        productName: product.name,
+        quantity: 1,
+        rate: product.rate,
+        gross: product.rate,
+        net: product.rate,
+        comments1: '',
+        salesMan: '',
+        freeQty: '',
+        productSerialNo: '',
+        comments6: '',
+      };
+      
+      setItems([...items, newItem]);
+      
+      Alert.alert(
+        'Item Added! ✓',
+        `${product.name}\nRate: ₹${product.rate.toFixed(2)}`,
+        [{ text: 'OK' }]
+      );
+    }
+
+    // Clear barcode input
+    setBarcode('');
+  };
+
   const handleAddItem = (newItem) => {
-    setItems([...items, newItem]);
+    // Add extended fields to new item
+    const extendedItem = {
+      ...newItem,
+      comments1: '',
+      salesMan: '',
+      freeQty: '',
+      productSerialNo: '',
+      comments6: '',
+    };
+    
+    setItems([...items, extendedItem]);
     setShowAddItemModal(false);
     Alert.alert(
       'Item Added Successfully! ✓',
@@ -159,6 +268,16 @@ const InvoiceScreen = () => {
         },
       ]
     );
+  };
+
+  const handleUpdateItemField = (itemId, field, value) => {
+    const updatedItems = items.map((item) => {
+      if (item.id === itemId) {
+        return { ...item, [field]: value };
+      }
+      return item;
+    });
+    setItems(updatedItems);
   };
 
   const handleAddAdjustment = (newAdjustment) => {
@@ -191,7 +310,6 @@ const InvoiceScreen = () => {
   };
 
   const handlePreviewInvoice = () => {
-    // Validate that invoice has items
     if (items.length === 0) {
       Alert.alert(
         'No Items',
@@ -204,7 +322,6 @@ const InvoiceScreen = () => {
   };
 
   const handleSendWhatsApp = () => {
-    // Validate that invoice has items
     if (items.length === 0) {
       Alert.alert(
         'No Items',
@@ -214,16 +331,13 @@ const InvoiceScreen = () => {
       return;
     }
 
-    // Build a concise but complete invoice message
     let msg = `*EMPLOYEE SALES INVOICE*\n`;
     msg += `===========================\n\n`;
     
-    // Transaction & Voucher
-    msg += `*Invoice:* ${voucherDetails.voucherNo}\n`;
-    msg += `*Date:* ${transactionDetails.date}\n`;
-    msg += `*TXN ID:* ${transactionDetails.transactionId}\n\n`;
+    msg += `*Invoice:* ${voucherData.voucherNo}\n`;
+    msg += `*Date:* ${transactionData.date}\n`;
+    msg += `*TXN ID:* ${transactionData.transactionId}\n\n`;
     
-    // Customer
     msg += `*Customer Details*\n`;
     msg += `ID: ${customerData.customerId || 'Walk-in'}\n`;
     msg += `Mobile: ${customerData.mobileNo || 'N/A'}\n`;
@@ -232,7 +346,6 @@ const InvoiceScreen = () => {
     }
     msg += `\n`;
     
-    // Items
     msg += `*Items (${items.length})*\n`;
     msg += `---------------------------\n`;
     items.forEach((item, idx) => {
@@ -241,7 +354,6 @@ const InvoiceScreen = () => {
     });
     msg += `\n`;
     
-    // Adjustments (if any)
     if (adjustments.length > 0) {
       msg += `*Adjustments*\n`;
       adjustments.forEach((adj) => {
@@ -255,7 +367,6 @@ const InvoiceScreen = () => {
       msg += `\n`;
     }
     
-    // Summary
     msg += `*SUMMARY*\n`;
     msg += `---------------------------\n`;
     msg += `Items: ${summary.itemCount} | Qty: ${summary.totalQty}\n`;
@@ -270,7 +381,6 @@ const InvoiceScreen = () => {
     
     msg += `\n*TOTAL BILL: ₹${summary.totalBillValue.toFixed(2)}*\n`;
     
-    // Collections
     const totalCollected = (parseFloat(collectedCash) || 0) + 
                           (parseFloat(collectedCard) || 0) + 
                           (parseFloat(collectedUpi) || 0);
@@ -293,10 +403,8 @@ const InvoiceScreen = () => {
     msg += `\n===========================\n`;
     msg += `Thank you for your business! 🙏`;
 
-    // URL encode for WhatsApp
     const encodedMessage = encodeURIComponent(msg);
     
-    // Try to send via WhatsApp with customer's WhatsApp number if available
     const phoneNumber = customerData.whatsappNo || customerData.mobileNo || '';
     const cleanPhone = phoneNumber.replace(/\D/g, '');
     
@@ -329,6 +437,43 @@ const InvoiceScreen = () => {
       });
   };
 
+  const renderItemRow = ({ item, index }) => (
+    <View style={styles.itemRow}>
+      <Text style={[styles.itemCell, { flex: 0.5 }]}>{index + 1}</Text>
+      <Text style={[styles.itemCell, { flex: 2 }]}>{item.productName}</Text>
+      <Text style={[styles.itemCell, { flex: 1 }]}>{item.quantity}</Text>
+      <Text style={[styles.itemCell, { flex: 1 }]}>₹{item.rate.toFixed(2)}</Text>
+      <Text style={[styles.itemCell, { flex: 1 }]}>₹{item.gross.toFixed(2)}</Text>
+      <Text style={[styles.itemCell, { flex: 1 }]}>₹{item.net.toFixed(2)}</Text>
+      <TouchableOpacity
+        style={[styles.itemCell, { flex: 0.7 }]}
+        onPress={() => handleDeleteItem(item.id)}
+      >
+        <Text style={styles.deleteIcon}>🗑️</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderAdjustmentRow = ({ item, index }) => (
+    <View style={styles.adjustmentRow}>
+      <Text style={[styles.adjustmentCell, { flex: 0.5 }]}>{index + 1}</Text>
+      <Text style={[styles.adjustmentCell, { flex: 2 }]}>{item.accountName}</Text>
+      <Text style={[styles.adjustmentCell, { flex: 1 }]}>
+        {item.addAmount > 0 ? `₹${item.addAmount.toFixed(2)}` : '-'}
+      </Text>
+      <Text style={[styles.adjustmentCell, { flex: 1 }]}>
+        {item.lessAmount > 0 ? `₹${item.lessAmount.toFixed(2)}` : '-'}
+      </Text>
+      <Text style={[styles.adjustmentCell, { flex: 1.5 }]}>{item.comments || '-'}</Text>
+      <TouchableOpacity
+        style={[styles.adjustmentCell, { flex: 0.7 }]}
+        onPress={() => handleDeleteAdjustment(item.id)}
+      >
+        <Text style={styles.deleteIcon}>🗑️</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Screen Header */}
@@ -340,55 +485,99 @@ const InvoiceScreen = () => {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>TRANSACTION DETAILS</Text>
         
+        {/* Transaction ID and Date */}
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Transaction ID</Text>
             <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{transactionDetails.transactionId}</Text>
+              <Text style={styles.displayText}>{transactionData.transactionId}</Text>
+            </View>
+          </View>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Date</Text>
+            <View style={styles.displayBox}>
+              <Text style={styles.displayText}>{transactionData.date}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Time and Status */}
+        <View style={styles.row}>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Time</Text>
+            <View style={styles.displayBox}>
+              <Text style={styles.displayText}>{transactionData.time}</Text>
             </View>
           </View>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Status</Text>
             <View style={[styles.displayBox, styles.statusBox]}>
-              <Text style={styles.statusText}>{transactionDetails.status}</Text>
+              <Text style={styles.statusText}>{transactionData.status}</Text>
             </View>
           </View>
         </View>
 
-        <View style={styles.row}>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Transaction Date</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{transactionDetails.transactionDate}</Text>
-            </View>
-          </View>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Transaction Time</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{transactionDetails.transactionTime}</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.row}>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Transaction Type</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{transactionDetails.transactionType}</Text>
-            </View>
-          </View>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Payment Method</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{transactionDetails.paymentMethod}</Text>
-            </View>
-          </View>
-        </View>
-
+        {/* Branch Picker */}
         <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Reference</Text>
-          <View style={styles.displayBox}>
-            <Text style={styles.displayText}>{transactionDetails.reference}</Text>
+          <Text style={styles.label}>Branch</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={transactionData.branch}
+              onValueChange={(value) => handleTransactionChange('branch', value)}
+              style={styles.picker}
+            >
+              {branches.map((branch, idx) => (
+                <Picker.Item key={idx} label={branch} value={branch} />
+              ))}
+            </Picker>
+          </View>
+        </View>
+
+        {/* Location Picker */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Location</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={transactionData.location}
+              onValueChange={(value) => handleTransactionChange('location', value)}
+              style={styles.picker}
+            >
+              {locations.map((location, idx) => (
+                <Picker.Item key={idx} label={location} value={location} />
+              ))}
+            </Picker>
+          </View>
+        </View>
+
+        {/* Employee Location Picker */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Employee Location</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={transactionData.employeeLocation}
+              onValueChange={(value) => handleTransactionChange('employeeLocation', value)}
+              style={styles.picker}
+            >
+              {locations.map((location, idx) => (
+                <Picker.Item key={idx} label={location} value={location} />
+              ))}
+            </Picker>
+          </View>
+        </View>
+
+        {/* Username Picker */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Username</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={transactionData.username}
+              onValueChange={(value) => handleTransactionChange('username', value)}
+              style={styles.picker}
+            >
+              {employeeUsernames.map((username, idx) => (
+                <Picker.Item key={idx} label={username} value={username} />
+              ))}
+            </Picker>
           </View>
         </View>
       </View>
@@ -397,55 +586,26 @@ const InvoiceScreen = () => {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>VOUCHER</Text>
         
+        {/* Voucher Series, No, Datetime */}
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Voucher Number</Text>
+            <Text style={styles.label}>Voucher Series</Text>
             <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{voucherDetails.voucherNumber}</Text>
+              <Text style={styles.displayText}>{voucherData.voucherSeries}</Text>
             </View>
           </View>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Voucher Date</Text>
+            <Text style={styles.label}>Voucher No</Text>
             <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{voucherDetails.voucherDate}</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.row}>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Voucher Type</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{voucherDetails.voucherType}</Text>
-            </View>
-          </View>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Series</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{voucherDetails.series}</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.row}>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Prefix</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{voucherDetails.prefix}</Text>
-            </View>
-          </View>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Suffix</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{voucherDetails.suffix}</Text>
+              <Text style={styles.displayText}>{voucherData.voucherNo}</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Fiscal Year</Text>
+          <Text style={styles.label}>Voucher Datetime</Text>
           <View style={styles.displayBox}>
-            <Text style={styles.displayText}>{voucherDetails.fiscalYear}</Text>
+            <Text style={styles.displayText}>{voucherData.voucherDatetime}</Text>
           </View>
         </View>
       </View>
@@ -454,19 +614,17 @@ const InvoiceScreen = () => {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>HEADER</Text>
         
-        {/* Date */}
-        <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Date</Text>
-          <TextInput
-            style={styles.input}
-            value={customerData.date}
-            onChangeText={(value) => handleInputChange('date', value)}
-            placeholder="Enter date"
-          />
-        </View>
-
-        {/* Biller Name and Party */}
+        {/* Date and Biller Name */}
         <View style={styles.row}>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Date</Text>
+            <TextInput
+              style={styles.input}
+              value={customerData.date}
+              onChangeText={(value) => handleInputChange('date', value)}
+              placeholder="Enter date"
+            />
+          </View>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Biller Name</Text>
             <TextInput
@@ -476,48 +634,55 @@ const InvoiceScreen = () => {
               placeholder="Enter biller name"
             />
           </View>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Party</Text>
-            <TextInput
-              style={styles.input}
-              value={customerData.party}
-              onChangeText={(value) => handleInputChange('party', value)}
-              placeholder="Enter party"
-            />
+        </View>
+
+        {/* Party */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Party</Text>
+          <TextInput
+            style={styles.input}
+            value={customerData.party}
+            onChangeText={(value) => handleInputChange('party', value)}
+            placeholder="Enter party name"
+          />
+        </View>
+
+        {/* Employee Name Picker */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Employee Name</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={customerData.employeeName}
+              onValueChange={(value) => handleInputChange('employeeName', value)}
+              style={styles.picker}
+            >
+              {employeeUsernames.map((name, idx) => (
+                <Picker.Item key={idx} label={name} value={name} />
+              ))}
+            </Picker>
           </View>
         </View>
 
-        {/* Employee Name and Customer ID with QR */}
-        <View style={styles.row}>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Employee Name</Text>
+        {/* Customer ID with QR Scanner */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Customer ID</Text>
+          <View style={styles.inputWithIcon}>
             <TextInput
-              style={styles.input}
-              value={customerData.employeeName}
-              onChangeText={(value) => handleInputChange('employeeName', value)}
-              placeholder="Enter employee name"
+              style={[styles.input, { flex: 1, marginRight: 8 }]}
+              value={customerData.customerId}
+              onChangeText={(value) => handleInputChange('customerId', value)}
+              placeholder="Enter or scan customer ID"
             />
-          </View>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Customer ID</Text>
-            <View style={styles.inputWithIcon}>
-              <TextInput
-                style={styles.inputWithButton}
-                value={customerData.customerId}
-                onChangeText={(value) => handleInputChange('customerId', value)}
-                placeholder="Enter customer ID"
-              />
-              <TouchableOpacity 
-                style={styles.qrButton}
-                onPress={() => setShowScanner(true)}
-              >
-                <Text style={styles.qrButtonText}>📷</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => setShowScanner(true)}
+            >
+              <Text style={styles.iconButtonText}>📷</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Mobile No and Customer Type */}
+        {/* Mobile No and WhatsApp No */}
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Mobile No</Text>
@@ -530,19 +695,6 @@ const InvoiceScreen = () => {
             />
           </View>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Customer Type</Text>
-            <TextInput
-              style={styles.input}
-              value={customerData.customerType}
-              onChangeText={(value) => handleInputChange('customerType', value)}
-              placeholder="Enter customer type"
-            />
-          </View>
-        </View>
-
-        {/* WhatsApp No and Reading A4 */}
-        <View style={styles.row}>
-          <View style={styles.fieldContainer}>
             <Text style={styles.label}>WhatsApp No</Text>
             <TextInput
               style={styles.input}
@@ -552,6 +704,21 @@ const InvoiceScreen = () => {
               keyboardType="phone-pad"
             />
           </View>
+        </View>
+
+        {/* Customer Type */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Customer Type</Text>
+          <TextInput
+            style={styles.input}
+            value={customerData.customerType}
+            onChangeText={(value) => handleInputChange('customerType', value)}
+            placeholder="Enter customer type"
+          />
+        </View>
+
+        {/* Reading A4 and A3 */}
+        <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Reading A4</Text>
             <TextInput
@@ -562,10 +729,6 @@ const InvoiceScreen = () => {
               keyboardType="numeric"
             />
           </View>
-        </View>
-
-        {/* Reading A3 and Machine Type */}
-        <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Reading A3</Text>
             <TextInput
@@ -576,14 +739,21 @@ const InvoiceScreen = () => {
               keyboardType="numeric"
             />
           </View>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Machine Type</Text>
-            <TextInput
-              style={styles.input}
-              value={customerData.machineType}
-              onChangeText={(value) => handleInputChange('machineType', value)}
-              placeholder="Enter machine type"
-            />
+        </View>
+
+        {/* Machine Type Picker */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Machine Type</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={customerData.machineType}
+              onValueChange={(value) => handleInputChange('machineType', value)}
+              style={styles.picker}
+            >
+              {machineTypes.map((type, idx) => (
+                <Picker.Item key={idx} label={type} value={type} />
+              ))}
+            </Picker>
           </View>
         </View>
 
@@ -604,91 +774,139 @@ const InvoiceScreen = () => {
         <View style={styles.checkboxContainer}>
           <TouchableOpacity
             style={styles.checkbox}
-            onPress={() => {
-              setGstBill(!gstBill);
-              handleInputChange('gstBill', !gstBill);
-            }}
+            onPress={() => setGstBill(!gstBill)}
           >
-            <View style={[styles.checkboxBox, gstBill && styles.checkboxChecked]}>
-              {gstBill && <Text style={styles.checkboxCheck}>✓</Text>}
-            </View>
+            <Text style={styles.checkboxIcon}>{gstBill ? '☑' : '☐'}</Text>
             <Text style={styles.checkboxLabel}>GST Bill</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* ITEM BODY SECTION */}
+      {/* ITEM BODY SECTION WITH INTEGRATED BARCODE */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>ITEM BODY</Text>
         
+        {/* Barcode Input (Integrated into ITEM BODY) */}
+        <View style={styles.barcodeSection}>
+          <Text style={styles.label}>Barcode</Text>
+          <View style={styles.barcodeInputRow}>
+            <TextInput
+              style={[styles.input, { flex: 1, marginRight: 8 }]}
+              value={barcode}
+              onChangeText={setBarcode}
+              placeholder="Enter or scan barcode"
+              keyboardType="numeric"
+            />
+            <TouchableOpacity
+              style={styles.getButton}
+              onPress={handleBarcodeGet}
+            >
+              <Text style={styles.getButtonText}>Get</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.helperText}>
+            Enter barcode and click "Get" to add/update item. Existing items will have quantity incremented.
+          </Text>
+        </View>
+
         {/* Add Item Button */}
         <TouchableOpacity
-          style={styles.addItemButton}
+          style={styles.addButton}
           onPress={() => setShowAddItemModal(true)}
         >
-          <Text style={styles.addItemButtonText}>+ Add Item</Text>
+          <Text style={styles.addButtonText}>+ Add Item Manually</Text>
         </TouchableOpacity>
+
+        {/* Items Table Header */}
+        <View style={styles.tableHeader}>
+          <Text style={[styles.tableHeaderText, { flex: 0.5 }]}>Sno</Text>
+          <Text style={[styles.tableHeaderText, { flex: 2 }]}>Product</Text>
+          <Text style={[styles.tableHeaderText, { flex: 1 }]}>Qty</Text>
+          <Text style={[styles.tableHeaderText, { flex: 1 }]}>Rate</Text>
+          <Text style={[styles.tableHeaderText, { flex: 1 }]}>Gross</Text>
+          <Text style={[styles.tableHeaderText, { flex: 1 }]}>Net</Text>
+          <Text style={[styles.tableHeaderText, { flex: 0.7 }]}>Action</Text>
+        </View>
 
         {/* Items List */}
         {items.length > 0 ? (
-          <View style={styles.itemsContainer}>
-            {/* Table Header */}
-            <View style={styles.tableHeader}>
-              <Text style={[styles.tableHeaderText, { flex: 0.5 }]}>S.No</Text>
-              <Text style={[styles.tableHeaderText, { flex: 2 }]}>Product Name</Text>
-              <Text style={[styles.tableHeaderText, { flex: 0.8, textAlign: 'right' }]}>Qty</Text>
-              <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Rate</Text>
-              <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Gross</Text>
-              <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Net</Text>
-              <Text style={[styles.tableHeaderText, { flex: 0.6 }]}></Text>
-            </View>
-
-            {/* Items List with FlatList */}
-            <FlatList
-              data={items}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={({ item, index }) => (
-                <View style={styles.itemRow}>
-                  <Text style={[styles.itemCell, { flex: 0.5 }]}>{index + 1}</Text>
-                  <Text style={[styles.itemCell, { flex: 2 }]} numberOfLines={2}>
-                    {item.productName}
-                  </Text>
-                  <Text style={[styles.itemCell, { flex: 0.8, textAlign: 'right' }]}>
-                    {item.quantity}
-                  </Text>
-                  <Text style={[styles.itemCell, { flex: 1, textAlign: 'right' }]}>
-                    ₹{item.rate.toFixed(2)}
-                  </Text>
-                  <Text style={[styles.itemCell, { flex: 1, textAlign: 'right' }]}>
-                    ₹{item.gross.toFixed(2)}
-                  </Text>
-                  <Text style={[styles.itemCell, { flex: 1, textAlign: 'right', fontWeight: 'bold' }]}>
-                    ₹{item.net.toFixed(2)}
-                  </Text>
-                  <TouchableOpacity
-                    style={[styles.itemCell, { flex: 0.6, alignItems: 'center' }]}
-                    onPress={() => handleDeleteItem(item.id)}
-                  >
-                    <Text style={styles.deleteIcon}>🗑️</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-              scrollEnabled={false}
-            />
-
-            {/* Summary Row */}
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Total Items: {items.length}</Text>
-              <Text style={styles.summaryAmount}>
-                Total: ₹{items.reduce((sum, item) => sum + item.net, 0).toFixed(2)}
-              </Text>
-            </View>
-          </View>
+          <FlatList
+            data={items}
+            renderItem={renderItemRow}
+            keyExtractor={(item) => item.id.toString()}
+            scrollEnabled={false}
+          />
         ) : (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyStateIcon}>📦</Text>
             <Text style={styles.emptyStateText}>No items added yet</Text>
-            <Text style={styles.emptyStateSubtext}>Tap "Add Item" button to get started</Text>
+            <Text style={styles.emptyStateSubtext}>
+              Scan a barcode or use "Add Item" button
+            </Text>
+          </View>
+        )}
+
+        {/* Extended Item Fields (shown when items exist) */}
+        {items.length > 0 && (
+          <View style={styles.extendedFieldsSection}>
+            <Text style={styles.extendedFieldsTitle}>Additional Item Details (Optional)</Text>
+            {items.map((item, index) => (
+              <View key={item.id} style={styles.extendedFieldsContainer}>
+                <Text style={styles.extendedFieldsLabel}>Item {index + 1}: {item.productName}</Text>
+                
+                <View style={styles.row}>
+                  <View style={styles.fieldContainer}>
+                    <Text style={styles.label}>Comments1</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={item.comments1}
+                      onChangeText={(value) => handleUpdateItemField(item.id, 'comments1', value)}
+                      placeholder="Comments"
+                    />
+                  </View>
+                  <View style={styles.fieldContainer}>
+                    <Text style={styles.label}>Sales Man</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={item.salesMan}
+                      onChangeText={(value) => handleUpdateItemField(item.id, 'salesMan', value)}
+                      placeholder="Sales person"
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.row}>
+                  <View style={styles.fieldContainer}>
+                    <Text style={styles.label}>Free Qty</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={item.freeQty}
+                      onChangeText={(value) => handleUpdateItemField(item.id, 'freeQty', value)}
+                      placeholder="Free quantity"
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={styles.fieldContainer}>
+                    <Text style={styles.label}>Product Serial No</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={item.productSerialNo}
+                      onChangeText={(value) => handleUpdateItemField(item.id, 'productSerialNo', value)}
+                      placeholder="Serial number"
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.fullWidthField}>
+                  <Text style={styles.label}>Comments6</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={item.comments6}
+                    onChangeText={(value) => handleUpdateItemField(item.id, 'comments6', value)}
+                    placeholder="Additional comments"
+                  />
+                </View>
+              </View>
+            ))}
           </View>
         )}
       </View>
@@ -699,89 +917,33 @@ const InvoiceScreen = () => {
         
         {/* Add Adjustment Button */}
         <TouchableOpacity
-          style={styles.addAdjustmentButton}
+          style={styles.addButton}
           onPress={() => setShowAddAdjustmentModal(true)}
         >
-          <Text style={styles.addAdjustmentButtonText}>+ Add Adjustment</Text>
+          <Text style={styles.addButtonText}>+ Add Adjustment</Text>
         </TouchableOpacity>
+
+        {/* Adjustments Table Header */}
+        <View style={styles.tableHeader}>
+          <Text style={[styles.tableHeaderText, { flex: 0.5 }]}>Sno</Text>
+          <Text style={[styles.tableHeaderText, { flex: 2 }]}>Account</Text>
+          <Text style={[styles.tableHeaderText, { flex: 1 }]}>Add</Text>
+          <Text style={[styles.tableHeaderText, { flex: 1 }]}>Less</Text>
+          <Text style={[styles.tableHeaderText, { flex: 1.5 }]}>Comments1</Text>
+          <Text style={[styles.tableHeaderText, { flex: 0.7 }]}>Action</Text>
+        </View>
 
         {/* Adjustments List */}
         {adjustments.length > 0 ? (
-          <View style={styles.itemsContainer}>
-            {/* Table Header */}
-            <View style={styles.tableHeader}>
-              <Text style={[styles.tableHeaderText, { flex: 0.5 }]}>S.No</Text>
-              <Text style={[styles.tableHeaderText, { flex: 2 }]}>Account</Text>
-              <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Add</Text>
-              <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Less</Text>
-              <Text style={[styles.tableHeaderText, { flex: 1.5 }]}>Comments1</Text>
-              <Text style={[styles.tableHeaderText, { flex: 0.6 }]}></Text>
-            </View>
-
-            {/* Adjustments List with FlatList */}
-            <FlatList
-              data={adjustments}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={({ item, index }) => (
-                <View style={styles.itemRow}>
-                  <Text style={[styles.itemCell, { flex: 0.5 }]}>{index + 1}</Text>
-                  <Text style={[styles.itemCell, { flex: 2 }]} numberOfLines={2}>
-                    {item.accountName}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.itemCell,
-                      { flex: 1, textAlign: 'right', color: '#4CAF50', fontWeight: 'bold' },
-                    ]}
-                  >
-                    {item.addAmount > 0 ? `₹${item.addAmount.toFixed(2)}` : '-'}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.itemCell,
-                      { flex: 1, textAlign: 'right', color: '#f44336', fontWeight: 'bold' },
-                    ]}
-                  >
-                    {item.lessAmount > 0 ? `₹${item.lessAmount.toFixed(2)}` : '-'}
-                  </Text>
-                  <Text style={[styles.itemCell, { flex: 1.5, fontSize: 11 }]} numberOfLines={2}>
-                    {item.comments || '-'}
-                  </Text>
-                  <TouchableOpacity
-                    style={[styles.itemCell, { flex: 0.6, alignItems: 'center' }]}
-                    onPress={() => handleDeleteAdjustment(item.id)}
-                  >
-                    <Text style={styles.deleteIcon}>🗑️</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-              scrollEnabled={false}
-            />
-
-            {/* Summary Row */}
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Total Adjustments: {adjustments.length}</Text>
-              <View style={styles.adjustmentTotals}>
-                <Text style={[styles.summaryAmount, { color: '#4CAF50' }]}>
-                  Add: ₹
-                  {adjustments
-                    .reduce((sum, adj) => sum + adj.addAmount, 0)
-                    .toFixed(2)}
-                </Text>
-                <Text style={[styles.summaryAmount, { color: '#f44336', marginLeft: 12 }]}>
-                  Less: ₹
-                  {adjustments
-                    .reduce((sum, adj) => sum + adj.lessAmount, 0)
-                    .toFixed(2)}
-                </Text>
-              </View>
-            </View>
-          </View>
+          <FlatList
+            data={adjustments}
+            renderItem={renderAdjustmentRow}
+            keyExtractor={(item) => item.id.toString()}
+            scrollEnabled={false}
+          />
         ) : (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyStateIcon}>💰</Text>
-            <Text style={styles.emptyStateText}>No adjustments added yet</Text>
-            <Text style={styles.emptyStateSubtext}>Tap "Add Adjustment" to add discounts, taxes, etc.</Text>
+            <Text style={styles.emptyStateText}>No adjustments added</Text>
           </View>
         )}
       </View>
@@ -795,41 +957,30 @@ const InvoiceScreen = () => {
             <Text style={styles.summaryLabel}>Item Count:</Text>
             <Text style={styles.summaryValue}>{summary.itemCount}</Text>
           </View>
-
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Total Qty:</Text>
             <Text style={styles.summaryValue}>{summary.totalQty}</Text>
           </View>
-
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Total Gross:</Text>
             <Text style={styles.summaryValue}>₹{summary.totalGross.toFixed(2)}</Text>
           </View>
-
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Total Discount:</Text>
             <Text style={styles.summaryValue}>₹{summary.totalDiscount.toFixed(2)}</Text>
           </View>
-
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Total Add:</Text>
-            <Text style={[styles.summaryValue, { color: '#4CAF50' }]}>
-              +₹{summary.totalAdd.toFixed(2)}
-            </Text>
+            <Text style={styles.summaryValue}>₹{summary.totalAdd.toFixed(2)}</Text>
           </View>
-
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Total Less:</Text>
-            <Text style={[styles.summaryValue, { color: '#f44336' }]}>
-              -₹{summary.totalLess.toFixed(2)}
-            </Text>
+            <Text style={styles.summaryValue}>₹{summary.totalLess.toFixed(2)}</Text>
           </View>
-
-          <View style={[styles.summaryRow, styles.totalBillRow]}>
-            <Text style={styles.totalBillLabel}>Total Bill Value:</Text>
-            <Text style={styles.totalBillValue}>₹{summary.totalBillValue.toFixed(2)}</Text>
+          <View style={[styles.summaryRow, styles.totalRow]}>
+            <Text style={styles.totalLabel}>Total Bill Value:</Text>
+            <Text style={styles.totalValue}>₹{summary.totalBillValue.toFixed(2)}</Text>
           </View>
-
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Ledger Balance:</Text>
             <Text style={styles.summaryValue}>₹{summary.ledgerBalance.toFixed(2)}</Text>
@@ -841,54 +992,54 @@ const InvoiceScreen = () => {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>COLLECTIONS</Text>
         
-        {/* Cash Input */}
-        <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Cash</Text>
-          <TextInput
-            style={styles.input}
-            value={collectedCash}
-            onChangeText={setCollectedCash}
-            placeholder="Enter cash amount"
-            keyboardType="numeric"
-          />
+        <View style={styles.row}>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Cash</Text>
+            <TextInput
+              style={styles.input}
+              value={collectedCash}
+              onChangeText={setCollectedCash}
+              placeholder="Enter cash amount"
+              keyboardType="numeric"
+            />
+          </View>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Card</Text>
+            <TextInput
+              style={styles.input}
+              value={collectedCard}
+              onChangeText={setCollectedCard}
+              placeholder="Enter card amount"
+              keyboardType="numeric"
+            />
+          </View>
         </View>
 
-        {/* Card Input */}
-        <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Card</Text>
-          <TextInput
-            style={styles.input}
-            value={collectedCard}
-            onChangeText={setCollectedCard}
-            placeholder="Enter card amount"
-            keyboardType="numeric"
-          />
-        </View>
-
-        {/* UPI Input */}
-        <View style={styles.fullWidthField}>
-          <Text style={styles.label}>UPI</Text>
-          <TextInput
-            style={styles.input}
-            value={collectedUpi}
-            onChangeText={setCollectedUpi}
-            placeholder="Enter UPI amount"
-            keyboardType="numeric"
-          />
-        </View>
-
-        {/* Balance Calculation */}
-        <View style={styles.balanceContainer}>
-          <Text style={styles.balanceLabel}>Balance:</Text>
-          <Text style={styles.balanceValue}>
-            ₹
-            {(
-              summary.totalBillValue -
-              (parseFloat(collectedCash) || 0) -
-              (parseFloat(collectedCard) || 0) -
-              (parseFloat(collectedUpi) || 0)
-            ).toFixed(2)}
-          </Text>
+        <View style={styles.row}>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>UPI</Text>
+            <TextInput
+              style={styles.input}
+              value={collectedUpi}
+              onChangeText={setCollectedUpi}
+              placeholder="Enter UPI amount"
+              keyboardType="numeric"
+            />
+          </View>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Balance</Text>
+            <View style={styles.displayBox}>
+              <Text style={styles.balanceText}>
+                ₹
+                {(
+                  summary.totalBillValue -
+                  (parseFloat(collectedCash) || 0) -
+                  (parseFloat(collectedCard) || 0) -
+                  (parseFloat(collectedUpi) || 0)
+                ).toFixed(2)}
+              </Text>
+            </View>
+          </View>
         </View>
       </View>
 
@@ -900,7 +1051,7 @@ const InvoiceScreen = () => {
         >
           <Text style={styles.actionButtonText}>📄 Preview Invoice</Text>
         </TouchableOpacity>
-
+        
         <TouchableOpacity
           style={[styles.actionButton, styles.whatsappButton]}
           onPress={handleSendWhatsApp}
@@ -909,33 +1060,33 @@ const InvoiceScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {/* QR Scanner Modal */}
+      {/* Spacing at bottom */}
+      <View style={{ height: 40 }} />
+
+      {/* MODALS */}
       <QRScannerModal
         isVisible={showScanner}
         onScan={handleScannedQr}
         onClose={() => setShowScanner(false)}
       />
 
-      {/* Add Item Modal */}
       <AddItemModal
         isVisible={showAddItemModal}
         onAddItem={handleAddItem}
         onClose={() => setShowAddItemModal(false)}
       />
 
-      {/* Add Adjustment Modal */}
       <AddAdjustmentModal
         isVisible={showAddAdjustmentModal}
         onAddAdjustment={handleAddAdjustment}
         onClose={() => setShowAddAdjustmentModal(false)}
       />
 
-      {/* Preview Invoice Modal */}
       <PreviewInvoiceModal
         isVisible={showPreviewModal}
         onClose={() => setShowPreviewModal(false)}
-        transactionDetails={transactionDetails}
-        voucherDetails={voucherDetails}
+        transactionDetails={transactionData}
+        voucherDetails={voucherData}
         customerData={customerData}
         items={items}
         adjustments={adjustments}
@@ -944,10 +1095,11 @@ const InvoiceScreen = () => {
           cash: parseFloat(collectedCash) || 0,
           card: parseFloat(collectedCard) || 0,
           upi: parseFloat(collectedUpi) || 0,
-          balance: summary.totalBillValue - 
-                  (parseFloat(collectedCash) || 0) - 
-                  (parseFloat(collectedCard) || 0) - 
-                  (parseFloat(collectedUpi) || 0),
+          balance:
+            summary.totalBillValue -
+            (parseFloat(collectedCash) || 0) -
+            (parseFloat(collectedCard) || 0) -
+            (parseFloat(collectedUpi) || 0),
         }}
       />
     </ScrollView>
@@ -961,30 +1113,23 @@ const styles = StyleSheet.create({
   },
   screenHeader: {
     backgroundColor: '#2196F3',
-    paddingHorizontal: 16,
     paddingVertical: 16,
-    paddingTop: 40,
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-    marginBottom: 12,
+    paddingHorizontal: 20,
+    alignItems: 'center',
   },
   screenTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
-    textAlign: 'center',
   },
   section: {
     backgroundColor: '#fff',
     marginHorizontal: 12,
-    marginBottom: 12,
+    marginTop: 12,
     padding: 16,
     borderRadius: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
   sectionTitle: {
     fontSize: 16,
@@ -1013,28 +1158,6 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 6,
   },
-  displayBox: {
-    backgroundColor: '#f9f9f9',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  displayText: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
-  },
-  statusBox: {
-    backgroundColor: '#e8f5e9',
-    borderColor: '#4CAF50',
-  },
-  statusText: {
-    fontSize: 14,
-    color: '#4CAF50',
-    fontWeight: 'bold',
-  },
   input: {
     backgroundColor: '#fff',
     borderWidth: 1,
@@ -1050,38 +1173,53 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     paddingTop: 10,
   },
+  displayBox: {
+    backgroundColor: '#f9f9f9',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  displayText: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+  },
+  statusBox: {
+    backgroundColor: '#fff3e0',
+    borderColor: '#FF9800',
+  },
+  statusText: {
+    fontSize: 14,
+    color: '#FF9800',
+    fontWeight: 'bold',
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 6,
+    backgroundColor: '#fff',
+    overflow: 'hidden',
+  },
+  picker: {
+    height: 50,
+    width: '100%',
+  },
   inputWithIcon: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  inputWithButton: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#333',
-    marginRight: 8,
-  },
-  qrButton: {
+  iconButton: {
     backgroundColor: '#2196F3',
-    width: 40,
-    height: 40,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
   },
-  qrButtonText: {
+  iconButtonText: {
     fontSize: 20,
-    color: '#fff',
   },
   checkboxContainer: {
     marginTop: 8,
@@ -1090,232 +1228,216 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  checkboxBox: {
-    width: 24,
-    height: 24,
-    borderWidth: 2,
-    borderColor: '#2196F3',
-    borderRadius: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  checkboxChecked: {
-    backgroundColor: '#2196F3',
-  },
-  checkboxCheck: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+  checkboxIcon: {
+    fontSize: 24,
+    marginRight: 8,
+    color: '#2196F3',
   },
   checkboxLabel: {
     fontSize: 14,
-    fontWeight: '600',
     color: '#333',
+    fontWeight: '500',
   },
-  placeholderSection: {
-    backgroundColor: '#fff',
-    marginHorizontal: 12,
-    marginBottom: 20,
-    padding: 20,
+  barcodeSection: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: '#e3f2fd',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderStyle: 'dashed',
+    borderColor: '#2196F3',
   },
-  placeholderText: {
-    fontSize: 14,
-    color: '#999',
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  addItemButton: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 8,
+  barcodeInputRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    marginTop: 6,
   },
-  addItemButtonText: {
-    fontSize: 16,
+  getButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  getButtonText: {
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#fff',
   },
-  itemsContainer: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    overflow: 'hidden',
+  helperText: {
+    fontSize: 11,
+    color: '#666',
+    marginTop: 6,
+    fontStyle: 'italic',
+  },
+  addButton: {
+    backgroundColor: '#2196F3',
+    paddingVertical: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  addButtonText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#2196F3',
-    paddingVertical: 12,
+    backgroundColor: '#34495e',
+    paddingVertical: 10,
     paddingHorizontal: 8,
+    borderRadius: 6,
+    marginBottom: 2,
   },
   tableHeaderText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 'bold',
     color: '#fff',
+    textAlign: 'center',
   },
   itemRow: {
     flexDirection: 'row',
-    paddingVertical: 12,
+    backgroundColor: '#fff',
+    paddingVertical: 10,
     paddingHorizontal: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-    backgroundColor: '#fff',
+    borderBottomColor: '#e0e0e0',
     alignItems: 'center',
   },
   itemCell: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#333',
+    textAlign: 'center',
   },
   deleteIcon: {
     fontSize: 18,
+    textAlign: 'center',
   },
-  summaryRow: {
+  adjustmentRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: '#e3f2fd',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderTopWidth: 2,
-    borderTopColor: '#2196F3',
+    backgroundColor: '#fff',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    alignItems: 'center',
   },
-  summaryLabel: {
-    fontSize: 14,
-    fontWeight: 'bold',
+  adjustmentCell: {
+    fontSize: 11,
     color: '#333',
-  },
-  summaryAmount: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2196F3',
+    textAlign: 'center',
   },
   emptyState: {
     paddingVertical: 40,
-    paddingHorizontal: 20,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyStateIcon: {
-    fontSize: 48,
-    marginBottom: 12,
   },
   emptyStateText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
-    marginBottom: 4,
-  },
-  emptyStateSubtext: {
     fontSize: 14,
     color: '#999',
-    textAlign: 'center',
+    fontWeight: '500',
   },
-  addAdjustmentButton: {
-    backgroundColor: '#FF9800',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 16,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+  emptyStateSubtext: {
+    fontSize: 12,
+    color: '#bbb',
+    marginTop: 4,
   },
-  addAdjustmentButtonText: {
-    fontSize: 16,
+  extendedFieldsSection: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 2,
+    borderTopColor: '#e0e0e0',
+  },
+  extendedFieldsTitle: {
+    fontSize: 14,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#666',
+    marginBottom: 12,
   },
-  adjustmentTotals: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  extendedFieldsContainer: {
+    marginBottom: 20,
+    padding: 12,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  extendedFieldsLabel: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
   },
   summaryGrid: {
     backgroundColor: '#f9f9f9',
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 6,
   },
-  totalBillRow: {
-    backgroundColor: '#e3f2fd',
-    marginHorizontal: -12,
-    marginTop: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderTopWidth: 2,
-    borderTopColor: '#2196F3',
-  },
-  totalBillLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  totalBillValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2196F3',
-  },
-  balanceContainer: {
+  summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#fff9e6',
-    padding: 16,
-    borderRadius: 8,
-    marginTop: 12,
-    borderWidth: 2,
-    borderColor: '#FFD54F',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
-  balanceLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
+  summaryLabel: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '500',
+  },
+  summaryValue: {
+    fontSize: 13,
     color: '#333',
+    fontWeight: '600',
   },
-  balanceValue: {
-    fontSize: 20,
+  totalRow: {
+    backgroundColor: '#e3f2fd',
+    marginTop: 8,
+    borderRadius: 4,
+    borderBottomWidth: 0,
+  },
+  totalLabel: {
+    fontSize: 14,
+    color: '#2196F3',
     fontWeight: 'bold',
-    color: '#FF6F00',
+  },
+  totalValue: {
+    fontSize: 16,
+    color: '#2196F3',
+    fontWeight: 'bold',
+  },
+  balanceText: {
+    fontSize: 16,
+    color: '#4CAF50',
+    fontWeight: 'bold',
   },
   actionButtonsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 16,
-    marginBottom: 20,
+    marginHorizontal: 12,
+    marginTop: 12,
   },
   actionButton: {
     flex: 1,
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
+    marginHorizontal: 6,
+    elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 4,
   },
   previewButton: {
-    backgroundColor: '#2196F3',
-    marginRight: 8,
+    backgroundColor: '#673AB7',
   },
   whatsappButton: {
     backgroundColor: '#25D366',
-    marginLeft: 8,
   },
   actionButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
     color: '#fff',
   },
