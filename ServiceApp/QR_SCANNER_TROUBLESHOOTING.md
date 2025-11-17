@@ -412,3 +412,5 @@ This way you always have test QR codes ready!
 **Last Updated**: November 15, 2025  
 **Status**: 🟢 Camera should work after following these steps
 
+
+

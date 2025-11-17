@@ -234,3 +234,5 @@ Both features are now optimized and working perfectly! Test them out and let me 
 *Last Updated: November 15, 2024*
 *Version: 1.1.0 (Fixes Applied)*
 
+
+

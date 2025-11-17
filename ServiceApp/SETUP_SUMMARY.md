@@ -238,3 +238,5 @@ See [GETTING_STARTED.md](./GETTING_STARTED.md) for detailed troubleshooting.
 **React Native Version**: 0.81.5  
 **Expo Version**: 54.0.23
 
+
+
