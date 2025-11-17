@@ -324,23 +324,49 @@ const InvoiceScreen = () => {
   };
 
   const handleAddItem = (newItem) => {
-    // Add extended fields to new item
-    const extendedItem = {
-      ...newItem,
-      comments1: '',
-      salesMan: '',
-      freeQty: '',
-      productSerialNo: '',
-      comments6: '',
-    };
-    
-    setItems([...items, extendedItem]);
-    setShowAddItemModal(false);
-    Alert.alert(
-      'Item Added Successfully! ✓',
-      `${newItem.productName}\nQty: ${newItem.quantity} × ₹${newItem.rate.toFixed(2)} = ₹${newItem.net.toFixed(2)}`,
-      [{ text: 'OK' }]
+    // SCENARIO 3: Manually added items (without barcode/serial)
+    // Check if same product already exists without serial number
+    const existingItemIndex = items.findIndex(
+      (item) => item.productId === newItem.productId && 
+                item.productSerialNo === ''
     );
+
+    if (existingItemIndex !== -1) {
+      // Same product exists without serial - INCREMENT QUANTITY
+      const updatedItems = [...items];
+      const existingItem = updatedItems[existingItemIndex];
+      existingItem.quantity += newItem.quantity;
+      existingItem.gross = existingItem.rate * existingItem.quantity;
+      existingItem.net = existingItem.gross;
+      
+      setItems(updatedItems);
+      setShowAddItemModal(false);
+      
+      Alert.alert(
+        'Quantity Updated! ✓',
+        `${newItem.productName}\nNew Qty: ${existingItem.quantity}\n(Manually added items merged)`,
+        [{ text: 'OK' }]
+      );
+    } else {
+      // First time or different product - ADD NEW ROW
+      const extendedItem = {
+        ...newItem,
+        comments1: '',
+        salesMan: '',
+        freeQty: '',
+        productSerialNo: '', // Empty serial for manual adds
+        comments6: '',
+      };
+      
+      setItems([...items, extendedItem]);
+      setShowAddItemModal(false);
+      
+      Alert.alert(
+        'Item Added Successfully! ✓',
+        `${newItem.productName}\nQty: ${newItem.quantity} × ₹${newItem.rate.toFixed(2)} = ₹${newItem.net.toFixed(2)}`,
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   const handleDeleteItem = (itemId) => {

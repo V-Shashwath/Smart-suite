@@ -56,27 +56,33 @@ Alert: "New Item Added! ✓"
 
 ---
 
-### **Scenario 3: Items WITHOUT Barcode** ❌
+### **Scenario 3: Manually Added Items (Without Barcode)** ✏️
 **Configuration:** No barcode entered/scanned (empty)  
 **Examples:** Manually added items, bulk items, loose products
 
 **Behavior:**
-- **ALWAYS creates new row**
-- **Never increments quantity**
+- **Same product manually added** → Increment quantity
+- **Different product** → New row
 
 **Example:**
 ```
 Product: Sugar 1kg (manually added, no barcode)
 
-Add item (no barcode)  → Row 1: Sugar (Qty: 1, Serial: empty)
-Add item (no barcode)  → Row 2: Sugar (Qty: 1, Serial: empty) ✅ New row
-Add item (no barcode)  → Row 3: Sugar (Qty: 1, Serial: empty) ✅ New row
+Add Sugar (no barcode)  → Row 1: Sugar (Qty: 1, Serial: empty)
+Add Sugar (no barcode)  → Row 1: Sugar (Qty: 2, Serial: empty) ✅ Incremented
+Add Sugar (no barcode)  → Row 1: Sugar (Qty: 3, Serial: empty) ✅ Incremented
+
+Add Salt (no barcode)   → Row 2: Salt (Qty: 1, Serial: empty) ✅ Different product
+
+Alert: "Quantity Updated! ✓"
+      "(Manually added items merged)"
 ```
 
 **Why?**
-- No unique identifier = Cannot determine if same item
-- Safer to create separate rows
-- Prevents incorrect aggregation
+- Manual adding = User selecting same product multiple times
+- Makes sense to aggregate quantity for same product
+- Simpler invoice with fewer rows
+- User can adjust quantity in extended fields if needed
 
 ---
 
@@ -180,34 +186,42 @@ processBarcode(barcodeData) {
 ✅ PASS: Scenario 2 working correctly (always new row)
 ```
 
-### Test 3: No Barcode (Scenario 3)
+### Test 3: Manual Add Without Barcode (Scenario 3)
 
 ```bash
 # In app:
 1. Click "+ Add Item Manually"
-2. Select any product, leave serial empty
-3. Add → Row 1 created (Serial: empty)
+2. Select "Sugar 1kg" (or any product)
+3. Add → Row 1 created (Qty: 1, Serial: empty)
 
-4. Repeat step 1-3
-   → Row 2 created (Serial: empty) ✅
+4. Click "+ Add Item Manually" again
+5. Select "Sugar 1kg" (SAME product)
+   → Alert: "Quantity Updated! ✓"
+   → Row 1: Sugar, Qty: 2, Serial: empty ✅ (Incremented!)
 
-5. Repeat again
-   → Row 3 created (Serial: empty) ✅
+6. Click "+ Add Item Manually" again
+7. Select "Sugar 1kg" again
+   → Row 1: Sugar, Qty: 3, Serial: empty ✅ (Incremented again!)
 
-✅ PASS: Scenario 3 working correctly (always new row)
+8. Click "+ Add Item Manually"
+9. Select "Salt 1kg" (DIFFERENT product)
+   → Row 2: Salt, Qty: 1, Serial: empty ✅ (New row for different product)
+
+✅ PASS: Scenario 3 working correctly (increments same product)
 ```
 
 ---
 
 ## 📊 Comparison Table
 
-| Scenario | Product Type | Barcode Type | Same Barcode Scanned Twice | Result |
-|----------|--------------|--------------|---------------------------|---------|
-| **1** | Electronics | Unique Serial (IMEI) | Yes | **Qty +1** ✅ |
-| **1** | Electronics | Unique Serial (Different) | No | **New Row** ✅ |
-| **2** | Generic Item | Generic Barcode | Yes (same) | **New Row** ✅ |
-| **2** | Generic Item | Generic Barcode | No (different) | **New Row** ✅ |
-| **3** | Any | No Barcode | N/A | **New Row** ✅ |
+| Scenario | Product Type | Barcode Type | Same Product Added | Result |
+|----------|--------------|--------------|-------------------|---------|
+| **1** | Electronics | Unique Serial (IMEI) | Same Serial | **Qty +1** ✅ |
+| **1** | Electronics | Unique Serial (Different) | Different Serial | **New Row** ✅ |
+| **2** | Generic Item | Generic Barcode | Same Barcode | **New Row** ✅ |
+| **2** | Generic Item | Generic Barcode | Different Barcode | **New Row** ✅ |
+| **3** | Any | No Barcode (Manual) | Same Product | **Qty +1** ✅ |
+| **3** | Any | No Barcode (Manual) | Different Product | **New Row** ✅ |
 
 ---
 
@@ -247,14 +261,15 @@ Each row represents a different job/batch ✅
 ### Example 3: Grocery Store (Scenario 3)
 
 ```
-Selling loose items (no barcode):
+Selling loose items (manual entry, no barcode):
 
-Customer buys sugar:
-- Add 1kg Sugar (no barcode) → Row 1
-- Add 2kg Sugar (no barcode) → Row 2
-- Add 1kg Sugar (no barcode) → Row 3
+Customer buys bulk items:
+- Add Sugar 1kg → Row 1: Sugar (Qty: 1)
+- Add Sugar 1kg → Row 1: Sugar (Qty: 2) ✅ Incremented
+- Add Sugar 1kg → Row 1: Sugar (Qty: 3) ✅ Incremented
+- Add Salt 1kg  → Row 2: Salt (Qty: 1) ✅ Different product
 
-Each entry separate, no confusion! ✅
+Simple and clear invoice! ✅
 ```
 
 ### Example 4: Mixed Invoice
@@ -262,13 +277,13 @@ Each entry separate, no confusion! ✅
 ```
 Combined scenario in one invoice:
 
-Row 1: iPhone (Serial: AAA111) - Qty: 1 (Scenario 1)
-Row 2: iPhone (Serial: AAA111) - Qty: 2 (Scenario 1 - incremented)
-Row 3: iPhone (Serial: BBB222) - Qty: 1 (Scenario 1 - different serial)
-Row 4: A4 Xerox (Barcode: JOB1) - Qty: 1 (Scenario 2 - generic)
-Row 5: A4 Xerox (Barcode: JOB1) - Qty: 1 (Scenario 2 - new row)
-Row 6: Sugar 1kg (no barcode) - Qty: 1 (Scenario 3)
-Row 7: Sugar 1kg (no barcode) - Qty: 1 (Scenario 3)
+Row 1: iPhone (Serial: AAA111) - Qty: 2 (Scenario 1 - same serial scanned twice)
+Row 2: iPhone (Serial: BBB222) - Qty: 1 (Scenario 1 - different serial)
+Row 3: A4 Xerox (Barcode: JOB1) - Qty: 1 (Scenario 2 - generic barcode)
+Row 4: A4 Xerox (Barcode: JOB1) - Qty: 1 (Scenario 2 - same barcode, new row)
+Row 5: A4 Xerox (Barcode: JOB2) - Qty: 1 (Scenario 2 - different barcode)
+Row 6: Sugar 1kg (no barcode) - Qty: 3 (Scenario 3 - manually added 3 times)
+Row 7: Salt 1kg (no barcode) - Qty: 2 (Scenario 3 - different product, added 2 times)
 
 All scenarios working together perfectly! ✅
 ```
@@ -346,10 +361,10 @@ All scenarios working together perfectly! ✅
 - **Behavior:** ALWAYS new row (never increment)
 - **Use:** Services, consumables, generic items
 
-### Scenario 3: No Barcode
+### Scenario 3: Manual Add (No Barcode)
 - **Flag:** N/A (no barcode entered)
-- **Behavior:** ALWAYS new row
-- **Use:** Manual entries, bulk items
+- **Behavior:** Same product → Increment quantity, Different product → New row
+- **Use:** Manual entries, bulk items, loose products
 
 ---
 
@@ -359,9 +374,10 @@ All scenarios working together perfectly! ✅
 - [ ] Same serial increments quantity
 - [ ] Different serials create new rows
 - [ ] Scenario 2 tested with generic barcodes
-- [ ] Generic barcodes ALWAYS create new rows
-- [ ] Scenario 3 tested without barcodes
-- [ ] Items without barcode always create new rows
+- [ ] Generic barcodes ALWAYS create new rows (even same barcode)
+- [ ] Scenario 3 tested with manual adds (no barcode)
+- [ ] Manually adding same product increments quantity
+- [ ] Manually adding different product creates new row
 - [ ] Mixed scenarios work correctly in same invoice
 
 ---
