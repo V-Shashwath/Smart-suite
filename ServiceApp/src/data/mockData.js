@@ -91,7 +91,7 @@ export const initialCustomer = {
 };
 
 export const products = [
-  { id: 1, name: 'A4 Xerox - Black & White', rate: 2.00, hasUniqueSerialNo: false }, // Generic item, no individual tracking
+  { id: 1, name: 'A4 Xerox - Black & White', rate: 2.00, hasUniqueSerialNo: true }, // Generic item, no individual tracking
   { id: 2, name: 'A4 Xerox - Color', rate: 5.00, hasUniqueSerialNo: false },
   { id: 3, name: 'A3 Xerox - Black & White', rate: 4.00, hasUniqueSerialNo: false },
   { id: 4, name: 'A3 Xerox - Color', rate: 10.00, hasUniqueSerialNo: false },
