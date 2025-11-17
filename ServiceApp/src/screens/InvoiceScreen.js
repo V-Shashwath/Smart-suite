@@ -181,6 +181,7 @@ const InvoiceScreen = () => {
   };
 
   // Barcode processing logic (supports various barcode formats)
+  // IMPORTANT: Each unique barcode (serial no) is tracked individually
   const processBarcode = (barcodeData) => {
     if (!barcodeData || !barcodeData.trim()) {
       Alert.alert('Error', 'Invalid barcode data', [{ text: 'OK' }]);
@@ -226,11 +227,14 @@ const InvoiceScreen = () => {
       return;
     }
 
-    // Check if this product already exists in items
-    const existingItemIndex = items.findIndex((item) => item.productId === product.id);
+    // CRITICAL LOGIC: Check by EXACT BARCODE (unique ID/serial no), not by product ID
+    // This ensures each unique barcode is tracked individually
+    const existingItemIndex = items.findIndex(
+      (item) => item.productSerialNo === trimmedBarcode && item.productSerialNo !== ''
+    );
 
     if (existingItemIndex !== -1) {
-      // Item exists - increment quantity
+      // SAME BARCODE EXISTS - Increment quantity
       const updatedItems = [...items];
       const existingItem = updatedItems[existingItemIndex];
       existingItem.quantity += 1;
@@ -240,12 +244,12 @@ const InvoiceScreen = () => {
       setItems(updatedItems);
       
       Alert.alert(
-        'Quantity Updated! ✓',
-        `${product.name}\nNew Qty: ${existingItem.quantity}\nBarcode: ${trimmedBarcode}`,
+        'Same Barcode - Quantity Updated! ✓',
+        `${product.name}\nBarcode: ${trimmedBarcode}\nNew Qty: ${existingItem.quantity}`,
         [{ text: 'OK' }]
       );
     } else {
-      // New item - add to list
+      // DIFFERENT BARCODE or NO BARCODE - Add as NEW row
       const newItem = {
         id: Date.now(),
         productId: product.id,
@@ -257,15 +261,15 @@ const InvoiceScreen = () => {
         comments1: '',
         salesMan: '',
         freeQty: '',
-        productSerialNo: trimmedBarcode, // Store the scanned barcode as serial number
+        productSerialNo: trimmedBarcode, // Store the scanned barcode as unique ID/serial number
         comments6: '',
       };
       
       setItems([...items, newItem]);
       
       Alert.alert(
-        'Item Added! ✓',
-        `${product.name}\nRate: ₹${product.rate.toFixed(2)}\nBarcode: ${trimmedBarcode}`,
+        'New Item Added! ✓',
+        `${product.name}\nUnique Barcode: ${trimmedBarcode}\nRate: ₹${product.rate.toFixed(2)}`,
         [{ text: 'OK' }]
       );
     }
