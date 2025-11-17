@@ -25,6 +25,7 @@ import {
   adjustmentsList,
 } from '../data/mockData';
 import QRScannerModal from '../components/QRScannerModal';
+import BarcodeScannerModal from '../components/BarcodeScannerModal';
 import AddItemModal from '../components/AddItemModal';
 import AddAdjustmentModal from '../components/AddAdjustmentModal';
 import PreviewInvoiceModal from '../components/PreviewInvoiceModal';
@@ -50,6 +51,7 @@ const InvoiceScreen = () => {
   
   // Modals state
   const [showScanner, setShowScanner] = useState(false);
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [showAddAdjustmentModal, setShowAddAdjustmentModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -165,21 +167,60 @@ const InvoiceScreen = () => {
     }
   };
 
-  // Barcode Get Handler - Main logic for barcode scanning
-  const handleBarcodeGet = () => {
-    if (!barcode.trim()) {
-      Alert.alert('Error', 'Please enter or scan a barcode', [{ text: 'OK' }]);
+  // Handle scanned barcode from camera
+  const handleScannedBarcode = (scannedData) => {
+    console.log('Barcode scanned from camera:', scannedData);
+    
+    // Set the barcode value and automatically trigger the get logic
+    setBarcode(scannedData);
+    
+    // Use setTimeout to ensure state is updated before processing
+    setTimeout(() => {
+      processBarcode(scannedData);
+    }, 100);
+  };
+
+  // Barcode processing logic (supports various barcode formats)
+  const processBarcode = (barcodeData) => {
+    if (!barcodeData || !barcodeData.trim()) {
+      Alert.alert('Error', 'Invalid barcode data', [{ text: 'OK' }]);
       return;
     }
 
-    // Try to find the product by barcode (assuming barcode maps to product ID)
-    const productId = parseInt(barcode);
-    const product = products.find((p) => p.id === productId);
+    const trimmedBarcode = barcodeData.trim();
+    console.log(`Processing barcode: ${trimmedBarcode} (length: ${trimmedBarcode.length})`);
+
+    // Support various barcode formats (7-8, 10-12 characters)
+    // For now, map barcode to product ID (simple mapping for demo)
+    // In production, this would query a database by barcode
+    
+    let product = null;
+    
+    // Try to find product by ID (for testing with numeric barcodes 1-12)
+    const numericBarcode = parseInt(trimmedBarcode);
+    if (!isNaN(numericBarcode) && numericBarcode > 0 && numericBarcode <= products.length) {
+      product = products.find((p) => p.id === numericBarcode);
+    }
+    
+    // If not found by numeric ID, try to match by barcode string
+    // (In production, products would have a 'barcode' field)
+    if (!product) {
+      // For demo: use barcode length to select different products
+      // This simulates different barcode standards
+      const barcodeLength = trimmedBarcode.length;
+      if (barcodeLength >= 7 && barcodeLength <= 8) {
+        product = products[0]; // First product for 7-8 char barcodes
+      } else if (barcodeLength >= 10 && barcodeLength <= 12) {
+        product = products[1]; // Second product for 10-12 char barcodes
+      } else if (barcodeLength === 13) {
+        product = products[2]; // Third product for 13 char barcodes (EAN-13)
+      }
+    }
 
     if (!product) {
       Alert.alert(
         'Product Not Found',
-        `No product found with barcode: ${barcode}`,
+        `No product found with barcode: ${trimmedBarcode}\n\nLength: ${trimmedBarcode.length} characters\n\nFor testing: Use barcodes 1-12 or any 7-13 character barcode.`,
         [{ text: 'OK' }]
       );
       return;
@@ -200,7 +241,7 @@ const InvoiceScreen = () => {
       
       Alert.alert(
         'Quantity Updated! ✓',
-        `${product.name}\nNew Qty: ${existingItem.quantity}`,
+        `${product.name}\nNew Qty: ${existingItem.quantity}\nBarcode: ${trimmedBarcode}`,
         [{ text: 'OK' }]
       );
     } else {
@@ -216,7 +257,7 @@ const InvoiceScreen = () => {
         comments1: '',
         salesMan: '',
         freeQty: '',
-        productSerialNo: '',
+        productSerialNo: trimmedBarcode, // Store the scanned barcode as serial number
         comments6: '',
       };
       
@@ -224,13 +265,23 @@ const InvoiceScreen = () => {
       
       Alert.alert(
         'Item Added! ✓',
-        `${product.name}\nRate: ₹${product.rate.toFixed(2)}`,
+        `${product.name}\nRate: ₹${product.rate.toFixed(2)}\nBarcode: ${trimmedBarcode}`,
         [{ text: 'OK' }]
       );
     }
 
-    // Clear barcode input
-    setBarcode('');
+    // Clear barcode input after processing
+    setTimeout(() => setBarcode(''), 500);
+  };
+
+  // Barcode Get Handler - Main logic for manual barcode entry
+  const handleBarcodeGet = () => {
+    if (!barcode.trim()) {
+      Alert.alert('Error', 'Please enter or scan a barcode', [{ text: 'OK' }]);
+      return;
+    }
+
+    processBarcode(barcode);
   };
 
   const handleAddItem = (newItem) => {
@@ -795,8 +846,13 @@ const InvoiceScreen = () => {
               value={barcode}
               onChangeText={setBarcode}
               placeholder="Enter or scan barcode"
-              keyboardType="numeric"
             />
+            <TouchableOpacity
+              style={styles.scanBarcodeButton}
+              onPress={() => setShowBarcodeScanner(true)}
+            >
+              <Text style={styles.scanBarcodeButtonText}>📷</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.getButton}
               onPress={handleBarcodeGet}
@@ -805,7 +861,7 @@ const InvoiceScreen = () => {
             </TouchableOpacity>
           </View>
           <Text style={styles.helperText}>
-            Enter barcode and click "Get" to add/update item. Existing items will have quantity incremented.
+            📷 Scan barcode with camera or enter manually, then click "Get" to add/update item.
           </Text>
         </View>
 
@@ -1070,6 +1126,12 @@ const InvoiceScreen = () => {
         onClose={() => setShowScanner(false)}
       />
 
+      <BarcodeScannerModal
+        isVisible={showBarcodeScanner}
+        onScan={handleScannedBarcode}
+        onClose={() => setShowBarcodeScanner(false)}
+      />
+
       <AddItemModal
         isVisible={showAddItemModal}
         onAddItem={handleAddItem}
@@ -1250,6 +1312,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 6,
+  },
+  scanBarcodeButton: {
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  scanBarcodeButtonText: {
+    fontSize: 20,
   },
   getButton: {
     backgroundColor: '#4CAF50',
