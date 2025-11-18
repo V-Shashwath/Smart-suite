@@ -74,6 +74,7 @@ export const voucherDetails = {
   voucherDatetime: '17-11-2025 19:29:05',
 };
 
+
 export const initialCustomer = {
   date: '15-Nov-2025',
   billerName: 'ABC Enterprises',
