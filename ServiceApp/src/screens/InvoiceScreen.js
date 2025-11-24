@@ -10,6 +10,7 @@ import {
   Alert,
   FlatList,
   Linking,
+  Modal,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import {
@@ -55,6 +56,7 @@ const InvoiceScreen = () => {
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [showAddAdjustmentModal, setShowAddAdjustmentModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showMobileSearchModal, setShowMobileSearchModal] = useState(false);
   
   // Adjustments state
   const [adjustments, setAdjustments] = useState([]);
@@ -130,7 +132,7 @@ const InvoiceScreen = () => {
       const parts = data.split(',');
       
       if (parts.length >= 4) {
-        const [customerId, mobileNo, customerType, whatsappNo] = parts;
+        const [customerId, mobileNo, customerType, whatsappNo, employeeName] = parts;
         
         setCustomerData({
           ...customerData,
@@ -138,33 +140,72 @@ const InvoiceScreen = () => {
           mobileNo: mobileNo.trim(),
           customerType: customerType.trim(),
           whatsappNo: whatsappNo.trim(),
+          employeeName: employeeName?.trim() || customerData.employeeName,
         });
         
         Alert.alert(
-          'QR Code Scanned Successfully! ✓',
-          `Customer ID: ${customerId.trim()}\nMobile: ${mobileNo.trim()}`,
+          'Customer Details Loaded! ✓',
+          `Customer ID: ${customerId.trim()}\nMobile: ${mobileNo.trim()}\nType: ${customerType.trim()}`,
           [{ text: 'OK' }]
         );
       } else {
-        setCustomerData({
-          ...customerData,
-          customerId: data.trim(),
-        });
-        
         Alert.alert(
-          'QR Code Scanned',
-          `Data: ${data}`,
-          [{ text: 'OK' }]
+          'Invalid QR Code',
+          'QR code format is incorrect. Please use "Search by Mobile" option.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Search by Mobile', onPress: () => setShowMobileSearchModal(true) }
+          ]
         );
       }
     } catch (error) {
       console.error('Error parsing QR data:', error);
       Alert.alert(
-        'Scan Error',
-        'Could not parse QR code data',
-        [{ text: 'OK' }]
+        'QR Scan Error',
+        'Could not read QR code. Would you like to search by mobile number?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Search by Mobile', onPress: () => setShowMobileSearchModal(true) }
+        ]
       );
     }
+  };
+
+  // Handle mobile number search (fallback if QR fails)
+  const handleSearchByMobile = (mobileNumber) => {
+    if (!mobileNumber || mobileNumber.trim().length < 10) {
+      Alert.alert('Invalid Mobile Number', 'Please enter a valid 10-digit mobile number');
+      return;
+    }
+
+    // TODO: In production, fetch customer from backend API
+    // For now, using mock data simulation
+    // Example API call:
+    // fetch(`${API_BASE_URL}/customers/search?mobile=${mobileNumber}`)
+    //   .then(response => response.json())
+    //   .then(result => { ... })
+
+    // Mock customer data for testing
+    const mockCustomer = {
+      customerId: 'CUST-' + mobileNumber.slice(-4),
+      mobileNo: mobileNumber,
+      customerType: 'Regular',
+      whatsappNo: mobileNumber,
+      employeeName: 'Satya',
+    };
+
+    setCustomerData({
+      ...customerData,
+      ...mockCustomer,
+    });
+
+    setShowMobileSearchModal(false);
+
+    Alert.alert(
+      'Customer Found! ✓',
+      `Customer ID: ${mockCustomer.customerId}\nMobile: ${mockCustomer.mobileNo}\nType: ${mockCustomer.customerType}\n\n⚠️ Note: Connect to backend for real customer data`,
+      [{ text: 'OK' }]
+    );
   };
 
   // Handle scanned barcode from camera
@@ -180,8 +221,9 @@ const InvoiceScreen = () => {
     }, 100);
   };
 
-  // Barcode processing logic (supports various barcode formats)
+  // Barcode processing logic (supports various barcode formats: 7-8, 10-12 digits/characters)
   // IMPORTANT: Each unique barcode (serial no) is tracked individually
+  // TODO: Integrate with backend API - fetch(`${API_BASE_URL}/products/barcode/${barcode}`)
   const processBarcode = (barcodeData) => {
     if (!barcodeData || !barcodeData.trim()) {
       Alert.alert('Error', 'Invalid barcode data', [{ text: 'OK' }]);
@@ -193,7 +235,7 @@ const InvoiceScreen = () => {
 
     // Support various barcode formats (7-8, 10-12 characters)
     // For now, map barcode to product ID (simple mapping for demo)
-    // In production, this would query a database by barcode
+    // TODO: Replace with backend API call to fetch product by barcode from database
     
     let product = null;
     
@@ -763,74 +805,69 @@ const InvoiceScreen = () => {
           />
         </View>
 
-        {/* Employee Name Picker */}
+        {/* Customer ID with QR Scanner - READ ONLY */}
         <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Employee Name</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={customerData.employeeName}
-              onValueChange={(value) => handleInputChange('employeeName', value)}
-              style={styles.picker}
-            >
-              {employeeUsernames.map((name, idx) => (
-                <Picker.Item key={idx} label={name} value={name} />
-              ))}
-            </Picker>
-          </View>
-        </View>
-
-        {/* Customer ID with QR Scanner */}
-        <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Customer ID</Text>
+          <Text style={styles.label}>Customer ID 🔒</Text>
           <View style={styles.inputWithIcon}>
-            <TextInput
-              style={[styles.input, { flex: 1, marginRight: 8 }]}
-              value={customerData.customerId}
-              onChangeText={(value) => handleInputChange('customerId', value)}
-              placeholder="Enter or scan customer ID"
-            />
+            <View style={[styles.input, styles.readOnlyInput, { flex: 1, marginRight: 8 }]}>
+              <Text style={styles.readOnlyText}>
+                {customerData.customerId || 'Scan QR Code to load customer'}
+              </Text>
+            </View>
             <TouchableOpacity
               style={styles.iconButton}
               onPress={() => setShowScanner(true)}
             >
-              <Text style={styles.iconButtonText}>📷</Text>
+              <Text style={styles.iconButtonText}>📷 QR</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.iconButton, { marginLeft: 4, backgroundColor: '#2196F3' }]}
+              onPress={() => setShowMobileSearchModal(true)}
+            >
+              <Text style={styles.iconButtonText}>🔍</Text>
             </TouchableOpacity>
           </View>
+          <Text style={styles.helperText}>Scan QR or use 🔍 to search by mobile number</Text>
         </View>
 
-        {/* Mobile No and WhatsApp No */}
+        {/* Employee Name - READ ONLY (auto-filled from QR) */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Employee Name 🔒</Text>
+          <View style={[styles.input, styles.readOnlyInput]}>
+            <Text style={styles.readOnlyText}>
+              {customerData.employeeName || 'Will be filled from QR code'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Mobile No and WhatsApp No - READ ONLY */}
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Mobile No</Text>
-            <TextInput
-              style={styles.input}
-              value={customerData.mobileNo}
-              onChangeText={(value) => handleInputChange('mobileNo', value)}
-              placeholder="Enter mobile number"
-              keyboardType="phone-pad"
-            />
+            <Text style={styles.label}>Mobile No 🔒</Text>
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {customerData.mobileNo || 'From QR'}
+              </Text>
+            </View>
           </View>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>WhatsApp No</Text>
-            <TextInput
-              style={styles.input}
-              value={customerData.whatsappNo}
-              onChangeText={(value) => handleInputChange('whatsappNo', value)}
-              placeholder="Enter WhatsApp number"
-              keyboardType="phone-pad"
-            />
+            <Text style={styles.label}>WhatsApp No 🔒</Text>
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {customerData.whatsappNo || 'From QR'}
+              </Text>
+            </View>
           </View>
         </View>
 
-        {/* Customer Type */}
+        {/* Customer Type - READ ONLY */}
         <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Customer Type</Text>
-          <TextInput
-            style={styles.input}
-            value={customerData.customerType}
-            onChangeText={(value) => handleInputChange('customerType', value)}
-            placeholder="Enter customer type"
-          />
+          <Text style={styles.label}>Customer Type 🔒</Text>
+          <View style={[styles.input, styles.readOnlyInput]}>
+            <Text style={styles.readOnlyText}>
+              {customerData.customerType || 'From QR code'}
+            </Text>
+          </View>
         </View>
 
         {/* Reading A4 and A3 */}
@@ -1229,9 +1266,148 @@ const InvoiceScreen = () => {
             (parseFloat(collectedUpi) || 0),
         }}
       />
+
+      {/* Mobile Search Modal (Fallback if QR fails) */}
+      <MobileSearchModal
+        isVisible={showMobileSearchModal}
+        onSearch={handleSearchByMobile}
+        onClose={() => setShowMobileSearchModal(false)}
+      />
     </ScrollView>
   );
 };
+
+// Mobile Search Modal Component (Inline)
+const MobileSearchModal = ({ isVisible, onSearch, onClose }) => {
+  const [mobileNumber, setMobileNumber] = useState('');
+
+  const handleSearch = () => {
+    onSearch(mobileNumber);
+    setMobileNumber('');
+  };
+
+  return (
+    <Modal visible={isVisible} transparent={true} animationType="slide" onRequestClose={onClose}>
+      <View style={mobileSearchStyles.modalOverlay}>
+        <View style={mobileSearchStyles.modalContainer}>
+          <Text style={mobileSearchStyles.modalTitle}>Search Customer by Mobile Number</Text>
+          <Text style={mobileSearchStyles.modalSubtitle}>
+            Enter mobile number to fetch customer details from database
+          </Text>
+
+          <TextInput
+            style={mobileSearchStyles.input}
+            value={mobileNumber}
+            onChangeText={setMobileNumber}
+            placeholder="Enter 10-digit mobile number"
+            keyboardType="phone-pad"
+            maxLength={10}
+            autoFocus
+          />
+
+          <View style={mobileSearchStyles.buttonRow}>
+            <TouchableOpacity
+              style={[mobileSearchStyles.button, mobileSearchStyles.cancelButton]}
+              onPress={() => {
+                setMobileNumber('');
+                onClose();
+              }}
+            >
+              <Text style={mobileSearchStyles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[mobileSearchStyles.button, mobileSearchStyles.searchButton]}
+              onPress={handleSearch}
+            >
+              <Text style={mobileSearchStyles.searchButtonText}>🔍 Search</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={mobileSearchStyles.note}>
+            ⚠️ Note: Connect backend API for real-time customer data
+          </Text>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+const mobileSearchStyles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    width: '85%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 20,
+    backgroundColor: '#f9f9f9',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  button: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#f0f0f0',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  searchButton: {
+    backgroundColor: '#2196F3',
+  },
+  searchButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  note: {
+    fontSize: 11,
+    color: '#FF9800',
+    marginTop: 15,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -1294,6 +1470,22 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
     color: '#333',
+  },
+  readOnlyInput: {
+    backgroundColor: '#f5f5f5',
+    borderColor: '#bbb',
+    justifyContent: 'center',
+  },
+  readOnlyText: {
+    fontSize: 14,
+    color: '#555',
+    fontStyle: 'italic',
+  },
+  helperText: {
+    fontSize: 11,
+    color: '#2196F3',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   textArea: {
     minHeight: 80,
