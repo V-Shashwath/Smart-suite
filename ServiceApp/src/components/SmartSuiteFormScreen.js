@@ -1,4 +1,6 @@
 import React from 'react';
+import { Image } from 'react-native';
+
 import {
   View,
   Text,
@@ -128,7 +130,7 @@ const SmartSuiteFormScreen = ({
                   onPress={onPreview}
                 >
                   <View style={styles.footerButtonContent}>
-                    <Text style={styles.footerButtonIcon}>📄</Text>
+                  <Image source={require('../../assets/pdf.png')} style={styles.pdfIcon}/>
                     <Text style={styles.footerButtonText}>Preview Invoice</Text>
                   </View>
                 </TouchableOpacity>
@@ -139,7 +141,8 @@ const SmartSuiteFormScreen = ({
                   onPress={onWhatsApp}
                 >
                   <View style={styles.footerButtonContent}>
-                    <Text style={styles.footerButtonIcon}>🟢</Text>
+                  <Image source={require('../../assets/whatsapp.png')} style={styles.whatsappIcon}/>
+                    {/* <Text style={styles.footerButtonIcon}>whatsapp.png</Text> */}
                     <Text style={styles.footerButtonText}>WhatsApp</Text>
                   </View>
                 </TouchableOpacity>
@@ -332,6 +335,20 @@ const styles = StyleSheet.create({
   whatsappFooterButton: {
     backgroundColor: '#25D366',
   },
+
+  pdfIcon: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+  },
+
+  whatsappIcon: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+  },
+
+
   footerButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
