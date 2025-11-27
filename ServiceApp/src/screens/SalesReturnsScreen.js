@@ -558,6 +558,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  footerActionWrapper: {
+    paddingHorizontal: 16,
+    paddingBottom: 40,
+  },
+  displayBox: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 6,
+    padding: 12,
+    backgroundColor: '#f9f9f9',
+  },
+  balanceText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+  },
 });
 
 export default SalesReturnsScreen;

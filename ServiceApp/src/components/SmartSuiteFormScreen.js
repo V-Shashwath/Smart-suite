@@ -7,6 +7,8 @@ import {
   StyleSheet,
   ScrollView,
   SafeAreaView,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import AccordionSection from './AccordionSection';
@@ -23,12 +25,6 @@ const SmartSuiteFormScreen = ({
 
   const defaultActionBarActions = {
     onSave: () => console.log('Save'),
-    onComment: () => console.log('Comment'),
-    onWhatsApp: () => console.log('WhatsApp'),
-    onSettings: () => console.log('Settings'),
-    onUpload: () => console.log('Upload'),
-    onPrint: () => console.log('Print'),
-    onGrid: () => console.log('Grid'),
     onClose: () => navigation.goBack(),
     ...actionBarActions,
   };
@@ -37,102 +33,36 @@ const SmartSuiteFormScreen = ({
     <SafeAreaView style={styles.container}>
       {/* Top Header */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('MenuModal')}
-            style={styles.menuButton}
-          >
-            <Text style={styles.menuIcon}>☰</Text>
-          </TouchableOpacity>
-          <View style={styles.logoContainer}>
-            <View style={styles.logo}>
-              <Text style={styles.logoText}>SS</Text>
-            </View>
-            <Text style={styles.logoTitle}>Smart Suite</Text>
-          </View>
-        </View>
-
-        <View style={styles.headerCenter}>
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search..."
-              placeholderTextColor="#999"
-            />
-            <Text style={styles.searchIcon}>🔍</Text>
-          </View>
-        </View>
-
-        <View style={styles.headerRight}>
-          <View style={styles.userInfo}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>CC</Text>
-            </View>
-            <View>
-              <Text style={styles.userName}>CrystalCopier</Text>
-              <Text style={styles.userRole}>Supervisor</Text>
-            </View>
-          </View>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('MenuModal')}
+          style={styles.menuButton}
+        >
+          <Text style={styles.menuIcon}>☰</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{title}</Text>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>CC</Text>
         </View>
       </View>
 
       {/* Action Bar */}
       <View style={styles.actionBar}>
         <TouchableOpacity
-          style={styles.actionButton}
+          style={[styles.actionButton, styles.primaryActionButton]}
           onPress={defaultActionBarActions.onSave}
         >
-          <Text style={styles.actionIcon}>💾</Text>
+          <Text style={styles.actionButtonText}>Save</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.actionButton}
-          onPress={defaultActionBarActions.onComment}
-        >
-          <Text style={styles.actionIcon}>💬</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={defaultActionBarActions.onWhatsApp}
-        >
-          <Text style={styles.actionIcon}>📱</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={defaultActionBarActions.onSettings}
-        >
-          <Text style={styles.actionIcon}>⚙️</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={defaultActionBarActions.onUpload}
-        >
-          <Text style={styles.actionIcon}>📤</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={defaultActionBarActions.onPrint}
-        >
-          <Text style={styles.actionIcon}>🖨️</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={defaultActionBarActions.onGrid}
-        >
-          <Text style={styles.actionIcon}>⊞</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionButton}
+          style={[styles.actionButton, styles.secondaryActionButton]}
           onPress={defaultActionBarActions.onClose}
         >
-          <Text style={styles.actionIcon}>✕</Text>
+          <Text style={styles.actionButtonText}>Exit</Text>
         </TouchableOpacity>
       </View>
 
       {/* Main Content */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={Boolean(true)}>
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>{title}</Text>
-        </View>
 
         {/* Custom Sections or Children */}
         {sections.length > 0 ? (
@@ -195,14 +125,6 @@ const SmartSuiteFormScreen = ({
           <Text style={styles.footerText}>Smart Suite</Text>
         </View>
       </ScrollView>
-
-      {/* Floating Settings Button */}
-      <TouchableOpacity
-        style={styles.floatingButton}
-        onPress={defaultActionBarActions.onSettings}
-      >
-        <Text style={styles.floatingButtonIcon}>⚙️</Text>
-      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -211,6 +133,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
   },
   header: {
     flexDirection: 'row',
@@ -222,70 +145,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
   menuButton: {
     padding: 8,
-    marginRight: 8,
   },
   menuIcon: {
-    fontSize: 20,
+    fontSize: 24,
     color: '#333',
   },
-  logoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  logo: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
-    backgroundColor: '#FF5722',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  logoText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  logoTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  headerCenter: {
-    flex: 2,
-    paddingHorizontal: 12,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    height: 36,
-  },
-  searchInput: {
+  headerTitle: {
     flex: 1,
-    fontSize: 14,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '600',
     color: '#333',
-  },
-  searchIcon: {
-    fontSize: 16,
-    marginLeft: 8,
-  },
-  headerRight: {
-    flex: 1,
-    alignItems: 'flex-end',
-  },
-  userInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
   },
   avatar: {
     width: 36,
@@ -301,15 +173,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-  userName: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#333',
-  },
-  userRole: {
-    fontSize: 10,
-    color: '#666',
-  },
   actionBar: {
     flexDirection: 'row',
     backgroundColor: '#fff',
@@ -317,15 +180,25 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
-    justifyContent: 'space-around',
+    justifyContent: 'flex-end',
+    gap: 12,
   },
   actionButton: {
     padding: 8,
-    minWidth: 40,
+    minWidth: 100,
     alignItems: 'center',
+    borderRadius: 6,
   },
-  actionIcon: {
-    fontSize: 20,
+  primaryActionButton: {
+    backgroundColor: '#FF7043',
+  },
+  secondaryActionButton: {
+    backgroundColor: '#90A4AE',
+  },
+  actionButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
   },
   content: {
     flex: 1,
@@ -400,26 +273,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontWeight: '500',
-  },
-  floatingButton: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#2196F3',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-  },
-  floatingButtonIcon: {
-    fontSize: 24,
-    color: '#fff',
   },
 });
 

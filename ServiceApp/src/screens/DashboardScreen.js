@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Platform, StatusBar } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
 const DashboardScreen = () => {
@@ -16,7 +16,7 @@ const DashboardScreen = () => {
   ];
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.navigate('MenuModal')}
@@ -25,7 +25,9 @@ const DashboardScreen = () => {
           <Text style={styles.menuIcon}>☰</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Dashboard</Text>
-        <View style={styles.headerSpacer} />
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>CC</Text>
+        </View>
       </View>
       <ScrollView style={styles.content}>
         <View style={styles.grid}>
@@ -41,7 +43,7 @@ const DashboardScreen = () => {
           ))}
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -49,6 +51,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
   },
   header: {
     backgroundColor: '#fff',
@@ -73,8 +76,17 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: '#333',
   },
-  headerSpacer: {
+  avatar: {
     width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f44336',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    color: '#fff',
+    fontWeight: '700',
   },
   content: {
     flex: 1,

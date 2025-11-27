@@ -7,6 +7,8 @@ import {
   Modal,
   ScrollView,
   SafeAreaView,
+  Platform,
+  StatusBar,
 } from 'react-native';
 
 const MenuModalScreen = ({ navigation }) => {
@@ -27,8 +29,10 @@ const MenuModalScreen = ({ navigation }) => {
   };
 
   const navigateToScreen = (screenName) => {
-    navigation.navigate(screenName);
     navigation.goBack();
+    requestAnimationFrame(() => {
+      navigation.navigate(screenName);
+    });
   };
 
   return (
@@ -207,6 +211,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
   },
   header: {
     flexDirection: 'row',
