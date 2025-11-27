@@ -16,6 +16,7 @@ const SmartSuiteFormScreen = ({
   sections = [],
   actionBarActions = {},
   summaryFields = [],
+  footerContent = null,
   children,
 }) => {
   const navigation = useNavigation();
@@ -182,6 +183,9 @@ const SmartSuiteFormScreen = ({
             </View>
           </View>
         )}
+
+        {/* Custom Footer Content */}
+        {footerContent}
 
         {/* Footer Logo */}
         <View style={styles.footer}>

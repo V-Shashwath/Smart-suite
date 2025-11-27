@@ -6,7 +6,7 @@ import { NavigationContainer } from '@react-navigation/native';
 // Screens
 import LoginScreen from '../screens/LoginScreen';
 import DashboardScreen from '../screens/DashboardScreen';
-import EmployeeSalesInvoiceScreen from '../screens/InvoiceScreen';
+import EmployeeSaleInvoiceScreen from '../screens/EmployeeSaleInvoiceScreen';
 import CashReceiptsScreen from '../screens/CashReceiptsScreen';
 import BankReceiptsScreen from '../screens/BankReceiptsScreen';
 import EmployeeReturnScreen from '../screens/EmployeeReturnScreen';
@@ -54,8 +54,8 @@ function MainStack() {
         }}
       />
       <Stack.Screen 
-        name="EmployeeSalesInvoice" 
-        component={EmployeeSalesInvoiceScreen}
+        name="EmployeeSaleInvoice" 
+        component={EmployeeSaleInvoiceScreen}
         options={createHeaderOptions('Employee Sale Invoice')}
       />
       <Stack.Screen 

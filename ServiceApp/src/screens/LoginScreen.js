@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
 import {
+  SafeAreaView,
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Image,
   Dimensions,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
 } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
@@ -28,133 +27,84 @@ const LoginScreen = ({ navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.loginCard}>
-          {/* Left Section - Illustration Placeholder */}
-          <View style={styles.illustrationSection}>
-            <View style={styles.illustrationPlaceholder}>
-              <Text style={styles.illustrationText}>📊</Text>
-              <Text style={styles.illustrationSubtext}>Business Analytics</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <View style={styles.content}>
+          <View style={styles.heroContainer}>
+            <View style={styles.logo}>
+              <Text style={styles.logoText}>SS</Text>
             </View>
+            <Text style={styles.heroTitle}>Smart Suite</Text>
+            <Text style={styles.heroSubtitle}>Sign in to continue</Text>
           </View>
 
-          {/* Right Section - Login Form */}
-          <View style={styles.formSection}>
-            {/* Logo */}
-            <View style={styles.logoContainer}>
-              <View style={styles.logo}>
-                <Text style={styles.logoText}>SS</Text>
-              </View>
-              <Text style={styles.appTitle}>Smart Suite</Text>
+          <View style={styles.formCard}>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Database Name</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Database Name"
+                value={databaseName}
+                onChangeText={setDatabaseName}
+                autoCapitalize="none"
+              />
             </View>
 
-            {/* Form Fields */}
-            <View style={styles.formFields}>
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Database Name</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Database Name"
-                  value={databaseName}
-                  onChangeText={setDatabaseName}
-                  autoCapitalize="none"
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>User Name</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="User Name"
-                  value={userName}
-                  onChangeText={setUserName}
-                  autoCapitalize="none"
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Password</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Password"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                  autoCapitalize="none"
-                />
-              </View>
-
-              <TouchableOpacity
-                style={styles.signInButton}
-                onPress={handleSignIn}
-              >
-                <Text style={styles.signInButtonText}>Sign In</Text>
-              </TouchableOpacity>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>User Name</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="User Name"
+                value={userName}
+                onChangeText={setUserName}
+                autoCapitalize="none"
+              />
             </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoCapitalize="none"
+              />
+            </View>
+
+            <TouchableOpacity
+              style={styles.signInButton}
+              onPress={handleSignIn}
+            >
+              <Text style={styles.signInButtonText}>Sign In</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  loginCard: {
-    width: width > 768 ? 900 : width - 40,
-    maxWidth: 900,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    overflow: 'hidden',
-    flexDirection: width > 768 ? 'row' : 'column',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-  },
-  illustrationSection: {
+  container: {
     flex: 1,
-    backgroundColor: '#e3f2fd',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-    minHeight: width > 768 ? 0 : 200,
   },
-  illustrationPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  illustrationText: {
-    fontSize: 80,
-    marginBottom: 20,
-  },
-  illustrationSubtext: {
-    fontSize: 18,
-    color: '#666',
-    fontWeight: '500',
-  },
-  formSection: {
+  content: {
     flex: 1,
-    padding: 40,
     justifyContent: 'center',
+    paddingHorizontal: 24,
   },
-  logoContainer: {
+  heroContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 24,
   },
   logo: {
     width: 80,
@@ -170,13 +120,25 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
   },
-  appTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#C62828',
+  heroTitle: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#B71C1C',
+    marginTop: 12,
   },
-  formFields: {
-    width: '100%',
+  heroSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+  },
+  formCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
   },
   inputContainer: {
     marginBottom: 20,
@@ -212,5 +174,6 @@ const styles = StyleSheet.create({
 });
 
 export default LoginScreen;
+
 
 

@@ -6,7 +6,7 @@ const DashboardScreen = () => {
   const navigation = useNavigation();
 
   const menuItems = [
-    { title: 'Employee Sale Invoice', screen: 'EmployeeSalesInvoice', icon: '📄' },
+    { title: 'Employee Sale Invoice', screen: 'EmployeeSaleInvoice', icon: '📄' },
     { title: 'Cash Receipts', screen: 'CashReceipts', icon: '💰' },
     { title: 'Bank Receipts', screen: 'BankReceipts', icon: '🏦' },
     { title: 'Employee Return', screen: 'EmployeeReturn', icon: '↩️' },
@@ -18,7 +18,14 @@ const DashboardScreen = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('MenuModal')}
+          style={styles.menuButton}
+        >
+          <Text style={styles.menuIcon}>☰</Text>
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Dashboard</Text>
+        <View style={styles.headerSpacer} />
       </View>
       <ScrollView style={styles.content}>
         <View style={styles.grid}>
@@ -48,11 +55,26 @@ const styles = StyleSheet.create({
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
+    flex: 1,
+    textAlign: 'center',
+  },
+  menuButton: {
+    padding: 8,
+  },
+  menuIcon: {
+    fontSize: 24,
+    color: '#333',
+  },
+  headerSpacer: {
+    width: 32,
   },
   content: {
     flex: 1,

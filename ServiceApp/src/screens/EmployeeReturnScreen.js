@@ -109,6 +109,18 @@ const EmployeeReturnScreen = () => {
     <SmartSuiteFormScreen
       title="Employee Return"
       summaryFields={summaryFields}
+      footerContent={(
+        <View style={styles.footerActionWrapper}>
+          <View style={styles.actionButtonsContainer}>
+            <TouchableOpacity style={[styles.actionButton, styles.previewButton]} onPress={handlePreviewInvoice}>
+              <Text style={styles.actionButtonText}>📄 Preview Invoice</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionButton, styles.whatsappButton]} onPress={handleSendWhatsApp}>
+              <Text style={styles.actionButtonText}>💬 Send WhatsApp</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     >
       <AccordionSection title="VOUCHER" defaultExpanded={true}>
         <View style={styles.row}>
@@ -257,15 +269,6 @@ const EmployeeReturnScreen = () => {
         </View>
       </AccordionSection>
 
-      {/* ACTION BUTTONS */}
-      <View style={styles.actionButtonsContainer}>
-        <TouchableOpacity style={[styles.actionButton, styles.previewButton]} onPress={handlePreviewInvoice}>
-          <Text style={styles.actionButtonText}>📄 Preview Invoice</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionButton, styles.whatsappButton]} onPress={handleSendWhatsApp}>
-          <Text style={styles.actionButtonText}>💬 Send WhatsApp</Text>
-        </TouchableOpacity>
-      </View>
     </SmartSuiteFormScreen>
   );
 };
@@ -321,6 +324,10 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 14,
+  },
+  footerActionWrapper: {
+    paddingHorizontal: 16,
+    paddingBottom: 40,
   },
   actionButtonsContainer: {
     flexDirection: 'row',

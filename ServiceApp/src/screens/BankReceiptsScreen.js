@@ -133,6 +133,18 @@ const BankReceiptsScreen = () => {
     <SmartSuiteFormScreen
       title="Bank Receipts"
       summaryFields={summaryFields}
+      footerContent={(
+        <View style={styles.footerActionWrapper}>
+          <View style={styles.actionButtonsContainer}>
+            <TouchableOpacity style={[styles.actionButton, styles.previewButton]} onPress={handlePreviewInvoice}>
+              <Text style={styles.actionButtonText}>📄 Preview Invoice</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionButton, styles.whatsappButton]} onPress={handleSendWhatsApp}>
+              <Text style={styles.actionButtonText}>💬 Send WhatsApp</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     >
       <AccordionSection title="VOUCHER" defaultExpanded={true}>
         <View style={styles.row}>
@@ -305,16 +317,6 @@ const BankReceiptsScreen = () => {
         </View>
       </AccordionSection>
 
-      {/* ACTION BUTTONS */}
-      <View style={styles.actionButtonsContainer}>
-        <TouchableOpacity style={[styles.actionButton, styles.previewButton]} onPress={handlePreviewInvoice}>
-          <Text style={styles.actionButtonText}>📄 Preview Invoice</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionButton, styles.whatsappButton]} onPress={handleSendWhatsApp}>
-          <Text style={styles.actionButtonText}>💬 Send WhatsApp</Text>
-        </TouchableOpacity>
-      </View>
-
       <PDFPreviewModal
         isVisible={showPDFPreview}
         onClose={() => setShowPDFPreview(false)}
@@ -348,6 +350,10 @@ const styles = StyleSheet.create({
   },
   required: {
     color: '#f44336',
+  },
+  footerActionWrapper: {
+    paddingHorizontal: 16,
+    paddingBottom: 40,
   },
   actionButtonsContainer: {
     flexDirection: 'row',

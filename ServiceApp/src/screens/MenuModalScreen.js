@@ -124,7 +124,7 @@ const MenuModalScreen = ({ navigation }) => {
               <View style={styles.subSubMenu}>
                 <TouchableOpacity
                   style={styles.subSubMenuItem}
-                  onPress={() => navigateToScreen('EmployeeSalesInvoice')}
+                  onPress={() => navigateToScreen('EmployeeSaleInvoice')}
                 >
                   <Text style={styles.subSubMenuLabel}>Employee Sale Invoice</Text>
                 </TouchableOpacity>

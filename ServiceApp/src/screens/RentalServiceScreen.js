@@ -158,6 +158,19 @@ const RentalServiceScreen = () => {
     { label: 'Ledger Balance', value: '0' },
   ];
 
+  const [collectionTotal, setCollectionTotal] = useState('');
+  const [collectedCash, setCollectedCash] = useState('');
+  const [collectedCard, setCollectedCard] = useState('');
+  const [collectedUpi, setCollectedUpi] = useState('');
+
+  const getNumeric = (val) => parseFloat(val) || 0;
+  const getTotalValue = () => parseFloat(summaryFields.find((field) => field.label === 'TotalValue')?.value) || 0;
+  const calculatedBalance = () => {
+    const total = getTotalValue();
+    const balance = total - getNumeric(collectionTotal) - getNumeric(collectedCash) - getNumeric(collectedCard) - getNumeric(collectedUpi);
+    return balance.toFixed(2);
+  };
+
   const handlePreviewInvoice = async () => {
     if (itemBody.length === 0 || !itemBody[0].product) {
       Alert.alert('No Items', 'Please add at least one item to preview the service.', [{ text: 'OK' }]);
@@ -173,6 +186,13 @@ const RentalServiceScreen = () => {
         items: itemBody.map(item => ({ productName: item.product, quantity: item.quantity || 0, rate: item.rate || 0, net: item.gross || 0 })),
         adjustments: adjustments,
         summary: { totalValue: summaryFields.find(f => f.label === 'TotalValue')?.value || 0 },
+        collections: {
+          collections: getNumeric(collectionTotal),
+          cash: getNumeric(collectedCash),
+          card: getNumeric(collectedCard),
+          upi: getNumeric(collectedUpi),
+          balance: parseFloat(calculatedBalance()),
+        },
       });
     } catch (error) {
       console.error('Error previewing service:', error);
@@ -194,6 +214,13 @@ const RentalServiceScreen = () => {
         items: itemBody.map(item => ({ productName: item.product, quantity: item.quantity || 0, rate: item.rate || 0, net: item.gross || 0 })),
         adjustments: adjustments,
         summary: { totalValue: summaryFields.find(f => f.label === 'TotalValue')?.value || 0 },
+        collections: {
+          collections: getNumeric(collectionTotal),
+          cash: getNumeric(collectedCash),
+          card: getNumeric(collectedCard),
+          upi: getNumeric(collectedUpi),
+          balance: parseFloat(calculatedBalance()),
+        },
       });
       await sharePDFViaWhatsApp(uri, whatsappNo || mobileNo);
     } catch (error) {
@@ -205,6 +232,18 @@ const RentalServiceScreen = () => {
     <SmartSuiteFormScreen
       title="Rental Service"
       summaryFields={summaryFields}
+      footerContent={(
+        <View style={styles.footerActionWrapper}>
+          <View style={styles.actionButtonsContainer}>
+            <TouchableOpacity style={[styles.actionButton, styles.previewButton]} onPress={handlePreviewInvoice}>
+              <Text style={styles.actionButtonText}>📄 Preview Invoice</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionButton, styles.whatsappButton]} onPress={handleSendWhatsApp}>
+              <Text style={styles.actionButtonText}>💬 Send WhatsApp</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     >
       <AccordionSection title="TRANSACTION DETAILS" defaultExpanded={true}>
         <View style={styles.row}>
@@ -532,15 +571,54 @@ const RentalServiceScreen = () => {
         />
       </AccordionSection>
 
-      {/* ACTION BUTTONS */}
-      <View style={styles.actionButtonsContainer}>
-        <TouchableOpacity style={[styles.actionButton, styles.previewButton]} onPress={handlePreviewInvoice}>
-          <Text style={styles.actionButtonText}>📄 Preview Invoice</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionButton, styles.whatsappButton]} onPress={handleSendWhatsApp}>
-          <Text style={styles.actionButtonText}>💬 Send WhatsApp</Text>
-        </TouchableOpacity>
-      </View>
+      <AccordionSection title="COLLECTIONS" defaultExpanded={true}>
+        <View style={styles.row}>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Collections</Text>
+            <TextInput
+              style={styles.input}
+              value={collectionTotal}
+              onChangeText={setCollectionTotal}
+              keyboardType="numeric"
+            />
+          </View>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Cash</Text>
+            <TextInput
+              style={styles.input}
+              value={collectedCash}
+              onChangeText={setCollectedCash}
+              keyboardType="numeric"
+            />
+          </View>
+        </View>
+        <View style={styles.row}>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Card</Text>
+            <TextInput
+              style={styles.input}
+              value={collectedCard}
+              onChangeText={setCollectedCard}
+              keyboardType="numeric"
+            />
+          </View>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>UPI</Text>
+            <TextInput
+              style={styles.input}
+              value={collectedUpi}
+              onChangeText={setCollectedUpi}
+              keyboardType="numeric"
+            />
+          </View>
+        </View>
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Balance</Text>
+          <View style={styles.displayBox}>
+            <Text style={styles.balanceText}>₹{calculatedBalance()}</Text>
+          </View>
+        </View>
+      </AccordionSection>
     </SmartSuiteFormScreen>
   );
 };
@@ -656,6 +734,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
+  footerActionWrapper: {
+    paddingHorizontal: 16,
+    paddingBottom: 40,
+  },
   actionButtonsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -683,6 +765,18 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  displayBox: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 6,
+    padding: 12,
+    backgroundColor: '#f9f9f9',
+  },
+  balanceText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#4CAF50',
   },
 });
 

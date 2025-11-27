@@ -24,6 +24,9 @@ import {
   adjustmentAccounts,
   adjustmentsList,
 } from '../data/mockData';
+import SmartSuiteFormScreen from '../components/SmartSuiteFormScreen';
+import AccordionSection from '../components/AccordionSection';
+import ItemTable from '../components/ItemTable';
 import QRScannerModal from '../components/QRScannerModal';
 import BarcodeScannerModal from '../components/BarcodeScannerModal';
 import AddItemModal from '../components/AddItemModal';
@@ -33,7 +36,7 @@ import { sharePDFViaWhatsApp, generateInvoicePDF } from '../utils/pdfUtils';
 
 const { width } = Dimensions.get('window');
 
-const InvoiceScreen = () => {
+const EmployeeSaleInvoiceScreen = () => {
   // Transaction state
   const [transactionData, setTransactionData] = useState(transactionDetails);
   
@@ -49,6 +52,25 @@ const InvoiceScreen = () => {
   
   // Items state with extended fields
   const [items, setItems] = useState([]);
+
+  const normalizeItems = (list) =>
+    list.map((item, index) => {
+      const quantity = parseFloat(item.quantity) || 0;
+      const rate = parseFloat(item.rate) || 0;
+      const gross = quantity * rate;
+      return {
+        ...item,
+        quantity,
+        rate,
+        gross,
+        net: gross,
+        sno: String(index + 1),
+      };
+    });
+
+  const commitItems = (list) => {
+    setItems(normalizeItems(list));
+  };
   
   // Modals state
   const [showScanner, setShowScanner] = useState(false);
@@ -286,12 +308,10 @@ const InvoiceScreen = () => {
       if (existingItemIndex !== -1) {
         // SAME UNIQUE BARCODE EXISTS - Increment quantity
         const updatedItems = [...items];
-        const existingItem = updatedItems[existingItemIndex];
+        const existingItem = { ...updatedItems[existingItemIndex] };
         existingItem.quantity += 1;
-        existingItem.gross = existingItem.rate * existingItem.quantity;
-        existingItem.net = existingItem.gross;
-        
-        setItems(updatedItems);
+        updatedItems[existingItemIndex] = existingItem;
+        commitItems(updatedItems);
         
         Alert.alert(
           'Same Serial No - Quantity Updated! ✓',
@@ -315,7 +335,7 @@ const InvoiceScreen = () => {
           comments6: '',
         };
         
-        setItems([...items, newItem]);
+        commitItems([...items, newItem]);
         
         Alert.alert(
           'New Item Added! ✓',
@@ -342,7 +362,7 @@ const InvoiceScreen = () => {
         comments6: '',
       };
       
-      setItems([...items, newItem]);
+      commitItems([...items, newItem]);
       
       Alert.alert(
         'New Item Added! ✓',
@@ -376,12 +396,11 @@ const InvoiceScreen = () => {
     if (existingItemIndex !== -1) {
       // Same product exists without serial - INCREMENT QUANTITY
       const updatedItems = [...items];
-      const existingItem = updatedItems[existingItemIndex];
+      const existingItem = { ...updatedItems[existingItemIndex] };
       existingItem.quantity += newItem.quantity;
-      existingItem.gross = existingItem.rate * existingItem.quantity;
-      existingItem.net = existingItem.gross;
+      updatedItems[existingItemIndex] = existingItem;
       
-      setItems(updatedItems);
+      commitItems(updatedItems);
       setShowAddItemModal(false);
       
       Alert.alert(
@@ -400,7 +419,7 @@ const InvoiceScreen = () => {
         comments6: '',
       };
       
-      setItems([...items, extendedItem]);
+      commitItems([...items, extendedItem]);
       setShowAddItemModal(false);
       
       Alert.alert(
@@ -411,23 +430,6 @@ const InvoiceScreen = () => {
     }
   };
 
-  const handleDeleteItem = (itemId) => {
-    Alert.alert(
-      'Delete Item',
-      'Are you sure you want to delete this item?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            setItems(items.filter((item) => item.id !== itemId));
-          },
-        },
-      ]
-    );
-  };
-
   const handleUpdateItemField = (itemId, field, value) => {
     const updatedItems = items.map((item) => {
       if (item.id === itemId) {
@@ -435,7 +437,7 @@ const InvoiceScreen = () => {
       }
       return item;
     });
-    setItems(updatedItems);
+    commitItems(updatedItems);
   };
 
   const handleAddAdjustment = (newAdjustment) => {
@@ -487,6 +489,57 @@ const InvoiceScreen = () => {
     },
   });
 
+  const itemColumns = [
+    { key: 'sno', label: 'S.No', width: 70, editable: false },
+    { key: 'productName', label: 'Product / Description', width: 200 },
+    { key: 'productSerialNo', label: 'Serial No', width: 160 },
+    { key: 'quantity', label: 'Qty', width: 90, keyboardType: 'numeric' },
+    { key: 'rate', label: 'Rate', width: 110, keyboardType: 'numeric' },
+    { key: 'gross', label: 'Gross', width: 120, keyboardType: 'numeric', editable: false },
+    { key: 'net', label: 'Net Amount', width: 130, keyboardType: 'numeric', editable: false },
+  ];
+
+  const handleItemTableCellChange = (rowIndex, field, value) => {
+    const updatedItems = items.map((item, index) => {
+      if (index !== rowIndex) return item;
+      let parsedValue = value;
+      if (field === 'quantity' || field === 'rate') {
+        parsedValue = Number(value) || 0;
+      }
+      return { ...item, [field]: parsedValue };
+    });
+    commitItems(updatedItems);
+  };
+
+  const handleDeleteItemRow = (rowIndex) => {
+    Alert.alert(
+      'Delete Item',
+      'Are you sure you want to delete this item?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            const updatedItems = items.filter((_, index) => index !== rowIndex);
+            commitItems(updatedItems);
+          },
+        },
+      ]
+    );
+  };
+
+  const summaryFields = [
+    { label: 'Item Count', value: summary.itemCount, editable: false },
+    { label: 'Total Quantity', value: summary.totalQty, editable: false },
+    { label: 'Total Gross', value: summary.totalGross.toFixed(2), editable: false },
+    { label: 'Total Discount', value: summary.totalDiscount.toFixed(2), editable: false },
+    { label: 'Total Add', value: summary.totalAdd.toFixed(2), editable: false },
+    { label: 'Total Less', value: summary.totalLess.toFixed(2), editable: false },
+    { label: 'Bill Value', value: summary.totalBillValue.toFixed(2), editable: false },
+    { label: 'Ledger Balance', value: summary.ledgerBalance.toFixed(2), editable: false },
+  ];
+
   const handlePreviewInvoice = () => {
     if (items.length === 0) {
       Alert.alert(
@@ -516,23 +569,6 @@ const InvoiceScreen = () => {
     }
   };
 
-  const renderItemRow = ({ item, index }) => (
-    <View style={styles.itemRow}>
-      <Text style={[styles.itemCell, { flex: 0.5 }]}>{index + 1}</Text>
-      <Text style={[styles.itemCell, { flex: 2 }]}>{item.productName}</Text>
-      <Text style={[styles.itemCell, { flex: 1 }]}>{item.quantity}</Text>
-      <Text style={[styles.itemCell, { flex: 1 }]}>₹{item.rate.toFixed(2)}</Text>
-      <Text style={[styles.itemCell, { flex: 1 }]}>₹{item.gross.toFixed(2)}</Text>
-      <Text style={[styles.itemCell, { flex: 1 }]}>₹{item.net.toFixed(2)}</Text>
-      <TouchableOpacity
-        style={[styles.itemCell, { flex: 0.7 }]}
-        onPress={() => handleDeleteItem(item.id)}
-      >
-        <Text style={styles.deleteIcon}>🗑️</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
   const renderAdjustmentRow = ({ item, index }) => (
     <View style={styles.adjustmentRow}>
       <Text style={[styles.adjustmentCell, { flex: 0.5 }]}>{index + 1}</Text>
@@ -554,15 +590,32 @@ const InvoiceScreen = () => {
   );
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Screen Header */}
-      <View style={styles.screenHeader}>
-        <Text style={styles.screenTitle}>Employee Sales Invoice</Text>
-      </View>
+    <>
+    <SmartSuiteFormScreen
+      title="Employee Sale Invoice"
+      summaryFields={summaryFields}
+      footerContent={(
+        <View style={styles.footerActionWrapper}>
+          <View style={styles.actionButtonsContainer}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.previewButton]}
+              onPress={handlePreviewInvoice}
+            >
+              <Text style={styles.actionButtonText}>📄 Preview Invoice</Text>
+            </TouchableOpacity>
 
-      {/* TRANSACTION DETAILS SECTION */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>TRANSACTION DETAILS</Text>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.whatsappButton]}
+              onPress={handleSendWhatsApp}
+            >
+              <Text style={styles.actionButtonText}>💬 Send WhatsApp</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+    >
+
+      <AccordionSection title="TRANSACTION DETAILS" defaultExpanded={true}>
         
         {/* Transaction ID and Date */}
         <View style={styles.row}>
@@ -659,11 +712,9 @@ const InvoiceScreen = () => {
             </Picker>
           </View>
         </View>
-      </View>
+      </AccordionSection>
 
-      {/* VOUCHER SECTION */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>VOUCHER</Text>
+      <AccordionSection title="VOUCHER" defaultExpanded={false}>
         
         {/* Voucher Series, No, Datetime */}
         <View style={styles.row}>
@@ -687,11 +738,9 @@ const InvoiceScreen = () => {
             <Text style={styles.displayText}>{voucherData.voucherDatetime}</Text>
           </View>
         </View>
-      </View>
+      </AccordionSection>
 
-      {/* HEADER SECTION */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>HEADER</Text>
+      <AccordionSection title="HEADER" defaultExpanded={true}>
         
         {/* Date and Biller Name */}
         <View style={styles.row}>
@@ -854,11 +903,9 @@ const InvoiceScreen = () => {
             <Text style={styles.checkboxLabel}>GST Bill</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </AccordionSection>
 
-      {/* ITEM BODY SECTION WITH INTEGRATED BARCODE */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>ITEM BODY</Text>
+      <AccordionSection title="ITEM BODY" defaultExpanded={true}>
         
         {/* Barcode Input (Integrated into ITEM BODY) */}
         <View style={styles.barcodeSection}>
@@ -888,38 +935,19 @@ const InvoiceScreen = () => {
           </Text>
         </View>
 
-        {/* Add Item Button */}
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => setShowAddItemModal(true)}
-        >
-          <Text style={styles.addButtonText}>+ Add Item Manually</Text>
-        </TouchableOpacity>
+        <ItemTable
+          columns={itemColumns}
+          data={items}
+          onAddRow={() => setShowAddItemModal(true)}
+          onDeleteRow={handleDeleteItemRow}
+          onCellChange={handleItemTableCellChange}
+        />
 
-        {/* Items Table Header */}
-        <View style={styles.tableHeader}>
-          <Text style={[styles.tableHeaderText, { flex: 0.5 }]}>Sno</Text>
-          <Text style={[styles.tableHeaderText, { flex: 2 }]}>Product</Text>
-          <Text style={[styles.tableHeaderText, { flex: 1 }]}>Qty</Text>
-          <Text style={[styles.tableHeaderText, { flex: 1 }]}>Rate</Text>
-          <Text style={[styles.tableHeaderText, { flex: 1 }]}>Gross</Text>
-          <Text style={[styles.tableHeaderText, { flex: 1 }]}>Net</Text>
-          <Text style={[styles.tableHeaderText, { flex: 0.7 }]}>Action</Text>
-        </View>
-
-        {/* Items List */}
-        {items.length > 0 ? (
-          <FlatList
-            data={items}
-            renderItem={renderItemRow}
-            keyExtractor={(item) => item.id.toString()}
-            scrollEnabled={false}
-          />
-        ) : (
+        {items.length === 0 && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateText}>No items added yet</Text>
             <Text style={styles.emptyStateSubtext}>
-              Scan a barcode or use "Add Item" button
+              Scan a barcode or use the "+ Add" button above
             </Text>
           </View>
         )}
@@ -988,11 +1016,9 @@ const InvoiceScreen = () => {
             ))}
           </View>
         )}
-      </View>
+      </AccordionSection>
 
-      {/* ADJUSTMENTS BODY SECTION */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>ADJUSTMENTS BODY</Text>
+      <AccordionSection title="ADJUSTMENTS" defaultExpanded={false}>
         
         {/* Add Adjustment Button */}
         <TouchableOpacity
@@ -1025,51 +1051,11 @@ const InvoiceScreen = () => {
             <Text style={styles.emptyStateText}>No adjustments added</Text>
           </View>
         )}
-      </View>
+      </AccordionSection>
 
-      {/* SUMMARY SECTION */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>SUMMARY</Text>
-        
-        <View style={styles.summaryGrid}>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Item Count:</Text>
-            <Text style={styles.summaryValue}>{summary.itemCount}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Qty:</Text>
-            <Text style={styles.summaryValue}>{summary.totalQty}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Gross:</Text>
-            <Text style={styles.summaryValue}>₹{summary.totalGross.toFixed(2)}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Discount:</Text>
-            <Text style={styles.summaryValue}>₹{summary.totalDiscount.toFixed(2)}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Add:</Text>
-            <Text style={styles.summaryValue}>₹{summary.totalAdd.toFixed(2)}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Less:</Text>
-            <Text style={styles.summaryValue}>₹{summary.totalLess.toFixed(2)}</Text>
-          </View>
-          <View style={[styles.summaryRow, styles.totalRow]}>
-            <Text style={styles.totalLabel}>Total Bill Value:</Text>
-            <Text style={styles.totalValue}>₹{summary.totalBillValue.toFixed(2)}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Ledger Balance:</Text>
-            <Text style={styles.summaryValue}>₹{summary.ledgerBalance.toFixed(2)}</Text>
-          </View>
-        </View>
-      </View>
+      {/* SUMMARY SECTION removed in favor of SmartSuite summary */}
 
-      {/* COLLECTIONS SECTION */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>COLLECTIONS</Text>
+      <AccordionSection title="COLLECTIONS" defaultExpanded={true}>
         
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
@@ -1120,66 +1106,46 @@ const InvoiceScreen = () => {
             </View>
           </View>
         </View>
-      </View>
+      </AccordionSection>
 
-      {/* ACTION BUTTONS */}
-      <View style={styles.actionButtonsContainer}>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.previewButton]}
-          onPress={handlePreviewInvoice}
-        >
-          <Text style={styles.actionButtonText}>📄 Preview Invoice</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.actionButton, styles.whatsappButton]}
-          onPress={handleSendWhatsApp}
-        >
-          <Text style={styles.actionButtonText}>💬 Send WhatsApp</Text>
-        </TouchableOpacity>
-      </View>
+    </SmartSuiteFormScreen>
 
-      {/* Spacing at bottom */}
-      <View style={{ height: 40 }} />
+    <QRScannerModal
+      isVisible={showScanner}
+      onScan={handleScannedQr}
+      onClose={() => setShowScanner(false)}
+    />
 
-      {/* MODALS */}
-      <QRScannerModal
-        isVisible={showScanner}
-        onScan={handleScannedQr}
-        onClose={() => setShowScanner(false)}
-      />
+    <BarcodeScannerModal
+      isVisible={showBarcodeScanner}
+      onScan={handleScannedBarcode}
+      onClose={() => setShowBarcodeScanner(false)}
+    />
 
-      <BarcodeScannerModal
-        isVisible={showBarcodeScanner}
-        onScan={handleScannedBarcode}
-        onClose={() => setShowBarcodeScanner(false)}
-      />
+    <AddItemModal
+      isVisible={showAddItemModal}
+      onAddItem={handleAddItem}
+      onClose={() => setShowAddItemModal(false)}
+    />
 
-      <AddItemModal
-        isVisible={showAddItemModal}
-        onAddItem={handleAddItem}
-        onClose={() => setShowAddItemModal(false)}
-      />
+    <AddAdjustmentModal
+      isVisible={showAddAdjustmentModal}
+      onAddAdjustment={handleAddAdjustment}
+      onClose={() => setShowAddAdjustmentModal(false)}
+    />
 
-      <AddAdjustmentModal
-        isVisible={showAddAdjustmentModal}
-        onAddAdjustment={handleAddAdjustment}
-        onClose={() => setShowAddAdjustmentModal(false)}
-      />
+    <PDFPreviewModal
+      isVisible={showPDFPreview}
+      onClose={() => setShowPDFPreview(false)}
+      invoiceData={getInvoiceData()}
+    />
 
-      <PDFPreviewModal
-        isVisible={showPDFPreview}
-        onClose={() => setShowPDFPreview(false)}
-        invoiceData={getInvoiceData()}
-      />
-
-      {/* Mobile Search Modal (Fallback if QR fails) */}
-      <MobileSearchModal
-        isVisible={showMobileSearchModal}
-        onSearch={handleSearchByMobile}
-        onClose={() => setShowMobileSearchModal(false)}
-      />
-    </ScrollView>
+    <MobileSearchModal
+      isVisible={showMobileSearchModal}
+      onSearch={handleSearchByMobile}
+      onClose={() => setShowMobileSearchModal(false)}
+    />
+    </>
   );
 };
 
@@ -1649,6 +1615,10 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     fontWeight: 'bold',
   },
+  footerActionWrapper: {
+    paddingHorizontal: 12,
+    paddingBottom: 40,
+  },
   actionButtonsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1680,4 +1650,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default InvoiceScreen;
+export default EmployeeSaleInvoiceScreen;

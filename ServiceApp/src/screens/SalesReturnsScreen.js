@@ -139,6 +139,19 @@ const SalesReturnsScreen = () => {
     { label: 'Total Value', value: '0' },
   ];
 
+  const [collectionTotal, setCollectionTotal] = useState('');
+  const [collectedCash, setCollectedCash] = useState('');
+  const [collectedCard, setCollectedCard] = useState('');
+  const [collectedUpi, setCollectedUpi] = useState('');
+
+  const getNumeric = (val) => parseFloat(val) || 0;
+  const getTotalBillValue = () => parseFloat(summaryFields.find((f) => f.label === 'Total Bill Value')?.value) || 0;
+  const calculatedBalance = () => {
+    const total = getTotalBillValue();
+    const balance = total - getNumeric(collectionTotal) - getNumeric(collectedCash) - getNumeric(collectedCard) - getNumeric(collectedUpi);
+    return balance.toFixed(2);
+  };
+
   const handlePreviewInvoice = async () => {
     if (itemBody.length === 0 || !itemBody[0].product) {
       Alert.alert('No Items', 'Please add at least one item to preview the return.', [{ text: 'OK' }]);
@@ -153,6 +166,13 @@ const SalesReturnsScreen = () => {
         items: itemBody.map(item => ({ productName: item.product, quantity: item.quantity || 0, rate: item.rate || 0, net: item.gross || 0 })),
         adjustments: adjustments,
         summary: { totalQty: summaryFields.find(f => f.label === 'Total Qty')?.value || 0, totalBillValue: summaryFields.find(f => f.label === 'Total Bill Value')?.value || 0 },
+        collections: {
+          collections: getNumeric(collectionTotal),
+          cash: getNumeric(collectedCash),
+          card: getNumeric(collectedCard),
+          upi: getNumeric(collectedUpi),
+          balance: parseFloat(calculatedBalance()),
+        },
       });
     } catch (error) {
       console.error('Error previewing return:', error);
@@ -173,6 +193,13 @@ const SalesReturnsScreen = () => {
         items: itemBody.map(item => ({ productName: item.product, quantity: item.quantity || 0, rate: item.rate || 0, net: item.gross || 0 })),
         adjustments: adjustments,
         summary: { totalQty: summaryFields.find(f => f.label === 'Total Qty')?.value || 0, totalBillValue: summaryFields.find(f => f.label === 'Total Bill Value')?.value || 0 },
+        collections: {
+          collections: getNumeric(collectionTotal),
+          cash: getNumeric(collectedCash),
+          card: getNumeric(collectedCard),
+          upi: getNumeric(collectedUpi),
+          balance: parseFloat(calculatedBalance()),
+        },
       });
       await sharePDFViaWhatsApp(uri, mobileNo);
     } catch (error) {
@@ -184,6 +211,18 @@ const SalesReturnsScreen = () => {
     <SmartSuiteFormScreen
       title="Sales Returns"
       summaryFields={summaryFields}
+      footerContent={(
+        <View style={styles.footerActionWrapper}>
+          <View style={styles.actionButtonsContainer}>
+            <TouchableOpacity style={[styles.actionButton, styles.previewButton]} onPress={handlePreviewInvoice}>
+              <Text style={styles.actionButtonText}>📄 Preview Invoice</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionButton, styles.whatsappButton]} onPress={handleSendWhatsApp}>
+              <Text style={styles.actionButtonText}>💬 Send WhatsApp</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     >
       <AccordionSection title="TRANSACTION DETAILS" defaultExpanded={true}>
         <View style={styles.row}>
@@ -399,15 +438,55 @@ const SalesReturnsScreen = () => {
         />
       </AccordionSection>
 
-      {/* ACTION BUTTONS */}
-      <View style={styles.actionButtonsContainer}>
-        <TouchableOpacity style={[styles.actionButton, styles.previewButton]} onPress={handlePreviewInvoice}>
-          <Text style={styles.actionButtonText}>📄 Preview Invoice</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionButton, styles.whatsappButton]} onPress={handleSendWhatsApp}>
-          <Text style={styles.actionButtonText}>💬 Send WhatsApp</Text>
-        </TouchableOpacity>
-      </View>
+      <AccordionSection title="COLLECTIONS" defaultExpanded={true}>
+        <View style={styles.row}>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Collections</Text>
+            <TextInput
+              style={styles.input}
+              value={collectionTotal}
+              onChangeText={setCollectionTotal}
+              keyboardType="numeric"
+            />
+          </View>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Cash</Text>
+            <TextInput
+              style={styles.input}
+              value={collectedCash}
+              onChangeText={setCollectedCash}
+              keyboardType="numeric"
+            />
+          </View>
+        </View>
+        <View style={styles.row}>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Card</Text>
+            <TextInput
+              style={styles.input}
+              value={collectedCard}
+              onChangeText={setCollectedCard}
+              keyboardType="numeric"
+            />
+          </View>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>UPI</Text>
+            <TextInput
+              style={styles.input}
+              value={collectedUpi}
+              onChangeText={setCollectedUpi}
+              keyboardType="numeric"
+            />
+          </View>
+        </View>
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Balance</Text>
+          <View style={styles.displayBox}>
+            <Text style={styles.balanceText}>₹{calculatedBalance()}</Text>
+          </View>
+        </View>
+      </AccordionSection>
+
     </SmartSuiteFormScreen>
   );
 };
