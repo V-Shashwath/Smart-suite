@@ -34,7 +34,7 @@ const QRScannerModal = ({ isVisible, onScan, onClose }) => {
 
   if (!permission) {
     return (
-      <Modal visible={isVisible} animationType="slide" transparent={false}>
+      <Modal visible={Boolean(isVisible)} animationType="slide" transparent={Boolean(false)}>
         <View style={styles.centerContainer}>
           <Text style={styles.messageText}>Requesting camera permission...</Text>
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
@@ -47,7 +47,7 @@ const QRScannerModal = ({ isVisible, onScan, onClose }) => {
 
   if (!permission.granted) {
     return (
-      <Modal visible={isVisible} animationType="slide" transparent={false}>
+      <Modal visible={Boolean(isVisible)} animationType="slide" transparent={Boolean(false)}>
         <View style={styles.centerContainer}>
           <Text style={styles.messageText}>❌ Camera permission denied</Text>
           <Text style={styles.subMessageText}>

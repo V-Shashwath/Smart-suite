@@ -38,8 +38,8 @@ const PreviewInvoiceModal = ({
 
   return (
     <Modal
-      visible={isVisible}
-      transparent={true}
+      visible={Boolean(isVisible)}
+      transparent={Boolean(true)}
       animationType="slide"
       onRequestClose={onClose}
     >
@@ -54,7 +54,7 @@ const PreviewInvoiceModal = ({
           </View>
 
           {/* Scrollable Content */}
-          <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={Boolean(false)}>
             {/* Transaction Details Section */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Transaction Details</Text>

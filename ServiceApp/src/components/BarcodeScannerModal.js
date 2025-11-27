@@ -44,7 +44,7 @@ const BarcodeScannerModal = ({ isVisible, onScan, onClose }) => {
   if (!permission) {
     // Camera permissions are still loading
     return (
-      <Modal visible={isVisible} animationType="slide" transparent={false}>
+      <Modal visible={Boolean(isVisible)} animationType="slide" transparent={Boolean(false)}>
         <View style={styles.container}>
           <View style={styles.permissionContainer}>
             <Text style={styles.permissionText}>📷 Requesting camera permission...</Text>
@@ -60,7 +60,7 @@ const BarcodeScannerModal = ({ isVisible, onScan, onClose }) => {
   if (!permission.granted) {
     // Camera permissions are not granted yet
     return (
-      <Modal visible={isVisible} animationType="slide" transparent={false}>
+      <Modal visible={Boolean(isVisible)} animationType="slide" transparent={Boolean(false)}>
         <View style={styles.container}>
           <View style={styles.permissionContainer}>
             <Text style={styles.permissionTitle}>📷 Camera Access Required</Text>

@@ -77,14 +77,14 @@ const AddAdjustmentModal = ({ isVisible, onAddAdjustment, onClose }) => {
 
   return (
     <Modal
-      visible={isVisible}
+      visible={Boolean(isVisible)}
       animationType="slide"
-      transparent={true}
+      transparent={Boolean(true)}
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContainer}>
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView showsVerticalScrollIndicator={Boolean(false)}>
             {/* Header */}
             <View style={styles.header}>
               <Text style={styles.headerTitle}>Add Adjustment</Text>
@@ -131,7 +131,7 @@ const AddAdjustmentModal = ({ isVisible, onAddAdjustment, onClose }) => {
                 onChangeText={handleAddAmountChange}
                 placeholder="Enter add amount"
                 keyboardType="numeric"
-                editable={selectedAccount.type !== 'less'}
+                editable={Boolean(selectedAccount.type !== 'less')}
               />
               {selectedAccount.type === 'less' && (
                 <Text style={styles.helperText}>
@@ -152,7 +152,7 @@ const AddAdjustmentModal = ({ isVisible, onAddAdjustment, onClose }) => {
                 onChangeText={handleLessAmountChange}
                 placeholder="Enter less amount"
                 keyboardType="numeric"
-                editable={selectedAccount.type !== 'add'}
+                editable={Boolean(selectedAccount.type !== 'add')}
               />
               {selectedAccount.type === 'add' && (
                 <Text style={styles.helperText}>

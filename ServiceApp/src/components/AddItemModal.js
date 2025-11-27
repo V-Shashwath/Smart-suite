@@ -46,14 +46,14 @@ const AddItemModal = ({ isVisible, onAddItem, onClose }) => {
 
   return (
     <Modal
-      visible={isVisible}
+      visible={Boolean(isVisible)}
       animationType="slide"
-      transparent={true}
+      transparent={Boolean(true)}
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContainer}>
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView showsVerticalScrollIndicator={Boolean(false)}>
             {/* Header */}
             <View style={styles.header}>
               <Text style={styles.headerTitle}>Add Item</Text>

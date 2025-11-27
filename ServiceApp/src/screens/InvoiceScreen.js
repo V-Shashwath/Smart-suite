@@ -9,7 +9,6 @@ import {
   Dimensions,
   Alert,
   FlatList,
-  Linking,
   Modal,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
@@ -29,7 +28,8 @@ import QRScannerModal from '../components/QRScannerModal';
 import BarcodeScannerModal from '../components/BarcodeScannerModal';
 import AddItemModal from '../components/AddItemModal';
 import AddAdjustmentModal from '../components/AddAdjustmentModal';
-import PreviewInvoiceModal from '../components/PreviewInvoiceModal';
+import PDFPreviewModal from '../components/PDFPreviewModal';
+import { sharePDFViaWhatsApp, generateInvoicePDF } from '../utils/pdfUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -55,7 +55,7 @@ const InvoiceScreen = () => {
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [showAddAdjustmentModal, setShowAddAdjustmentModal] = useState(false);
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showPDFPreview, setShowPDFPreview] = useState(false);
   const [showMobileSearchModal, setShowMobileSearchModal] = useState(false);
   
   // Adjustments state
@@ -467,6 +467,26 @@ const InvoiceScreen = () => {
     );
   };
 
+  const getInvoiceData = () => ({
+    title: 'Employee Sales Invoice',
+    transactionDetails: transactionData,
+    voucherDetails: voucherData,
+    customerData: customerData,
+    items: items,
+    adjustments: adjustments,
+    summary: summary,
+    collections: {
+      cash: parseFloat(collectedCash) || 0,
+      card: parseFloat(collectedCard) || 0,
+      upi: parseFloat(collectedUpi) || 0,
+      balance:
+        summary.totalBillValue -
+        (parseFloat(collectedCash) || 0) -
+        (parseFloat(collectedCard) || 0) -
+        (parseFloat(collectedUpi) || 0),
+    },
+  });
+
   const handlePreviewInvoice = () => {
     if (items.length === 0) {
       Alert.alert(
@@ -476,10 +496,10 @@ const InvoiceScreen = () => {
       );
       return;
     }
-    setShowPreviewModal(true);
+    setShowPDFPreview(true);
   };
 
-  const handleSendWhatsApp = () => {
+  const handleSendWhatsApp = async () => {
     if (items.length === 0) {
       Alert.alert(
         'No Items',
@@ -488,111 +508,12 @@ const InvoiceScreen = () => {
       );
       return;
     }
-
-    let msg = `*EMPLOYEE SALES INVOICE*\n`;
-    msg += `===========================\n\n`;
-    
-    msg += `*Invoice:* ${voucherData.voucherNo}\n`;
-    msg += `*Date:* ${transactionData.date}\n`;
-    msg += `*TXN ID:* ${transactionData.transactionId}\n\n`;
-    
-    msg += `*Customer Details*\n`;
-    msg += `ID: ${customerData.customerId || 'Walk-in'}\n`;
-    msg += `Mobile: ${customerData.mobileNo || 'N/A'}\n`;
-    if (customerData.customerType) {
-      msg += `Type: ${customerData.customerType}\n`;
+    try {
+      const { uri } = await generateInvoicePDF(getInvoiceData());
+      await sharePDFViaWhatsApp(uri, customerData.whatsappNo || customerData.mobileNo);
+    } catch (error) {
+      console.error('Error sending WhatsApp:', error);
     }
-    msg += `\n`;
-    
-    msg += `*Items (${items.length})*\n`;
-    msg += `---------------------------\n`;
-    items.forEach((item, idx) => {
-      msg += `${idx + 1}. ${item.productName}\n`;
-      msg += `   ${item.quantity} × ₹${item.rate.toFixed(2)} = ₹${item.net.toFixed(2)}\n`;
-    });
-    msg += `\n`;
-    
-    if (adjustments.length > 0) {
-      msg += `*Adjustments*\n`;
-      adjustments.forEach((adj) => {
-        if (adj.addAmount > 0) {
-          msg += `• ${adj.accountName}: +₹${adj.addAmount.toFixed(2)}\n`;
-        }
-        if (adj.lessAmount > 0) {
-          msg += `• ${adj.accountName}: -₹${adj.lessAmount.toFixed(2)}\n`;
-        }
-      });
-      msg += `\n`;
-    }
-    
-    msg += `*SUMMARY*\n`;
-    msg += `---------------------------\n`;
-    msg += `Items: ${summary.itemCount} | Qty: ${summary.totalQty}\n`;
-    msg += `Gross: ₹${summary.totalGross.toFixed(2)}\n`;
-    
-    if (summary.totalAdd > 0) {
-      msg += `Add: +₹${summary.totalAdd.toFixed(2)}\n`;
-    }
-    if (summary.totalLess > 0) {
-      msg += `Less: -₹${summary.totalLess.toFixed(2)}\n`;
-    }
-    
-    msg += `\n*TOTAL BILL: ₹${summary.totalBillValue.toFixed(2)}*\n`;
-    
-    const totalCollected = (parseFloat(collectedCash) || 0) + 
-                          (parseFloat(collectedCard) || 0) + 
-                          (parseFloat(collectedUpi) || 0);
-    const balance = summary.totalBillValue - totalCollected;
-    
-    if (totalCollected > 0) {
-      msg += `\n*PAYMENT RECEIVED*\n`;
-      if (parseFloat(collectedCash) > 0) {
-        msg += `Cash: ₹${parseFloat(collectedCash).toFixed(2)}\n`;
-      }
-      if (parseFloat(collectedCard) > 0) {
-        msg += `Card: ₹${parseFloat(collectedCard).toFixed(2)}\n`;
-      }
-      if (parseFloat(collectedUpi) > 0) {
-        msg += `UPI: ₹${parseFloat(collectedUpi).toFixed(2)}\n`;
-      }
-      msg += `*Balance: ₹${balance.toFixed(2)}*\n`;
-    }
-    
-    msg += `\n===========================\n`;
-    msg += `Thank you for your business! 🙏`;
-
-    const encodedMessage = encodeURIComponent(msg);
-    
-    const phoneNumber = customerData.whatsappNo || customerData.mobileNo || '';
-    const cleanPhone = phoneNumber.replace(/\D/g, '');
-    
-    const whatsappUrl = cleanPhone 
-      ? `whatsapp://send?phone=${cleanPhone}&text=${encodedMessage}`
-      : `whatsapp://send?text=${encodedMessage}`;
-
-    console.log('WhatsApp URL length:', whatsappUrl.length);
-    console.log('Message preview:', msg.substring(0, 200));
-
-    Linking.canOpenURL(whatsappUrl)
-      .then((supported) => {
-        if (supported) {
-          return Linking.openURL(whatsappUrl);
-        } else {
-          Alert.alert(
-            'WhatsApp Not Available',
-            'WhatsApp is not installed on this device. Please install WhatsApp to send invoices.',
-            [{ text: 'OK' }]
-          );
-        }
-      })
-      .catch((error) => {
-        console.error('Error opening WhatsApp:', error);
-        Alert.alert(
-          'Error',
-          'Could not open WhatsApp. Please make sure it is installed and try again.',
-          [{ text: 'OK' }]
-        );
-      });
   };
 
   const renderItemRow = ({ item, index }) => (
@@ -1246,25 +1167,10 @@ const InvoiceScreen = () => {
         onClose={() => setShowAddAdjustmentModal(false)}
       />
 
-      <PreviewInvoiceModal
-        isVisible={showPreviewModal}
-        onClose={() => setShowPreviewModal(false)}
-        transactionDetails={transactionData}
-        voucherDetails={voucherData}
-        customerData={customerData}
-        items={items}
-        adjustments={adjustments}
-        summary={summary}
-        collections={{
-          cash: parseFloat(collectedCash) || 0,
-          card: parseFloat(collectedCard) || 0,
-          upi: parseFloat(collectedUpi) || 0,
-          balance:
-            summary.totalBillValue -
-            (parseFloat(collectedCash) || 0) -
-            (parseFloat(collectedCard) || 0) -
-            (parseFloat(collectedUpi) || 0),
-        }}
+      <PDFPreviewModal
+        isVisible={showPDFPreview}
+        onClose={() => setShowPDFPreview(false)}
+        invoiceData={getInvoiceData()}
       />
 
       {/* Mobile Search Modal (Fallback if QR fails) */}
