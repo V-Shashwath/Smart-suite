@@ -594,25 +594,8 @@ const EmployeeSaleInvoiceScreen = () => {
     <SmartSuiteFormScreen
       title="Employee Sale Invoice"
       summaryFields={summaryFields}
-      footerContent={(
-        <View style={styles.footerActionWrapper}>
-          <View style={styles.actionButtonsContainer}>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.previewButton]}
-              onPress={handlePreviewInvoice}
-            >
-              <Text style={styles.actionButtonText}>📄 Preview Invoice</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.actionButton, styles.whatsappButton]}
-              onPress={handleSendWhatsApp}
-            >
-              <Text style={styles.actionButtonText}>💬 Send WhatsApp</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+      onPreview={handlePreviewInvoice}
+      onWhatsApp={handleSendWhatsApp}
     >
 
       <AccordionSection title="TRANSACTION DETAILS" defaultExpanded={true}>
@@ -1614,39 +1597,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#4CAF50',
     fontWeight: 'bold',
-  },
-  footerActionWrapper: {
-    paddingHorizontal: 12,
-    paddingBottom: 40,
-  },
-  actionButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginHorizontal: 12,
-    marginTop: 12,
-  },
-  actionButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginHorizontal: 6,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-  },
-  previewButton: {
-    backgroundColor: '#673AB7',
-  },
-  whatsappButton: {
-    backgroundColor: '#25D366',
-  },
-  actionButtonText: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#fff',
   },
 });
 

@@ -19,6 +19,8 @@ const SmartSuiteFormScreen = ({
   actionBarActions = {},
   summaryFields = [],
   footerContent = null,
+  onPreview,
+  onWhatsApp,
   children,
 }) => {
   const navigation = useNavigation();
@@ -116,6 +118,35 @@ const SmartSuiteFormScreen = ({
 
         {/* Custom Footer Content */}
         {footerContent}
+
+        {(onPreview || onWhatsApp) && (
+          <View style={styles.footerActionWrapper}>
+            <View style={styles.footerButtonsRow}>
+              {onPreview && (
+                <TouchableOpacity
+                  style={[styles.footerButton, styles.previewFooterButton]}
+                  onPress={onPreview}
+                >
+                  <View style={styles.footerButtonContent}>
+                    <Text style={styles.footerButtonIcon}>📄</Text>
+                    <Text style={styles.footerButtonText}>Preview Invoice</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+              {onWhatsApp && (
+                <TouchableOpacity
+                  style={[styles.footerButton, styles.whatsappFooterButton]}
+                  onPress={onWhatsApp}
+                >
+                  <View style={styles.footerButtonContent}>
+                    <Text style={styles.footerButtonIcon}>🟢</Text>
+                    <Text style={styles.footerButtonText}>WhatsApp</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* Footer Logo */}
         <View style={styles.footer}>
@@ -273,6 +304,47 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontWeight: '500',
+  },
+  footerActionWrapper: {
+    paddingHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 32,
+  },
+  footerButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  footerButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+  },
+  previewFooterButton: {
+    backgroundColor: '#3949AB',
+  },
+  whatsappFooterButton: {
+    backgroundColor: '#25D366',
+  },
+  footerButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  footerButtonIcon: {
+    fontSize: 18,
+    color: '#fff',
+  },
+  footerButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
 
