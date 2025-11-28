@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import SmartSuiteFormScreen from '../components/SmartSuiteFormScreen';
@@ -6,6 +6,8 @@ import AccordionSection from '../components/AccordionSection';
 import ItemTable from '../components/ItemTable';
 import { branches, employeeUsernames, productOptions, adjustmentAccounts } from '../data/mockData';
 import { previewInvoicePDF, sharePDFViaWhatsApp, generateInvoicePDF } from '../utils/pdfUtils';
+import useScreenDraft from '../hooks/useScreenDraft';
+import withScreenPermission from '../components/withScreenPermission';
 
 const SalesReturnsScreen = () => {
   const [branch, setBranch] = useState('');
@@ -128,15 +130,33 @@ const SalesReturnsScreen = () => {
     { key: 'comments2', label: 'Comments2', width: 120 },
   ];
 
+  const totals = useMemo(() => {
+    const totalQty = itemBody.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0);
+    const totalGross = itemBody.reduce((sum, item) => sum + (parseFloat(item.gross) || 0), 0);
+    const totalDiscount = itemBody.reduce((sum, item) => sum + (parseFloat(item.discount) || 0), 0);
+    const totalAdd = adjustments.reduce((sum, adj) => sum + (parseFloat(adj.add) || 0), 0);
+    const totalLess = adjustments.reduce((sum, adj) => sum + (parseFloat(adj.less) || 0), 0);
+    const totalBillValue = totalGross - totalDiscount + totalAdd - totalLess;
+    return {
+      totalQty,
+      totalGross,
+      totalDiscount,
+      totalAdd,
+      totalLess,
+      totalBillValue,
+      totalValue: totalBillValue,
+    };
+  }, [itemBody, adjustments]);
+
   const summaryFields = [
-    { label: 'Total Qty', value: '0' },
-    { label: 'Total Gross', value: '0' },
-    { label: 'Total Discount', value: '0' },
-    { label: 'Total Add', value: '0' },
-    { label: 'Total Less', value: '0' },
-    { label: 'Total Bill Value', value: '0' },
-    { label: 'Round off', value: '0' },
-    { label: 'Total Value', value: '0' },
+    { label: 'Total Qty', value: totals.totalQty.toString() },
+    { label: 'Total Gross', value: totals.totalGross.toFixed(2) },
+    { label: 'Total Discount', value: totals.totalDiscount.toFixed(2) },
+    { label: 'Total Add', value: totals.totalAdd.toFixed(2) },
+    { label: 'Total Less', value: totals.totalLess.toFixed(2) },
+    { label: 'Total Bill Value', value: totals.totalBillValue.toFixed(2) },
+    { label: 'Round off', value: '0.00' },
+    { label: 'Total Value', value: totals.totalValue.toFixed(2) },
   ];
 
   const [collectionTotal, setCollectionTotal] = useState('');
@@ -145,12 +165,74 @@ const SalesReturnsScreen = () => {
   const [collectedUpi, setCollectedUpi] = useState('');
 
   const getNumeric = (val) => parseFloat(val) || 0;
-  const getTotalBillValue = () => parseFloat(summaryFields.find((f) => f.label === 'Total Bill Value')?.value) || 0;
+  const getTotalBillValue = () => totals.totalBillValue;
   const calculatedBalance = () => {
     const total = getTotalBillValue();
     const balance = total - getNumeric(collectionTotal) - getNumeric(collectedCash) - getNumeric(collectedCard) - getNumeric(collectedUpi);
     return balance.toFixed(2);
   };
+
+  const getSalesReturnData = useCallback(() => {
+    return {
+      title: 'Sales Returns',
+      voucherDetails: { voucherSeries: vSeries, voucherNo: voucherNo, voucherDatetime: date },
+      transactionDetails: { date, branch, username: executive },
+      customerData: {
+        customerName: party,
+        customerId,
+        mobileNo,
+        whatsappNo,
+        customerType,
+      },
+      header: {
+        billerName,
+        salesAccount,
+        readingA3,
+        readingA4,
+        remarks,
+        machineType,
+      },
+      items: itemBody,
+      adjustments,
+      summary: totals,
+      collections: {
+        collections: getNumeric(collectionTotal),
+        cash: getNumeric(collectedCash),
+        card: getNumeric(collectedCard),
+        upi: getNumeric(collectedUpi),
+        balance: parseFloat(calculatedBalance()),
+      },
+    };
+  }, [
+    vSeries,
+    voucherNo,
+    date,
+    branch,
+    executive,
+    party,
+    customerId,
+    mobileNo,
+    whatsappNo,
+    customerType,
+    billerName,
+    salesAccount,
+    readingA3,
+    readingA4,
+    remarks,
+    machineType,
+    itemBody,
+    adjustments,
+    totals,
+    collectionTotal,
+    collectedCash,
+    collectedCard,
+    collectedUpi,
+    calculatedBalance,
+  ]);
+
+  const { handleSave, isSaving } = useScreenDraft('SalesReturns', getSalesReturnData, {
+    successMessage: 'Sales return draft saved.',
+  });
 
   const handlePreviewInvoice = async () => {
     if (itemBody.length === 0 || !itemBody[0].product) {
@@ -158,21 +240,21 @@ const SalesReturnsScreen = () => {
       return;
     }
     try {
+      const data = getSalesReturnData();
       await previewInvoicePDF({
-        title: 'Sales Returns',
-        voucherDetails: { voucherSeries: vSeries, voucherNo: voucherNo, voucherDatetime: date },
-        transactionDetails: { date: date, branch: branch, username: executive },
-        customerData: { customerName: customerName, customerId: customerId, mobileNo: mobileNo },
-        items: itemBody.map(item => ({ productName: item.product, quantity: item.quantity || 0, rate: item.rate || 0, net: item.gross || 0 })),
-        adjustments: adjustments,
-        summary: { totalQty: summaryFields.find(f => f.label === 'Total Qty')?.value || 0, totalBillValue: summaryFields.find(f => f.label === 'Total Bill Value')?.value || 0 },
-        collections: {
-          collections: getNumeric(collectionTotal),
-          cash: getNumeric(collectedCash),
-          card: getNumeric(collectedCard),
-          upi: getNumeric(collectedUpi),
-          balance: parseFloat(calculatedBalance()),
-        },
+        title: data.title,
+        voucherDetails: data.voucherDetails,
+        transactionDetails: data.transactionDetails,
+        customerData: data.customerData,
+        items: data.items.map(item => ({
+          productName: item.product,
+          quantity: item.quantity || 0,
+          rate: item.rate || 0,
+          net: item.gross || 0,
+        })),
+        adjustments: data.adjustments,
+        summary: data.summary,
+        collections: data.collections,
       });
     } catch (error) {
       console.error('Error previewing return:', error);
@@ -185,23 +267,23 @@ const SalesReturnsScreen = () => {
       return;
     }
     try {
+      const data = getSalesReturnData();
       const { uri } = await generateInvoicePDF({
-        title: 'Sales Returns',
-        voucherDetails: { voucherSeries: vSeries, voucherNo: voucherNo, voucherDatetime: date },
-        transactionDetails: { date: date, branch: branch, username: executive },
-        customerData: { customerName: customerName, customerId: customerId, mobileNo: mobileNo },
-        items: itemBody.map(item => ({ productName: item.product, quantity: item.quantity || 0, rate: item.rate || 0, net: item.gross || 0 })),
-        adjustments: adjustments,
-        summary: { totalQty: summaryFields.find(f => f.label === 'Total Qty')?.value || 0, totalBillValue: summaryFields.find(f => f.label === 'Total Bill Value')?.value || 0 },
-        collections: {
-          collections: getNumeric(collectionTotal),
-          cash: getNumeric(collectedCash),
-          card: getNumeric(collectedCard),
-          upi: getNumeric(collectedUpi),
-          balance: parseFloat(calculatedBalance()),
-        },
+        title: data.title,
+        voucherDetails: data.voucherDetails,
+        transactionDetails: data.transactionDetails,
+        customerData: data.customerData,
+        items: data.items.map(item => ({
+          productName: item.product,
+          quantity: item.quantity || 0,
+          rate: item.rate || 0,
+          net: item.gross || 0,
+        })),
+        adjustments: data.adjustments,
+        summary: data.summary,
+        collections: data.collections,
       });
-      await sharePDFViaWhatsApp(uri, mobileNo);
+      await sharePDFViaWhatsApp(uri, mobileNo || whatsappNo);
     } catch (error) {
       console.error('Error sending WhatsApp:', error);
     }
@@ -213,6 +295,8 @@ const SalesReturnsScreen = () => {
       summaryFields={summaryFields}
       onPreview={handlePreviewInvoice}
       onWhatsApp={handleSendWhatsApp}
+      actionBarActions={{ onSave: handleSave }}
+      isSaving={isSaving}
     >
       <AccordionSection title="TRANSACTION DETAILS" defaultExpanded={true}>
         <View style={styles.row}>
@@ -534,6 +618,6 @@ const styles = StyleSheet.create({
   },
 });
 
-export default SalesReturnsScreen;
+export default withScreenPermission('SalesReturns')(SalesReturnsScreen);
 
 

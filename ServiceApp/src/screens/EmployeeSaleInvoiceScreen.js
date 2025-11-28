@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -33,6 +33,8 @@ import AddItemModal from '../components/AddItemModal';
 import AddAdjustmentModal from '../components/AddAdjustmentModal';
 import PDFPreviewModal from '../components/PDFPreviewModal';
 import { sharePDFViaWhatsApp, generateInvoicePDF } from '../utils/pdfUtils';
+import useScreenDraft from '../hooks/useScreenDraft';
+import withScreenPermission from '../components/withScreenPermission';
 
 const { width } = Dimensions.get('window');
 
@@ -469,7 +471,7 @@ const EmployeeSaleInvoiceScreen = () => {
     );
   };
 
-  const getInvoiceData = () => ({
+  const getInvoiceData = useCallback(() => ({
     title: 'Employee Sales Invoice',
     transactionDetails: transactionData,
     voucherDetails: voucherData,
@@ -487,6 +489,10 @@ const EmployeeSaleInvoiceScreen = () => {
         (parseFloat(collectedCard) || 0) -
         (parseFloat(collectedUpi) || 0),
     },
+  }), [transactionData, voucherData, customerData, items, adjustments, summary, collectedCash, collectedCard, collectedUpi]);
+
+  const { handleSave, isSaving } = useScreenDraft('EmployeeSaleInvoice', getInvoiceData, {
+    successMessage: 'Employee sale invoice draft saved.',
   });
 
   const itemColumns = [
@@ -596,6 +602,8 @@ const EmployeeSaleInvoiceScreen = () => {
       summaryFields={summaryFields}
       onPreview={handlePreviewInvoice}
       onWhatsApp={handleSendWhatsApp}
+      actionBarActions={{ onSave: handleSave }}
+      isSaving={isSaving}
     >
 
       <AccordionSection title="TRANSACTION DETAILS" defaultExpanded={true}>
@@ -1600,4 +1608,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default EmployeeSaleInvoiceScreen;
+export default withScreenPermission('EmployeeSaleInvoice')(EmployeeSaleInvoiceScreen);

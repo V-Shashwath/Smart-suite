@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,10 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
+  Alert,
 } from 'react-native';
+import { useAuth } from '../context/AuthContext';
+import { getScreenMeta } from '../constants/screenRegistry';
 
 const MenuModalScreen = ({ navigation }) => {
   const [expandedSections, setExpandedSections] = useState({
@@ -20,6 +23,9 @@ const MenuModalScreen = ({ navigation }) => {
     copierTransactions: false,
     refurbished: false,
   });
+  const { currentUser, hasAccessToScreen, logout, getAccessibleScreens } = useAuth();
+
+  const accessibleRoutes = useMemo(() => getAccessibleScreens(), [getAccessibleScreens]);
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
@@ -29,16 +35,50 @@ const MenuModalScreen = ({ navigation }) => {
   };
 
   const navigateToScreen = (screenName) => {
+    if (!hasAccessToScreen(screenName)) {
+      Alert.alert('No access', 'Please contact a supervisor for access to this screen.');
+      return;
+    }
     navigation.goBack();
     requestAnimationFrame(() => {
       navigation.navigate(screenName);
     });
   };
 
+  const handleLogout = async () => {
+    await logout();
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Login' }],
+    });
+  };
+
+  const renderExecutiveManagement = () => {
+    if (currentUser?.role !== 'supervisor') return null;
+    return (
+      <TouchableOpacity
+        style={styles.menuItem}
+        onPress={() => navigateToScreen('ExecutiveManagement')}
+      >
+        <Text style={styles.menuIcon}>🧑‍💼</Text>
+        <Text style={styles.menuLabel}>Executive Management</Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const hasSectionAccess = (routes) => routes.some((route) => hasAccessToScreen(route));
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Smart Suite</Text>
+        <View>
+          <Text style={styles.headerTitle}>Smart Suite</Text>
+          {currentUser && (
+            <Text style={styles.headerSubtitle}>
+              {currentUser.username} • {currentUser.role}
+            </Text>
+          )}
+        </View>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.closeButton}
@@ -57,147 +97,174 @@ const MenuModalScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         {/* Transactions Section */}
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => toggleSection('transactions')}
-        >
-          <Text style={styles.menuIcon}>📊</Text>
-          <Text style={styles.menuLabel}>Transactions</Text>
-          <Text style={styles.arrowIcon}>
-            {expandedSections.transactions ? '▼' : '▶'}
-          </Text>
-        </TouchableOpacity>
+        {hasSectionAccess(accessibleRoutes) && (
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => toggleSection('transactions')}
+          >
+            <Text style={styles.menuIcon}>📊</Text>
+            <Text style={styles.menuLabel}>Transactions</Text>
+            <Text style={styles.arrowIcon}>
+              {expandedSections.transactions ? '▼' : '▶'}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {expandedSections.transactions && (
           <View style={styles.subMenu}>
-            {/* Cash Sub-Section */}
-            <TouchableOpacity
-              style={styles.subMenuItem}
-              onPress={() => toggleSection('cash')}
-            >
-              <Text style={styles.subMenuIcon}>💰</Text>
-              <Text style={styles.subMenuLabel}>Cash</Text>
-              <Text style={styles.arrowIcon}>
-                {expandedSections.cash ? '▼' : '▶'}
-              </Text>
-            </TouchableOpacity>
+            {hasAccessToScreen('CashReceipts') && (
+              <>
+                <TouchableOpacity
+                  style={styles.subMenuItem}
+                  onPress={() => toggleSection('cash')}
+                >
+                  <Text style={styles.subMenuIcon}>💰</Text>
+                  <Text style={styles.subMenuLabel}>Cash</Text>
+                  <Text style={styles.arrowIcon}>
+                    {expandedSections.cash ? '▼' : '▶'}
+                  </Text>
+                </TouchableOpacity>
 
-            {expandedSections.cash && (
-              <TouchableOpacity
-                style={styles.subSubMenuItem}
-                onPress={() => navigateToScreen('CashReceipts')}
-              >
-                <Text style={styles.subSubMenuLabel}>Cash Receipts</Text>
-              </TouchableOpacity>
+                {expandedSections.cash && (
+                  <TouchableOpacity
+                    style={styles.subSubMenuItem}
+                    onPress={() => navigateToScreen('CashReceipts')}
+                  >
+                    <Text style={styles.subSubMenuLabel}>Cash Receipts</Text>
+                  </TouchableOpacity>
+                )}
+              </>
             )}
 
-            {/* Bank Sub-Section */}
-            <TouchableOpacity
-              style={styles.subMenuItem}
-              onPress={() => toggleSection('bank')}
-            >
-              <Text style={styles.subMenuIcon}>🏦</Text>
-              <Text style={styles.subMenuLabel}>Bank</Text>
-              <Text style={styles.arrowIcon}>
-                {expandedSections.bank ? '▼' : '▶'}
-              </Text>
-            </TouchableOpacity>
+            {hasAccessToScreen('BankReceipts') && (
+              <>
+                <TouchableOpacity
+                  style={styles.subMenuItem}
+                  onPress={() => toggleSection('bank')}
+                >
+                  <Text style={styles.subMenuIcon}>🏦</Text>
+                  <Text style={styles.subMenuLabel}>Bank</Text>
+                  <Text style={styles.arrowIcon}>
+                    {expandedSections.bank ? '▼' : '▶'}
+                  </Text>
+                </TouchableOpacity>
 
-            {expandedSections.bank && (
-              <TouchableOpacity
-                style={styles.subSubMenuItem}
-                onPress={() => navigateToScreen('BankReceipts')}
-              >
-                <Text style={styles.subSubMenuLabel}>Bank Receipts</Text>
-              </TouchableOpacity>
+                {expandedSections.bank && (
+                  <TouchableOpacity
+                    style={styles.subSubMenuItem}
+                    onPress={() => navigateToScreen('BankReceipts')}
+                  >
+                    <Text style={styles.subSubMenuLabel}>Bank Receipts</Text>
+                  </TouchableOpacity>
+                )}
+              </>
             )}
 
-            {/* Job Work Sub-Section */}
-            <TouchableOpacity
-              style={styles.subMenuItem}
-              onPress={() => toggleSection('jobWork')}
-            >
-              <Text style={styles.subMenuIcon}>💼</Text>
-              <Text style={styles.subMenuLabel}>Job Work</Text>
-              <Text style={styles.arrowIcon}>
-                {expandedSections.jobWork ? '▼' : '▶'}
-              </Text>
-            </TouchableOpacity>
+            {(hasAccessToScreen('EmployeeSaleInvoice') ||
+              hasAccessToScreen('EmployeeReturn')) && (
+              <>
+                <TouchableOpacity
+                  style={styles.subMenuItem}
+                  onPress={() => toggleSection('jobWork')}
+                >
+                  <Text style={styles.subMenuIcon}>💼</Text>
+                  <Text style={styles.subMenuLabel}>Job Work</Text>
+                  <Text style={styles.arrowIcon}>
+                    {expandedSections.jobWork ? '▼' : '▶'}
+                  </Text>
+                </TouchableOpacity>
 
-            {expandedSections.jobWork && (
-              <View style={styles.subSubMenu}>
-                <TouchableOpacity
-                  style={styles.subSubMenuItem}
-                  onPress={() => navigateToScreen('EmployeeSaleInvoice')}
-                >
-                  <Text style={styles.subSubMenuLabel}>Employee Sale Invoice</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.subSubMenuItem}
-                  onPress={() => navigateToScreen('EmployeeReturn')}
-                >
-                  <Text style={styles.subSubMenuLabel}>Employee Return</Text>
-                </TouchableOpacity>
-              </View>
+                {expandedSections.jobWork && (
+                  <View style={styles.subSubMenu}>
+                    {hasAccessToScreen('EmployeeSaleInvoice') && (
+                      <TouchableOpacity
+                        style={styles.subSubMenuItem}
+                        onPress={() => navigateToScreen('EmployeeSaleInvoice')}
+                      >
+                        <Text style={styles.subSubMenuLabel}>Employee Sale Invoice</Text>
+                      </TouchableOpacity>
+                    )}
+                    {hasAccessToScreen('EmployeeReturn') && (
+                      <TouchableOpacity
+                        style={styles.subSubMenuItem}
+                        onPress={() => navigateToScreen('EmployeeReturn')}
+                      >
+                        <Text style={styles.subSubMenuLabel}>Employee Return</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+              </>
             )}
 
-            {/* Copier Transactions Sub-Section */}
-            <TouchableOpacity
-              style={styles.subMenuItem}
-              onPress={() => toggleSection('copierTransactions')}
-            >
-              <Text style={styles.subMenuIcon}>🖨️</Text>
-              <Text style={styles.subMenuLabel}>Copier Transactions</Text>
-              <Text style={styles.arrowIcon}>
-                {expandedSections.copierTransactions ? '▼' : '▶'}
-              </Text>
-            </TouchableOpacity>
+            {(hasAccessToScreen('RentalService') ||
+              hasAccessToScreen('RentalMonthlyBill')) && (
+              <>
+                <TouchableOpacity
+                  style={styles.subMenuItem}
+                  onPress={() => toggleSection('copierTransactions')}
+                >
+                  <Text style={styles.subMenuIcon}>🖨️</Text>
+                  <Text style={styles.subMenuLabel}>Copier Transactions</Text>
+                  <Text style={styles.arrowIcon}>
+                    {expandedSections.copierTransactions ? '▼' : '▶'}
+                  </Text>
+                </TouchableOpacity>
 
-            {expandedSections.copierTransactions && (
-              <View style={styles.subSubMenu}>
-                <TouchableOpacity
-                  style={styles.subSubMenuItem}
-                  onPress={() => navigateToScreen('RentalService')}
-                >
-                  <Text style={styles.subSubMenuLabel}>Rental Service</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.subSubMenuItem}
-                  onPress={() => navigateToScreen('RentalMonthlyBill')}
-                >
-                  <Text style={styles.subSubMenuLabel}>Rental Monthly Bill</Text>
-                </TouchableOpacity>
-              </View>
+                {expandedSections.copierTransactions && (
+                  <View style={styles.subSubMenu}>
+                    {hasAccessToScreen('RentalService') && (
+                      <TouchableOpacity
+                        style={styles.subSubMenuItem}
+                        onPress={() => navigateToScreen('RentalService')}
+                      >
+                        <Text style={styles.subSubMenuLabel}>Rental Service</Text>
+                      </TouchableOpacity>
+                    )}
+                    {hasAccessToScreen('RentalMonthlyBill') && (
+                      <TouchableOpacity
+                        style={styles.subSubMenuItem}
+                        onPress={() => navigateToScreen('RentalMonthlyBill')}
+                      >
+                        <Text style={styles.subSubMenuLabel}>Rental Monthly Bill</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+              </>
             )}
 
-            {/* Refurbished Sub-Section */}
-            <TouchableOpacity
-              style={styles.subMenuItem}
-              onPress={() => toggleSection('refurbished')}
-            >
-              <Text style={styles.subMenuIcon}>♻️</Text>
-              <Text style={styles.subMenuLabel}>Refurbished</Text>
-              <Text style={styles.arrowIcon}>
-                {expandedSections.refurbished ? '▼' : '▶'}
-              </Text>
-            </TouchableOpacity>
+            {hasAccessToScreen('SalesReturns') && (
+              <>
+                <TouchableOpacity
+                  style={styles.subMenuItem}
+                  onPress={() => toggleSection('refurbished')}
+                >
+                  <Text style={styles.subMenuIcon}>♻️</Text>
+                  <Text style={styles.subMenuLabel}>Refurbished</Text>
+                  <Text style={styles.arrowIcon}>
+                    {expandedSections.refurbished ? '▼' : '▶'}
+                  </Text>
+                </TouchableOpacity>
 
-            {expandedSections.refurbished && (
-              <TouchableOpacity
-                style={styles.subSubMenuItem}
-                onPress={() => navigateToScreen('SalesReturns')}
-              >
-                <Text style={styles.subSubMenuLabel}>Sales Returns</Text>
-              </TouchableOpacity>
+                {expandedSections.refurbished && (
+                  <TouchableOpacity
+                    style={styles.subSubMenuItem}
+                    onPress={() => navigateToScreen('SalesReturns')}
+                  >
+                    <Text style={styles.subSubMenuLabel}>Sales Returns</Text>
+                  </TouchableOpacity>
+                )}
+              </>
             )}
           </View>
         )}
 
+        {renderExecutiveManagement()}
+
         <TouchableOpacity
           style={[styles.menuItem, styles.logoutButton]}
-          onPress={() => {
-            navigation.navigate('Login');
-          }}
+          onPress={handleLogout}
         >
           <Text style={styles.menuIcon}>🚪</Text>
           <Text style={styles.menuLabel}>Logout</Text>
@@ -226,6 +293,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#78909c',
+    marginTop: 4,
   },
   closeButton: {
     padding: 5,

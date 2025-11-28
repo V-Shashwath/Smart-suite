@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import SmartSuiteFormScreen from '../components/SmartSuiteFormScreen';
@@ -7,6 +7,8 @@ import ItemTable from '../components/ItemTable';
 import { branches, locations, employeeUsernames } from '../data/mockData';
 import { sharePDFViaWhatsApp, generateInvoicePDF } from '../utils/pdfUtils';
 import PDFPreviewModal from '../components/PDFPreviewModal';
+import useScreenDraft from '../hooks/useScreenDraft';
+import withScreenPermission from '../components/withScreenPermission';
 
 const BankReceiptsScreen = () => {
   const [vSeries, setVSeries] = useState('VSeries');
@@ -79,7 +81,7 @@ const BankReceiptsScreen = () => {
     { label: 'Ledger Balance', value: ledgerBalance },
   ];
 
-  const getInvoiceData = () => ({
+  const getInvoiceData = useCallback(() => ({
     title: 'Bank Receipts',
     voucherDetails: {
       voucherSeries: vSeries,
@@ -106,6 +108,10 @@ const BankReceiptsScreen = () => {
       cash: parseFloat(totalAmount) || 0,
       balance: parseFloat(ledgerBalance) || 0,
     },
+  }), [vSeries, voucherSeries, voucherNo, date, branch, location, executive, bankAccount, bodyItems, totalAmount, totalDiscount, totalValue, ledgerBalance]);
+
+  const { handleSave, isSaving } = useScreenDraft('BankReceipts', getInvoiceData, {
+    successMessage: 'Bank receipt draft saved.',
   });
 
   const handlePreviewInvoice = () => {
@@ -135,6 +141,8 @@ const BankReceiptsScreen = () => {
       summaryFields={summaryFields}
       onPreview={handlePreviewInvoice}
       onWhatsApp={handleSendWhatsApp}
+      actionBarActions={{ onSave: handleSave }}
+      isSaving={isSaving}
     >
       <AccordionSection title="VOUCHER" defaultExpanded={true}>
         <View style={styles.row}>
@@ -360,6 +368,6 @@ const styles = StyleSheet.create({
   },
 });
 
-export default BankReceiptsScreen;
+export default withScreenPermission('BankReceipts')(BankReceiptsScreen);
 
 

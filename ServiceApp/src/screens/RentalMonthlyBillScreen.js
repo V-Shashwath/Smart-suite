@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import SmartSuiteFormScreen from '../components/SmartSuiteFormScreen';
@@ -6,6 +6,8 @@ import AccordionSection from '../components/AccordionSection';
 import ItemTable from '../components/ItemTable';
 import { branches, employeeUsernames, adjustmentAccounts, machineTypes } from '../data/mockData';
 import { previewInvoicePDF, sharePDFViaWhatsApp, generateInvoicePDF } from '../utils/pdfUtils';
+import useScreenDraft from '../hooks/useScreenDraft';
+import withScreenPermission from '../components/withScreenPermission';
 
 const RentalMonthlyBillScreen = () => {
   const [branch, setBranch] = useState('');
@@ -120,21 +122,72 @@ const RentalMonthlyBillScreen = () => {
     { label: 'Balance', value: '0' },
   ];
 
+  const getMonthlyBillData = useCallback(() => {
+    const summarySnapshot = summaryFields.reduce(
+      (acc, field) => ({ ...acc, [field.label]: field.value }),
+      {}
+    );
+
+    return {
+      title: 'Rental Monthly Bill',
+      voucherDetails: { voucherSeries, voucherNo, voucherDatetime: date },
+      transactionDetails: { date, branch, username: executive },
+      customerData: {
+        customerName,
+        customerId,
+        mobileNo,
+        whatsappNo,
+        customerType,
+        salesAccount,
+      },
+      metadata: {
+        machineType,
+        machinePurchasedDate,
+        contractExpiredOn,
+        remainingDays,
+        remainingCopies,
+        remarks,
+        gstBill,
+      },
+      readings,
+      adjustments,
+      summary: summarySnapshot,
+    };
+  }, [
+    voucherSeries,
+    voucherNo,
+    date,
+    branch,
+    executive,
+    customerName,
+    customerId,
+    mobileNo,
+    whatsappNo,
+    customerType,
+    salesAccount,
+    machineType,
+    machinePurchasedDate,
+    contractExpiredOn,
+    remainingDays,
+    remainingCopies,
+    remarks,
+    gstBill,
+    readings,
+    adjustments,
+  ]);
+
+  const { handleSave, isSaving } = useScreenDraft('RentalMonthlyBill', getMonthlyBillData, {
+    successMessage: 'Rental monthly bill draft saved.',
+  });
+
   const handlePreviewInvoice = async () => {
     if (!customerName || !customerId) {
       Alert.alert('Missing Data', 'Please fill in customer details to preview the bill.', [{ text: 'OK' }]);
       return;
     }
     try {
-      await previewInvoicePDF({
-        title: 'Rental Monthly Bill',
-        voucherDetails: { voucherSeries: voucherSeries, voucherNo: voucherNo, voucherDatetime: date },
-        transactionDetails: { date: date, branch: branch, username: executive },
-        customerData: { customerName: customerName, customerId: customerId, mobileNo: mobileNo, whatsappNo: whatsappNo },
-        readings: readings,
-        adjustments: adjustments,
-        summary: { totalValue: summaryFields.find(f => f.label === 'TotalValue')?.value || 0 },
-      });
+      const data = getMonthlyBillData();
+      await previewInvoicePDF(data);
     } catch (error) {
       console.error('Error previewing bill:', error);
     }
@@ -146,15 +199,8 @@ const RentalMonthlyBillScreen = () => {
       return;
     }
     try {
-      const { uri } = await generateInvoicePDF({
-        title: 'Rental Monthly Bill',
-        voucherDetails: { voucherSeries: voucherSeries, voucherNo: voucherNo, voucherDatetime: date },
-        transactionDetails: { date: date, branch: branch, username: executive },
-        customerData: { customerName: customerName, customerId: customerId, mobileNo: mobileNo, whatsappNo: whatsappNo },
-        readings: readings,
-        adjustments: adjustments,
-        summary: { totalValue: summaryFields.find(f => f.label === 'TotalValue')?.value || 0 },
-      });
+      const data = getMonthlyBillData();
+      const { uri } = await generateInvoicePDF(data);
       await sharePDFViaWhatsApp(uri, whatsappNo || mobileNo);
     } catch (error) {
       console.error('Error sending WhatsApp:', error);
@@ -167,6 +213,8 @@ const RentalMonthlyBillScreen = () => {
       summaryFields={summaryFields}
       onPreview={handlePreviewInvoice}
       onWhatsApp={handleSendWhatsApp}
+      actionBarActions={{ onSave: handleSave }}
+      isSaving={isSaving}
     >
       <AccordionSection title="TRANSACTION DETAILS" defaultExpanded={true}>
         <View style={styles.row}>
@@ -644,6 +692,6 @@ const styles = StyleSheet.create({
   },
 });
 
-export default RentalMonthlyBillScreen;
+export default withScreenPermission('RentalMonthlyBill')(RentalMonthlyBillScreen);
 
 

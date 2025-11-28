@@ -1,19 +1,33 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Platform, StatusBar } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useAuth } from '../context/AuthContext';
+import { getScreenMeta } from '../constants/screenRegistry';
 
 const DashboardScreen = () => {
   const navigation = useNavigation();
+  const { currentUser, getAccessibleScreens } = useAuth();
 
-  const menuItems = [
-    { title: 'Employee Sale Invoice', screen: 'EmployeeSaleInvoice', icon: '📄' },
-    { title: 'Cash Receipts', screen: 'CashReceipts', icon: '💰' },
-    { title: 'Bank Receipts', screen: 'BankReceipts', icon: '🏦' },
-    { title: 'Employee Return', screen: 'EmployeeReturn', icon: '↩️' },
-    { title: 'Sales Returns', screen: 'SalesReturns', icon: '🔄' },
-    { title: 'Rental Service', screen: 'RentalService', icon: '🔧' },
-    { title: 'Rental Monthly Bill', screen: 'RentalMonthlyBill', icon: '📅' },
-  ];
+  const menuItems = useMemo(() => {
+    const routes = getAccessibleScreens();
+    return routes
+      .map((route) => {
+        const meta = getScreenMeta(route);
+        if (!meta) return null;
+        return { title: meta.title, screen: meta.route, icon: meta.icon, category: meta.category };
+      })
+      .filter(Boolean);
+  }, [getAccessibleScreens]);
+
+  const initials = useMemo(() => {
+    if (!currentUser?.username) return 'SS';
+    return currentUser.username
+      .split(' ')
+      .map((chunk) => chunk[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+  }, [currentUser]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -24,24 +38,40 @@ const DashboardScreen = () => {
         >
           <Text style={styles.menuIcon}>☰</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Dashboard</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Dashboard</Text>
+          {currentUser && (
+            <Text style={styles.roleText}>
+              {currentUser.role === 'supervisor' ? 'Supervisor' : 'Executive'}
+            </Text>
+          )}
+        </View>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>CC</Text>
+          <Text style={styles.avatarText}>{initials}</Text>
         </View>
       </View>
       <ScrollView style={styles.content}>
-        <View style={styles.grid}>
-          {menuItems.map((item, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.card}
-              onPress={() => navigation.navigate(item.screen)}
-            >
-              <Text style={styles.cardIcon}>{item.icon}</Text>
-              <Text style={styles.cardTitle}>{item.title}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {menuItems.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>No screens assigned yet</Text>
+            <Text style={styles.emptySubtitle}>
+              Contact a supervisor to assign screens to this executive.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.grid}>
+            {menuItems.map((item, index) => (
+              <TouchableOpacity
+                key={item.screen}
+                style={styles.card}
+                onPress={() => navigation.navigate(item.screen)}
+              >
+                <Text style={styles.cardIcon}>{item.icon}</Text>
+                <Text style={styles.cardTitle}>{item.title}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -66,8 +96,11 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
-    flex: 1,
     textAlign: 'center',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
   },
   menuButton: {
     padding: 8,
@@ -119,6 +152,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#333',
+    textAlign: 'center',
+  },
+  roleText: {
+    fontSize: 12,
+    color: '#78909c',
+    marginTop: 2,
+  },
+  emptyState: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#455a64',
+    marginBottom: 6,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#90a4ae',
     textAlign: 'center',
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import SmartSuiteFormScreen from '../components/SmartSuiteFormScreen';
@@ -7,6 +7,8 @@ import ItemTable from '../components/ItemTable';
 import { branches, employeeUsernames } from '../data/mockData';
 import { sharePDFViaWhatsApp, generateInvoicePDF } from '../utils/pdfUtils';
 import PDFPreviewModal from '../components/PDFPreviewModal';
+import useScreenDraft from '../hooks/useScreenDraft';
+import withScreenPermission from '../components/withScreenPermission';
 
 const CashReceiptsScreen = () => {
   const [vSeries, setVSeries] = useState('CR');
@@ -78,7 +80,7 @@ const CashReceiptsScreen = () => {
     { label: 'Ledger Balance', value: ledgerBalance },
   ];
 
-  const getInvoiceData = () => ({
+  const getInvoiceData = useCallback(() => ({
     title: 'Cash Receipts',
     voucherDetails: {
       voucherSeries: vSeries,
@@ -104,6 +106,10 @@ const CashReceiptsScreen = () => {
       cash: parseFloat(totalAmount) || 0,
       balance: parseFloat(ledgerBalance) || 0,
     },
+  }), [vSeries, voucherSeries, voucherNo, date, branch, executive, cashAccount, bodyItems, totalAmount, totalDiscount, totalValue, ledgerBalance]);
+
+  const { handleSave, isSaving } = useScreenDraft('CashReceipts', getInvoiceData, {
+    successMessage: 'Cash receipt draft saved.',
   });
 
   const handlePreviewInvoice = () => {
@@ -143,6 +149,8 @@ const CashReceiptsScreen = () => {
       summaryFields={summaryFields}
       onPreview={handlePreviewInvoice}
       onWhatsApp={handleSendWhatsApp}
+      actionBarActions={{ onSave: handleSave }}
+      isSaving={isSaving}
     >
       {/* VOUCHER Section */}
       <AccordionSection title="VOUCHER" defaultExpanded={true}>
@@ -357,5 +365,5 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CashReceiptsScreen;
+export default withScreenPermission('CashReceipts')(CashReceiptsScreen);
 

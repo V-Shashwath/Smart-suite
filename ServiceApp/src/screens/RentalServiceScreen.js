@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import SmartSuiteFormScreen from '../components/SmartSuiteFormScreen';
@@ -6,6 +6,8 @@ import AccordionSection from '../components/AccordionSection';
 import ItemTable from '../components/ItemTable';
 import { branches, employeeUsernames, productOptions, adjustmentAccounts, machineTypes } from '../data/mockData';
 import { previewInvoicePDF, sharePDFViaWhatsApp, generateInvoicePDF } from '../utils/pdfUtils';
+import useScreenDraft from '../hooks/useScreenDraft';
+import withScreenPermission from '../components/withScreenPermission';
 
 const RentalServiceScreen = () => {
   const [branch, setBranch] = useState('');
@@ -171,28 +173,77 @@ const RentalServiceScreen = () => {
     return balance.toFixed(2);
   };
 
+  const getRentalServiceData = useCallback(() => {
+    const summarySnapshot = summaryFields.reduce(
+      (acc, field) => ({ ...acc, [field.label]: field.value }),
+      {}
+    );
+
+    return {
+      title: 'Rental Service',
+      voucherDetails: { voucherSeries, voucherNo, voucherDatetime: date },
+      transactionDetails: { date, branch, username: executive },
+      customerData: {
+        customerName,
+        customerId,
+        mobileNo,
+        whatsappNo,
+        customerType,
+        salesAccount,
+      },
+      readings,
+      items: itemBody,
+      adjustments,
+      summary: summarySnapshot,
+      collections: {
+        collections: getNumeric(collectionTotal),
+        cash: getNumeric(collectedCash),
+        card: getNumeric(collectedCard),
+        upi: getNumeric(collectedUpi),
+        balance: parseFloat(calculatedBalance()),
+      },
+    };
+  }, [
+    voucherSeries,
+    voucherNo,
+    date,
+    branch,
+    executive,
+    customerName,
+    customerId,
+    mobileNo,
+    whatsappNo,
+    customerType,
+    salesAccount,
+    readings,
+    itemBody,
+    adjustments,
+    collectionTotal,
+    collectedCash,
+    collectedCard,
+    collectedUpi,
+    calculatedBalance,
+  ]);
+
+  const { handleSave, isSaving } = useScreenDraft('RentalService', getRentalServiceData, {
+    successMessage: 'Rental service draft saved.',
+  });
+
   const handlePreviewInvoice = async () => {
     if (itemBody.length === 0 || !itemBody[0].product) {
       Alert.alert('No Items', 'Please add at least one item to preview the service.', [{ text: 'OK' }]);
       return;
     }
     try {
+      const data = getRentalServiceData();
       await previewInvoicePDF({
-        title: 'Rental Service',
-        voucherDetails: { voucherSeries: voucherSeries, voucherNo: voucherNo, voucherDatetime: date },
-        transactionDetails: { date: date, branch: branch, username: executive },
-        customerData: { customerName: customerName, customerId: customerId, mobileNo: mobileNo, whatsappNo: whatsappNo },
-        readings: readings,
-        items: itemBody.map(item => ({ productName: item.product, quantity: item.quantity || 0, rate: item.rate || 0, net: item.gross || 0 })),
-        adjustments: adjustments,
-        summary: { totalValue: summaryFields.find(f => f.label === 'TotalValue')?.value || 0 },
-        collections: {
-          collections: getNumeric(collectionTotal),
-          cash: getNumeric(collectedCash),
-          card: getNumeric(collectedCard),
-          upi: getNumeric(collectedUpi),
-          balance: parseFloat(calculatedBalance()),
-        },
+        ...data,
+        items: data.items.map(item => ({
+          productName: item.product,
+          quantity: item.quantity || 0,
+          rate: item.rate || 0,
+          net: item.gross || 0,
+        })),
       });
     } catch (error) {
       console.error('Error previewing service:', error);
@@ -205,22 +256,15 @@ const RentalServiceScreen = () => {
       return;
     }
     try {
+      const data = getRentalServiceData();
       const { uri } = await generateInvoicePDF({
-        title: 'Rental Service',
-        voucherDetails: { voucherSeries: voucherSeries, voucherNo: voucherNo, voucherDatetime: date },
-        transactionDetails: { date: date, branch: branch, username: executive },
-        customerData: { customerName: customerName, customerId: customerId, mobileNo: mobileNo, whatsappNo: whatsappNo },
-        readings: readings,
-        items: itemBody.map(item => ({ productName: item.product, quantity: item.quantity || 0, rate: item.rate || 0, net: item.gross || 0 })),
-        adjustments: adjustments,
-        summary: { totalValue: summaryFields.find(f => f.label === 'TotalValue')?.value || 0 },
-        collections: {
-          collections: getNumeric(collectionTotal),
-          cash: getNumeric(collectedCash),
-          card: getNumeric(collectedCard),
-          upi: getNumeric(collectedUpi),
-          balance: parseFloat(calculatedBalance()),
-        },
+        ...data,
+        items: data.items.map(item => ({
+          productName: item.product,
+          quantity: item.quantity || 0,
+          rate: item.rate || 0,
+          net: item.gross || 0,
+        })),
       });
       await sharePDFViaWhatsApp(uri, whatsappNo || mobileNo);
     } catch (error) {
@@ -234,6 +278,8 @@ const RentalServiceScreen = () => {
       summaryFields={summaryFields}
       onPreview={handlePreviewInvoice}
       onWhatsApp={handleSendWhatsApp}
+      actionBarActions={{ onSave: handleSave }}
+      isSaving={isSaving}
     >
       <AccordionSection title="TRANSACTION DETAILS" defaultExpanded={true}>
         <View style={styles.row}>
@@ -738,6 +784,6 @@ const styles = StyleSheet.create({
   },
 });
 
-export default RentalServiceScreen;
+export default withScreenPermission('RentalService')(RentalServiceScreen);
 
 

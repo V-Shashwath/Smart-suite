@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import SmartSuiteFormScreen from '../components/SmartSuiteFormScreen';
@@ -6,6 +6,8 @@ import AccordionSection from '../components/AccordionSection';
 import ItemTable from '../components/ItemTable';
 import { branches, locations, employeeUsernames, productOptions } from '../data/mockData';
 import { previewInvoicePDF, sharePDFViaWhatsApp, generateInvoicePDF } from '../utils/pdfUtils';
+import useScreenDraft from '../hooks/useScreenDraft';
+import withScreenPermission from '../components/withScreenPermission';
 
 const EmployeeReturnScreen = () => {
   const [vSeries, setVSeries] = useState('VSeries');
@@ -64,9 +66,26 @@ const EmployeeReturnScreen = () => {
     { key: 'productSeri', label: 'ProductSeri', width: 120 },
   ];
 
+  const totalReturnQty = itemBody.reduce(
+    (sum, item) => sum + (parseFloat(item.returnQty) || 0),
+    0
+  );
+
   const summaryFields = [
-    { label: 'Total Qty', value: '0' },
+    { label: 'Total Qty', value: String(totalReturnQty) },
   ];
+
+  const getReturnData = useCallback(() => ({
+    title: 'Employee Return',
+    voucherDetails: { voucherSeries: vSeries, voucherNo: voucherNo, voucherDatetime: date },
+    transactionDetails: { date, branch, location, employeeName },
+    items: itemBody,
+    summary: { totalQty: totalReturnQty },
+  }), [vSeries, voucherNo, date, branch, location, employeeName, itemBody, totalReturnQty]);
+
+  const { handleSave, isSaving } = useScreenDraft('EmployeeReturn', getReturnData, {
+    successMessage: 'Employee return draft saved.',
+  });
 
   const handlePreviewInvoice = async () => {
     if (itemBody.length === 0 || !itemBody[0].product) {
@@ -74,12 +93,22 @@ const EmployeeReturnScreen = () => {
       return;
     }
     try {
+      const data = getReturnData();
       await previewInvoicePDF({
-        title: 'Employee Return',
-        voucherDetails: { voucherSeries: vSeries, voucherNo: voucherNo, voucherDatetime: date },
-        transactionDetails: { date: date, branch: branch, username: executive },
-        items: itemBody.map(item => ({ productName: item.product, quantity: item.returnQty || 0, rate: 0, net: 0 })),
-        summary: { totalQty: itemBody.reduce((sum, item) => sum + (parseFloat(item.returnQty) || 0), 0) },
+        title: data.title,
+        voucherDetails: data.voucherDetails,
+        transactionDetails: {
+          date: data.transactionDetails.date,
+          branch: data.transactionDetails.branch,
+          username: data.transactionDetails.employeeName || employeeName,
+        },
+        items: data.items.map(item => ({
+          productName: item.product,
+          quantity: item.returnQty || 0,
+          rate: 0,
+          net: 0,
+        })),
+        summary: data.summary,
       });
     } catch (error) {
       console.error('Error previewing return:', error);
@@ -92,12 +121,22 @@ const EmployeeReturnScreen = () => {
       return;
     }
     try {
+      const data = getReturnData();
       const { uri } = await generateInvoicePDF({
-        title: 'Employee Return',
-        voucherDetails: { voucherSeries: vSeries, voucherNo: voucherNo, voucherDatetime: date },
-        transactionDetails: { date: date, branch: branch, username: executive },
-        items: itemBody.map(item => ({ productName: item.product, quantity: item.returnQty || 0, rate: 0, net: 0 })),
-        summary: { totalQty: itemBody.reduce((sum, item) => sum + (parseFloat(item.returnQty) || 0), 0) },
+        title: data.title,
+        voucherDetails: data.voucherDetails,
+        transactionDetails: {
+          date: data.transactionDetails.date,
+          branch: data.transactionDetails.branch,
+          username: data.transactionDetails.employeeName || employeeName,
+        },
+        items: data.items.map(item => ({
+          productName: item.product,
+          quantity: item.returnQty || 0,
+          rate: 0,
+          net: 0,
+        })),
+        summary: data.summary,
       });
       await sharePDFViaWhatsApp(uri);
     } catch (error) {
@@ -111,6 +150,8 @@ const EmployeeReturnScreen = () => {
       summaryFields={summaryFields}
       onPreview={handlePreviewInvoice}
       onWhatsApp={handleSendWhatsApp}
+      actionBarActions={{ onSave: handleSave }}
+      isSaving={isSaving}
     >
       <AccordionSection title="VOUCHER" defaultExpanded={true}>
         <View style={styles.row}>
@@ -317,6 +358,6 @@ const styles = StyleSheet.create({
   },
 });
 
-export default EmployeeReturnScreen;
+export default withScreenPermission('EmployeeReturn')(EmployeeReturnScreen);
 
 

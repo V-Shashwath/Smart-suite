@@ -24,6 +24,7 @@ const SmartSuiteFormScreen = ({
   onPreview,
   onWhatsApp,
   children,
+  isSaving = false,
 }) => {
   const navigation = useNavigation();
 
@@ -52,10 +53,17 @@ const SmartSuiteFormScreen = ({
       {/* Action Bar */}
       <View style={styles.actionBar}>
         <TouchableOpacity
-          style={[styles.actionButton, styles.primaryActionButton]}
+          style={[
+            styles.actionButton,
+            styles.primaryActionButton,
+            isSaving && styles.disabledActionButton,
+          ]}
           onPress={defaultActionBarActions.onSave}
+          disabled={isSaving}
         >
-          <Text style={styles.actionButtonText}>Save</Text>
+          <Text style={styles.actionButtonText}>
+            {isSaving ? 'Saving...' : 'Save'}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionButton, styles.secondaryActionButton]}
@@ -233,6 +241,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#fff',
+  },
+  disabledActionButton: {
+    opacity: 0.7,
   },
   content: {
     flex: 1,

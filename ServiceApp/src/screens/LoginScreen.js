@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   SafeAreaView,
   View,
@@ -9,7 +9,9 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
+import { useAuth } from '../context/AuthContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -17,12 +19,26 @@ const LoginScreen = ({ navigation }) => {
   const [databaseName, setDatabaseName] = useState('CrystalCopier');
   const [userName, setUserName] = useState('Supervisor');
   const [password, setPassword] = useState('Admin');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { login, currentUser } = useAuth();
 
-  const handleSignIn = () => {
-    // TODO: Implement actual authentication
-    // For now, just navigate to main app
-    if (databaseName && userName && password) {
+  useEffect(() => {
+    if (currentUser) {
       navigation.replace('Dashboard');
+    }
+  }, [currentUser, navigation]);
+
+  const handleSignIn = async () => {
+    setError('');
+    try {
+      setLoading(true);
+      await login({ databaseName, username: userName, password });
+      navigation.replace('Dashboard');
+    } catch (err) {
+      setError(err.message || 'Unable to sign in.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -79,9 +95,15 @@ const LoginScreen = ({ navigation }) => {
             <TouchableOpacity
               style={styles.signInButton}
               onPress={handleSignIn}
+              disabled={loading}
             >
-              <Text style={styles.signInButtonText}>Sign In</Text>
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.signInButtonText}>Sign In</Text>
+              )}
             </TouchableOpacity>
+            {!!error && <Text style={styles.errorText}>{error}</Text>}
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -170,6 +192,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  errorText: {
+    color: '#d50000',
+    marginTop: 12,
+    textAlign: 'center',
+    fontWeight: '600',
   },
 });
 
