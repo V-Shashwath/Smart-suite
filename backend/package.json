@@ -1,7 +1,7 @@
 {
-  "name": "smart-suite-backend",
+  "name": "mobileapp-backend",
   "version": "1.0.0",
-  "description": "Backend API for Smart Suite Employee Sales Invoice",
+  "description": "Backend API for Mobile App - Employee Sale Invoice",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
@@ -9,19 +9,19 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
-    "api",
     "express",
-    "mssql",
-    "invoice"
+    "sql-server",
+    "api",
+    "mobile-app"
   ],
-  "author": "Founditup Team",
+  "author": "",
   "license": "ISC",
   "dependencies": {
     "express": "^4.18.2",
     "mssql": "^10.0.1",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "body-parser": "^1.20.2"
+    "body-parser": "^1.20.2",
+    "dotenv": "^16.3.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

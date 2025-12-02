@@ -29,6 +29,8 @@
   },
   "private": true,
   "devDependencies": {
-    "babel-preset-expo": "^54.0.7"
+    "babel-plugin-dotenv-import": "^3.0.1",
+    "babel-preset-expo": "^54.0.7",
+    "react-native-dotenv": "^3.4.11"
   }
 }

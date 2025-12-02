@@ -1,6 +1,4 @@
-# Dependencies
-node_modules/
-package-lock.json
+# Root .gitignore for the entire project
 
 # Environment variables
 .env
@@ -9,13 +7,17 @@ package-lock.json
 .env.production
 .env.test
 
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
 # Logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 logs/
-*.log.*
 
 # OS files
 .DS_Store

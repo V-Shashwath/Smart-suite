@@ -10,6 +10,7 @@ import {
   Alert,
   FlatList,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import {
@@ -24,6 +25,7 @@ import {
   adjustmentAccounts,
   adjustmentsList,
 } from '../data/mockData';
+import { API_ENDPOINTS, apiCall } from '../config/api';
 import SmartSuiteFormScreen from '../components/SmartSuiteFormScreen';
 import AccordionSection from '../components/AccordionSection';
 import ItemTable from '../components/ItemTable';
@@ -35,10 +37,14 @@ import PDFPreviewModal from '../components/PDFPreviewModal';
 import { sharePDFViaWhatsApp, generateInvoicePDF } from '../utils/pdfUtils';
 import useScreenDraft from '../hooks/useScreenDraft';
 import withScreenPermission from '../components/withScreenPermission';
+import { useAuth } from '../context/AuthContext';
 
 const { width } = Dimensions.get('window');
 
 const EmployeeSaleInvoiceScreen = () => {
+  const { currentUser } = useAuth();
+  const [isLoadingExecutiveData, setIsLoadingExecutiveData] = useState(false);
+  
   // Transaction state
   const [transactionData, setTransactionData] = useState(transactionDetails);
   
@@ -82,6 +88,10 @@ const EmployeeSaleInvoiceScreen = () => {
   const [showPDFPreview, setShowPDFPreview] = useState(false);
   const [showMobileSearchModal, setShowMobileSearchModal] = useState(false);
   
+  // Loading states
+  const [isLoadingCustomer, setIsLoadingCustomer] = useState(false);
+  const [isSavingInvoice, setIsSavingInvoice] = useState(false);
+  
   // Adjustments state
   const [adjustments, setAdjustments] = useState([]);
   
@@ -101,6 +111,103 @@ const EmployeeSaleInvoiceScreen = () => {
   const [collectedCash, setCollectedCash] = useState('');
   const [collectedCard, setCollectedCard] = useState('');
   const [collectedUpi, setCollectedUpi] = useState('');
+
+  // Auto-populate executive data on mount
+  useEffect(() => {
+    const loadExecutiveData = async () => {
+      if (currentUser?.username) {
+        setIsLoadingExecutiveData(true);
+        try {
+          const result = await apiCall(API_ENDPOINTS.GET_EXECUTIVE_DATA(currentUser.username));
+          if (result.success && result.data) {
+            const execData = result.data;
+            // Populate transaction details (all fields)
+            setTransactionData({
+              transactionId: execData.transactionDetails?.transactionId || '',
+              date: execData.transactionDetails?.date || '',
+              time: execData.transactionDetails?.time || '',
+              status: execData.transactionDetails?.status || 'Pending',
+              branch: execData.transactionDetails?.branch || '',
+              location: execData.transactionDetails?.location || '',
+              employeeLocation: execData.transactionDetails?.employeeLocation || '',
+              username: execData.transactionDetails?.username || currentUser.username,
+            });
+            // Populate voucher details (all fields)
+            setVoucherData({
+              voucherSeries: execData.voucherDetails?.voucherSeries || '',
+              voucherNo: execData.voucherDetails?.voucherNo || '',
+              voucherDatetime: execData.voucherDetails?.voucherDatetime || '',
+            });
+            // Populate header (customer data) - but keep existing customer data if already loaded
+            setCustomerData(prev => ({
+              ...prev,
+              date: execData.header?.date || prev.date,
+              billerName: execData.header?.billerName || prev.billerName,
+              employeeName: execData.header?.employeeName || prev.employeeName || currentUser.username,
+              party: execData.header?.employeeName || prev.party || currentUser.username,
+              // Don't overwrite customer data if already loaded from QR
+              customerId: prev.customerId || execData.header?.customerId || '',
+              customerName: prev.customerName || execData.header?.customerName || '',
+              mobileNo: prev.mobileNo || execData.header?.mobileNo || '',
+              whatsappNo: prev.whatsappNo || execData.header?.whatsappNo || '',
+              customerType: prev.customerType || execData.header?.customerType || '',
+              readingA4: prev.readingA4 || execData.header?.readingA4 || '',
+              readingA3: prev.readingA3 || execData.header?.readingA3 || '',
+              machineType: prev.machineType || execData.header?.machineType || '',
+              remarks: prev.remarks || execData.header?.remarks || '',
+              gstBill: execData.header?.gstBill !== undefined ? execData.header.gstBill : prev.gstBill,
+            }));
+            setGstBill(execData.header?.gstBill || false);
+          }
+        } catch (error) {
+          console.error('Error loading executive data:', error);
+          // Use fallback values if API fails - don't break the app
+          if (currentUser?.username) {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const datetimeStr = `${dateStr} ${timeStr}`;
+            const transactionId = `TXN-${now.getFullYear()}-${String(Date.now()).slice(-6)}`;
+            
+            // Set transaction details with fallback values
+            setTransactionData({
+              transactionId: transactionId,
+              date: dateStr,
+              time: timeStr,
+              status: 'Pending',
+              branch: 'Head Office', // Default branch
+              location: 'Moorthy Location', // Default location
+              employeeLocation: 'Moorthy Location', // Default employee location
+              username: currentUser.username,
+            });
+            
+            // Set voucher details with fallback values
+            setVoucherData({
+              voucherSeries: 'RS24', // Default series
+              voucherNo: '1', // Default voucher number (will be updated when API works)
+              voucherDatetime: datetimeStr,
+            });
+            
+            // Set header with fallback values
+            setCustomerData(prev => ({
+              ...prev,
+              date: dateStr,
+              billerName: prev.billerName || '',
+              employeeName: currentUser.username,
+              party: currentUser.username,
+            }));
+            
+            // Silently continue - don't show error to user for executive data
+            // The app will work with default values
+          }
+        } finally {
+          setIsLoadingExecutiveData(false);
+        }
+      }
+    };
+    
+    loadExecutiveData();
+  }, [currentUser?.username]);
 
   // Calculate summary whenever items or adjustments change
   useEffect(() => {
@@ -149,87 +256,196 @@ const EmployeeSaleInvoiceScreen = () => {
     });
   };
 
-  const handleScannedQr = (data) => {
+  const handleScannedQr = async (data) => {
     console.log('QR Data received:', data);
     
+    setIsLoadingCustomer(true);
+    
     try {
-      const parts = data.split(',');
+      const trimmedData = data.trim();
       
-      if (parts.length >= 4) {
-        const [customerId, mobileNo, customerType, whatsappNo, employeeName] = parts;
+      // Step 1: Try to fetch by CustomerID first (primary method)
+      let customerFound = false;
+      let networkErrorOccurred = false;
+      
+      try {
+        // URL encode CustomerID to handle special characters
+        const encodedCustomerId = encodeURIComponent(trimmedData);
+        const result = await apiCall(API_ENDPOINTS.CUSTOMER_BY_ID(encodedCustomerId));
         
-        setCustomerData({
-          ...customerData,
-          customerId: customerId.trim(),
-          mobileNo: mobileNo.trim(),
-          customerType: customerType.trim(),
-          whatsappNo: whatsappNo.trim(),
-          employeeName: employeeName?.trim() || customerData.employeeName,
-        });
+        if (result.success && result.data) {
+          const customer = result.data;
+          setCustomerData(prev => ({
+            ...prev,
+            customerId: customer.CustomerID,
+            customerName: customer.CustomerName,
+            mobileNo: customer.MobileNo,
+            whatsappNo: customer.WhatsAppNo || customer.MobileNo,
+            customerType: customer.CustomerType,
+            // Preserve employee name from executive data
+            employeeName: prev.employeeName || customer.CustomerName,
+            party: prev.party || prev.employeeName || customer.CustomerName,
+          }));
+          
+          Alert.alert(
+            'Customer Details Loaded! ✓',
+            `Customer ID: ${customer.CustomerID}\nName: ${customer.CustomerName}\nMobile: ${customer.MobileNo}\nType: ${customer.CustomerType}`,
+            [{ text: 'OK' }]
+          );
+          customerFound = true;
+        }
+      } catch (error) {
+        console.log('CustomerID lookup failed:', error.message);
+        // Check if it's a network error - if so, don't try mobile fallback
+        if (error.message.includes('Cannot connect to server')) {
+          networkErrorOccurred = true;
+          throw error; // Re-throw to show network error immediately
+        }
+      }
+      
+      // Step 2: If CustomerID fails and it's not a network error, try mobile number (fallback)
+      if (!customerFound && !networkErrorOccurred) {
+        // Extract mobile number from QR code
+        const parts = trimmedData.split(',');
+        let mobileNo = null;
         
+        // Try to find mobile number in QR data
+        if (parts.length >= 2) {
+          // If comma-separated, try second part as mobile
+          mobileNo = parts[1]?.trim();
+        }
+        
+        // If no comma or second part doesn't work, try whole string
+        if (!mobileNo || mobileNo.length < 10) {
+          mobileNo = trimmedData;
+        }
+        
+        // Clean mobile number (remove non-numeric)
+        mobileNo = mobileNo.replace(/\D/g, '');
+        
+        if (mobileNo && mobileNo.length >= 10) {
+          try {
+            const result = await apiCall(API_ENDPOINTS.CUSTOMER_BY_MOBILE(mobileNo));
+            
+            if (result.success && result.data) {
+              const customer = result.data;
+              setCustomerData(prev => ({
+                ...prev,
+                customerId: customer.CustomerID,
+                customerName: customer.CustomerName,
+                mobileNo: customer.MobileNo,
+                whatsappNo: customer.WhatsAppNo || customer.MobileNo,
+                customerType: customer.CustomerType,
+                // Preserve employee name from executive data
+                employeeName: prev.employeeName || customer.CustomerName,
+                party: prev.party || prev.employeeName || customer.CustomerName,
+              }));
+              
+              Alert.alert(
+                'Customer Details Loaded! ✓',
+                `Customer ID: ${customer.CustomerID}\nName: ${customer.CustomerName}\nMobile: ${customer.MobileNo}\nType: ${customer.CustomerType}`,
+                [{ text: 'OK' }]
+              );
+              customerFound = true;
+            }
+          } catch (error) {
+            console.error('Mobile number lookup failed:', error.message);
+            // If it's a network error, show it immediately
+            if (error.message.includes('Cannot connect to server')) {
+              throw error;
+            }
+          }
+        }
+      }
+      
+      // Step 3: If both fail, show error and offer mobile search
+      if (!customerFound) {
         Alert.alert(
-          'Customer Details Loaded! ✓',
-          `Customer ID: ${customerId.trim()}\nMobile: ${mobileNo.trim()}\nType: ${customerType.trim()}`,
-          [{ text: 'OK' }]
-        );
-      } else {
-        Alert.alert(
-          'Invalid QR Code',
-          'QR code format is incorrect. Please use "Search by Mobile" option.',
+          'Customer Not Found',
+          `Could not find customer with:\nQR Code: ${trimmedData}\n\nWould you like to search by mobile number?`,
           [
             { text: 'Cancel', style: 'cancel' },
             { text: 'Search by Mobile', onPress: () => setShowMobileSearchModal(true) }
           ]
         );
       }
+      
     } catch (error) {
       console.error('Error parsing QR data:', error);
-      Alert.alert(
-        'QR Scan Error',
-        'Could not read QR code. Would you like to search by mobile number?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Search by Mobile', onPress: () => setShowMobileSearchModal(true) }
-        ]
-      );
+      // Show network error immediately
+      if (error.message.includes('Cannot connect to server')) {
+        Alert.alert(
+          'Connection Error',
+          error.message + '\n\nPlease check:\n1. Backend server is running\n2. API_BASE_URL in api.js is correct\n3. Phone and computer on same Wi-Fi',
+          [
+            { text: 'OK', style: 'default' },
+            { text: 'Search by Mobile', onPress: () => setShowMobileSearchModal(true) }
+          ]
+        );
+      } else {
+        Alert.alert(
+          'QR Scan Error',
+          `Error: ${error.message}\n\nWould you like to search by mobile number?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Search by Mobile', onPress: () => setShowMobileSearchModal(true) }
+          ]
+        );
+      }
+    } finally {
+      setIsLoadingCustomer(false);
     }
   };
 
   // Handle mobile number search (fallback if QR fails)
-  const handleSearchByMobile = (mobileNumber) => {
+  const handleSearchByMobile = async (mobileNumber) => {
     if (!mobileNumber || mobileNumber.trim().length < 10) {
-      Alert.alert('Invalid Mobile Number', 'Please enter a valid 10-digit mobile number');
-      return;
+      throw new Error('Please enter a valid 10-digit mobile number');
     }
 
-    // TODO: In production, fetch customer from backend API
-    // For now, using mock data simulation
-    // Example API call:
-    // fetch(`${API_BASE_URL}/customers/search?mobile=${mobileNumber}`)
-    //   .then(response => response.json())
-    //   .then(result => { ... })
+    // Clean mobile number (remove non-numeric characters)
+    const cleanMobile = mobileNumber.replace(/\D/g, '');
+    
+    if (cleanMobile.length < 10) {
+      throw new Error('Please enter a valid 10-digit mobile number');
+    }
 
-    // Mock customer data for testing
-    const mockCustomer = {
-      customerId: 'CUST-' + mobileNumber.slice(-4),
-      mobileNo: mobileNumber,
-      customerType: 'Regular',
-      whatsappNo: mobileNumber,
-      employeeName: 'Satya',
-    };
+    setIsLoadingCustomer(true);
+    
+    try {
+      const result = await apiCall(API_ENDPOINTS.CUSTOMER_BY_MOBILE(cleanMobile));
+      
+      if (result.success && result.data) {
+        const customer = result.data;
+        setCustomerData(prev => ({
+          ...prev,
+          customerId: customer.CustomerID,
+          customerName: customer.CustomerName,
+          mobileNo: customer.MobileNo,
+          whatsappNo: customer.WhatsAppNo || customer.MobileNo,
+          customerType: customer.CustomerType,
+          // Preserve employee name from executive data
+          employeeName: prev.employeeName || customer.CustomerName,
+          party: prev.party || prev.employeeName || customer.CustomerName,
+        }));
 
-    setCustomerData({
-      ...customerData,
-      ...mockCustomer,
-    });
+        setShowMobileSearchModal(false);
 
-    setShowMobileSearchModal(false);
-
-    Alert.alert(
-      'Customer Found! ✓',
-      `Customer ID: ${mockCustomer.customerId}\nMobile: ${mockCustomer.mobileNo}\nType: ${mockCustomer.customerType}\n\n⚠️ Note: Connect to backend for real customer data`,
-      [{ text: 'OK' }]
-    );
+        Alert.alert(
+          'Customer Found! ✓',
+          `Customer ID: ${customer.CustomerID}\nName: ${customer.CustomerName}\nMobile: ${customer.MobileNo}\nType: ${customer.CustomerType}`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        throw new Error('Customer not found in database');
+      }
+    } catch (error) {
+      console.error('Error fetching customer:', error);
+      // Re-throw error so modal can display it
+      throw error;
+    } finally {
+      setIsLoadingCustomer(false);
+    }
   };
 
   // Handle scanned barcode from camera
@@ -240,15 +456,14 @@ const EmployeeSaleInvoiceScreen = () => {
     setBarcode(scannedData);
     
     // Use setTimeout to ensure state is updated before processing
-    setTimeout(() => {
-      processBarcode(scannedData);
+    setTimeout(async () => {
+      await processBarcode(scannedData);
     }, 100);
   };
 
-  // Barcode processing logic (supports various barcode formats: 7-8, 10-12 digits/characters)
+  // Barcode processing logic - Fetches product from API
   // IMPORTANT: Each unique barcode (serial no) is tracked individually
-  // TODO: Integrate with backend API - fetch(`${API_BASE_URL}/products/barcode/${barcode}`)
-  const processBarcode = (barcodeData) => {
+  const processBarcode = async (barcodeData) => {
     if (!barcodeData || !barcodeData.trim()) {
       Alert.alert('Error', 'Invalid barcode data', [{ text: 'OK' }]);
       return;
@@ -257,41 +472,20 @@ const EmployeeSaleInvoiceScreen = () => {
     const trimmedBarcode = barcodeData.trim();
     console.log(`Processing barcode: ${trimmedBarcode} (length: ${trimmedBarcode.length})`);
 
-    // Support various barcode formats (7-8, 10-12 characters)
-    // For now, map barcode to product ID (simple mapping for demo)
-    // TODO: Replace with backend API call to fetch product by barcode from database
-    
-    let product = null;
-    
-    // Try to find product by ID (for testing with numeric barcodes 1-12)
-    const numericBarcode = parseInt(trimmedBarcode);
-    if (!isNaN(numericBarcode) && numericBarcode > 0 && numericBarcode <= products.length) {
-      product = products.find((p) => p.id === numericBarcode);
-    }
-    
-    // If not found by numeric ID, try to match by barcode string
-    // (In production, products would have a 'barcode' field)
-    if (!product) {
-      // For demo: use barcode length to select different products
-      // This simulates different barcode standards
-      const barcodeLength = trimmedBarcode.length;
-      if (barcodeLength >= 7 && barcodeLength <= 8) {
-        product = products[0]; // First product for 7-8 char barcodes
-      } else if (barcodeLength >= 10 && barcodeLength <= 12) {
-        product = products[1]; // Second product for 10-12 char barcodes
-      } else if (barcodeLength === 13) {
-        product = products[2]; // Third product for 13 char barcodes (EAN-13)
+    try {
+      // Fetch product from API
+      const result = await apiCall(API_ENDPOINTS.GET_PRODUCT_BY_BARCODE(trimmedBarcode));
+      
+      if (!result.success || !result.data) {
+        throw new Error('Product not found');
       }
-    }
 
-    if (!product) {
-      Alert.alert(
-        'Product Not Found',
-        `No product found with barcode: ${trimmedBarcode}\n\nLength: ${trimmedBarcode.length} characters\n\nFor testing: Use barcodes 1-12 or any 7-13 character barcode.`,
-        [{ text: 'OK' }]
-      );
-      return;
-    }
+      const product = {
+        id: result.data.productId,
+        name: result.data.productName,
+        rate: result.data.rate,
+        hasUniqueSerialNo: result.data.hasUniqueSerialNo || false,
+      };
 
     // CRITICAL LOGIC: Check if product has unique serial numbers
     // Scenario 1: Product with unique serial (iPhone, electronics) → Check by barcode, increment if same
@@ -375,16 +569,24 @@ const EmployeeSaleInvoiceScreen = () => {
 
     // Clear barcode input after processing
     setTimeout(() => setBarcode(''), 500);
+    } catch (error) {
+      console.error('Error fetching product by barcode:', error);
+      Alert.alert(
+        'Product Not Found',
+        `No product found with barcode: ${trimmedBarcode}\n\nError: ${error.message}\n\nPlease try again or add product manually.`,
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   // Barcode Get Handler - Main logic for manual barcode entry
-  const handleBarcodeGet = () => {
+  const handleBarcodeGet = async () => {
     if (!barcode.trim()) {
       Alert.alert('Error', 'Please enter or scan a barcode', [{ text: 'OK' }]);
       return;
     }
 
-    processBarcode(barcode);
+    await processBarcode(barcode);
   };
 
   const handleAddItem = (newItem) => {
@@ -491,9 +693,111 @@ const EmployeeSaleInvoiceScreen = () => {
     },
   }), [transactionData, voucherData, customerData, items, adjustments, summary, collectedCash, collectedCard, collectedUpi]);
 
+  // Save invoice to backend API
+  const handleSaveInvoice = async () => {
+    if (items.length === 0) {
+      Alert.alert(
+        'No Items',
+        'Please add at least one item before saving the invoice.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    setIsSavingInvoice(true);
+    
+    try {
+      const invoiceData = getInvoiceData();
+      
+      // Prepare data for API
+      const apiData = {
+        voucherSeries: invoiceData.voucherDetails.voucherSeries,
+        voucherNo: invoiceData.voucherDetails.voucherNo,
+        voucherDatetime: invoiceData.voucherDetails.voucherDatetime,
+        transactionDetails: {
+          transactionId: invoiceData.transactionDetails.transactionId,
+          date: invoiceData.transactionDetails.date,
+          time: invoiceData.transactionDetails.time,
+          status: invoiceData.transactionDetails.status || 'Pending',
+          branch: invoiceData.transactionDetails.branch,
+          location: invoiceData.transactionDetails.location,
+          employeeLocation: invoiceData.transactionDetails.employeeLocation,
+          username: invoiceData.transactionDetails.username,
+        },
+        header: {
+          date: invoiceData.customerData.date,
+          billerName: invoiceData.customerData.billerName,
+          employeeName: invoiceData.customerData.employeeName,
+          customerId: invoiceData.customerData.customerId,
+          customerName: invoiceData.customerData.customerName || invoiceData.customerData.employeeName,
+          readingA4: invoiceData.customerData.readingA4,
+          readingA3: invoiceData.customerData.readingA3,
+          machineType: invoiceData.customerData.machineType,
+          remarks: invoiceData.customerData.remarks,
+          gstBill: gstBill || false,
+        },
+        collections: invoiceData.collections,
+        items: invoiceData.items.map((item, index) => ({
+          sno: index + 1,
+          productId: item.productId || null,
+          productName: item.productName || '',
+          productSerialNo: item.productSerialNo || '',
+          quantity: item.quantity || 0,
+          rate: item.rate || 0,
+          gross: item.gross || 0,
+          net: item.net || 0,
+          comments1: item.comments1 || '',
+          salesMan: item.salesMan || '',
+          freeQty: item.freeQty || 0,
+          comments6: item.comments6 || '',
+        })),
+        adjustments: invoiceData.adjustments.map((adj) => ({
+          accountId: adj.accountId || null,
+          accountName: adj.accountName || '',
+          accountType: adj.accountType || 'add',
+          addAmount: adj.addAmount || 0,
+          lessAmount: adj.lessAmount || 0,
+          comments: adj.comments || '',
+        })),
+        summary: invoiceData.summary,
+      };
+
+      const result = await apiCall(API_ENDPOINTS.CREATE_INVOICE, {
+        method: 'POST',
+        body: JSON.stringify(apiData),
+      });
+
+      if (result.success) {
+        Alert.alert(
+          'Success! ✓',
+          `Invoice saved successfully!\n\nVoucher: ${result.data.voucherSeries}-${result.data.voucherNo}\nInvoice ID: ${result.data.invoiceID}`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error saving invoice:', error);
+      Alert.alert(
+        'Error',
+        `Failed to save invoice: ${error.message}\n\nPlease check your connection and try again.`,
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsSavingInvoice(false);
+    }
+  };
+
+  // Keep local draft save for offline support
   const { handleSave, isSaving } = useScreenDraft('EmployeeSaleInvoice', getInvoiceData, {
-    successMessage: 'Employee sale invoice draft saved.',
+    successMessage: 'Employee sale invoice draft saved locally.',
   });
+
+  // Combined save handler (local + API)
+  const handleSaveCombined = async () => {
+    // Save locally first (for offline support)
+    handleSave();
+    // Then save to API
+    await handleSaveInvoice();
+  };
 
   const itemColumns = [
     { key: 'sno', label: 'S.No', width: 70, editable: false },
@@ -602,8 +906,8 @@ const EmployeeSaleInvoiceScreen = () => {
       summaryFields={summaryFields}
       onPreview={handlePreviewInvoice}
       onWhatsApp={handleSendWhatsApp}
-      actionBarActions={{ onSave: handleSave }}
-      isSaving={isSaving}
+      actionBarActions={{ onSave: handleSaveCombined }}
+      isSaving={isSaving || isSavingInvoice}
     >
 
       <AccordionSection title="TRANSACTION DETAILS" defaultExpanded={true}>
@@ -640,67 +944,43 @@ const EmployeeSaleInvoiceScreen = () => {
           </View>
         </View>
 
-        {/* Branch Picker */}
+        {/* Branch - READ ONLY */}
         <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Branch</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={transactionData.branch}
-              onValueChange={(value) => handleTransactionChange('branch', value)}
-              style={styles.picker}
-            >
-              {branches.map((branch, idx) => (
-                <Picker.Item key={idx} label={branch} value={branch} />
-              ))}
-            </Picker>
+          <Text style={styles.label}>Branch 🔒</Text>
+          <View style={[styles.input, styles.readOnlyInput]}>
+            <Text style={styles.readOnlyText}>
+              {transactionData.branch || 'Loading...'}
+            </Text>
           </View>
         </View>
 
-        {/* Location Picker */}
+        {/* Location - READ ONLY */}
         <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Location</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={transactionData.location}
-              onValueChange={(value) => handleTransactionChange('location', value)}
-              style={styles.picker}
-            >
-              {locations.map((location, idx) => (
-                <Picker.Item key={idx} label={location} value={location} />
-              ))}
-            </Picker>
+          <Text style={styles.label}>Location 🔒</Text>
+          <View style={[styles.input, styles.readOnlyInput]}>
+            <Text style={styles.readOnlyText}>
+              {transactionData.location || 'Loading...'}
+            </Text>
           </View>
         </View>
 
-        {/* Employee Location Picker */}
+        {/* Employee Location - READ ONLY */}
         <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Employee Location</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={transactionData.employeeLocation}
-              onValueChange={(value) => handleTransactionChange('employeeLocation', value)}
-              style={styles.picker}
-            >
-              {locations.map((location, idx) => (
-                <Picker.Item key={idx} label={location} value={location} />
-              ))}
-            </Picker>
+          <Text style={styles.label}>Employee Location 🔒</Text>
+          <View style={[styles.input, styles.readOnlyInput]}>
+            <Text style={styles.readOnlyText}>
+              {transactionData.employeeLocation || 'Loading...'}
+            </Text>
           </View>
         </View>
 
-        {/* Username Picker */}
+        {/* Username - READ ONLY */}
         <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Username</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={transactionData.username}
-              onValueChange={(value) => handleTransactionChange('username', value)}
-              style={styles.picker}
-            >
-              {employeeUsernames.map((username, idx) => (
-                <Picker.Item key={idx} label={username} value={username} />
-              ))}
-            </Picker>
+          <Text style={styles.label}>Username 🔒</Text>
+          <View style={[styles.input, styles.readOnlyInput]}>
+            <Text style={styles.readOnlyText}>
+              {transactionData.username || 'Loading...'}
+            </Text>
           </View>
         </View>
       </AccordionSection>
@@ -733,37 +1013,34 @@ const EmployeeSaleInvoiceScreen = () => {
 
       <AccordionSection title="HEADER" defaultExpanded={true}>
         
-        {/* Date and Biller Name */}
+        {/* Date and Biller Name - READ ONLY */}
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Date</Text>
-            <TextInput
-              style={styles.input}
-              value={customerData.date}
-              onChangeText={(value) => handleInputChange('date', value)}
-              placeholder="Enter date"
-            />
+            <Text style={styles.label}>Date 🔒</Text>
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {customerData.date || 'Loading...'}
+              </Text>
+            </View>
           </View>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Biller Name</Text>
-            <TextInput
-              style={styles.input}
-              value={customerData.billerName}
-              onChangeText={(value) => handleInputChange('billerName', value)}
-              placeholder="Enter biller name"
-            />
+            <Text style={styles.label}>Biller Name 🔒</Text>
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {customerData.billerName || 'Loading...'}
+              </Text>
+            </View>
           </View>
         </View>
 
-        {/* Party */}
+        {/* Employee Name - READ ONLY */}
         <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Party</Text>
-          <TextInput
-            style={styles.input}
-            value={customerData.party}
-            onChangeText={(value) => handleInputChange('party', value)}
-            placeholder="Enter party name"
-          />
+          <Text style={styles.label}>Employee Name 🔒</Text>
+          <View style={[styles.input, styles.readOnlyInput]}>
+            <Text style={styles.readOnlyText}>
+              {customerData.employeeName || customerData.party || 'Loading...'}
+            </Text>
+          </View>
         </View>
 
         {/* Customer ID with QR Scanner - READ ONLY */}
@@ -771,32 +1048,40 @@ const EmployeeSaleInvoiceScreen = () => {
           <Text style={styles.label}>Customer ID 🔒</Text>
           <View style={styles.inputWithIcon}>
             <View style={[styles.input, styles.readOnlyInput, { flex: 1, marginRight: 8 }]}>
-              <Text style={styles.readOnlyText}>
-                {customerData.customerId || 'Scan QR Code to load customer'}
-              </Text>
+              {isLoadingCustomer ? (
+                <ActivityIndicator size="small" color="#2196F3" />
+              ) : (
+                <Text style={styles.readOnlyText}>
+                  {customerData.customerId || 'Scan QR Code to load customer'}
+                </Text>
+              )}
             </View>
             <TouchableOpacity
               style={styles.iconButton}
               onPress={() => setShowScanner(true)}
+              disabled={isLoadingCustomer}
             >
               <Text style={styles.iconButtonText}>📷 QR</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.iconButton, { marginLeft: 4, backgroundColor: '#2196F3' }]}
               onPress={() => setShowMobileSearchModal(true)}
+              disabled={isLoadingCustomer}
             >
               <Text style={styles.iconButtonText}>🔍</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.helperText}>Scan QR or use 🔍 to search by mobile number</Text>
+          <Text style={styles.helperText}>
+            {isLoadingCustomer ? 'Loading customer...' : 'Scan QR or use 🔍 to search by mobile number'}
+          </Text>
         </View>
 
-        {/* Employee Name - READ ONLY (auto-filled from QR) */}
+        {/* Customer Name - READ ONLY (auto-filled from QR) */}
         <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Employee Name 🔒</Text>
+          <Text style={styles.label}>Customer Name 🔒</Text>
           <View style={[styles.input, styles.readOnlyInput]}>
             <Text style={styles.readOnlyText}>
-              {customerData.employeeName || 'Will be filled from QR code'}
+              {customerData.customerName || 'Will be filled from QR code'}
             </Text>
           </View>
         </View>
@@ -1143,10 +1428,28 @@ const EmployeeSaleInvoiceScreen = () => {
 // Mobile Search Modal Component (Inline)
 const MobileSearchModal = ({ isVisible, onSearch, onClose }) => {
   const [mobileNumber, setMobileNumber] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSearch = () => {
-    onSearch(mobileNumber);
-    setMobileNumber('');
+  const handleSearch = async () => {
+    if (!mobileNumber || mobileNumber.trim().length < 10) {
+      setError('Please enter a valid 10-digit mobile number');
+      return;
+    }
+
+    setIsSearching(true);
+    setError('');
+    
+    try {
+      await onSearch(mobileNumber);
+      // Only clear if search was successful (modal will close)
+      setMobileNumber('');
+    } catch (error) {
+      // Error is handled in parent component, but show it here too
+      setError(error.message || 'Failed to search customer');
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   return (
@@ -1159,36 +1462,55 @@ const MobileSearchModal = ({ isVisible, onSearch, onClose }) => {
           </Text>
 
           <TextInput
-            style={mobileSearchStyles.input}
+            style={[mobileSearchStyles.input, error && mobileSearchStyles.inputError]}
             value={mobileNumber}
-            onChangeText={setMobileNumber}
+            onChangeText={(text) => {
+              setMobileNumber(text);
+              setError(''); // Clear error when user types
+            }}
             placeholder="Enter 10-digit mobile number"
             keyboardType="phone-pad"
             maxLength={10}
             autoFocus
+            editable={!isSearching}
           />
+
+          {error ? (
+            <Text style={mobileSearchStyles.errorText}>{error}</Text>
+          ) : null}
 
           <View style={mobileSearchStyles.buttonRow}>
             <TouchableOpacity
               style={[mobileSearchStyles.button, mobileSearchStyles.cancelButton]}
               onPress={() => {
                 setMobileNumber('');
+                setError('');
                 onClose();
               }}
+              disabled={isSearching}
             >
               <Text style={mobileSearchStyles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[mobileSearchStyles.button, mobileSearchStyles.searchButton]}
+              style={[
+                mobileSearchStyles.button, 
+                mobileSearchStyles.searchButton,
+                isSearching && mobileSearchStyles.searchButtonDisabled
+              ]}
               onPress={handleSearch}
+              disabled={isSearching}
             >
-              <Text style={mobileSearchStyles.searchButtonText}>🔍 Search</Text>
+              {isSearching ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={mobileSearchStyles.searchButtonText}>🔍 Search</Text>
+              )}
             </TouchableOpacity>
           </View>
 
           <Text style={mobileSearchStyles.note}>
-            ⚠️ Note: Connect backend API for real-time customer data
+            ⚠️ Note: Make sure backend server is running and API_BASE_URL is configured correctly
           </Text>
         </View>
       </View>
@@ -1233,8 +1555,18 @@ const mobileSearchStyles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    marginBottom: 20,
+    marginBottom: 10,
     backgroundColor: '#f9f9f9',
+  },
+  inputError: {
+    borderColor: '#d32f2f',
+    borderWidth: 2,
+  },
+  errorText: {
+    color: '#d32f2f',
+    fontSize: 12,
+    marginBottom: 10,
+    paddingHorizontal: 4,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -1257,6 +1589,10 @@ const mobileSearchStyles = StyleSheet.create({
   },
   searchButton: {
     backgroundColor: '#2196F3',
+  },
+  searchButtonDisabled: {
+    backgroundColor: '#90CAF9',
+    opacity: 0.7,
   },
   searchButtonText: {
     color: '#fff',

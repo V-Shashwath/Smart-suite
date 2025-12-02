@@ -1,19 +1,31 @@
 const express = require('express');
 const router = express.Router();
 const {
+  createInvoice,
+  getInvoiceByVoucher,
+  getInvoiceByID,
   getAllInvoices,
-  getInvoiceById,
-  createInvoice
+  updateInvoice,
+  deleteInvoice,
 } = require('../controllers/invoicesController');
 
-// GET /api/invoices - Get all invoices
+// Create new invoice
+router.post('/', createInvoice);
+
+// Get invoice by voucher series and number
+router.get('/voucher/:voucherSeries/:voucherNo', getInvoiceByVoucher);
+
+// Get invoice by ID
+router.get('/:invoiceId', getInvoiceByID);
+
+// Get all invoices
 router.get('/', getAllInvoices);
 
-// GET /api/invoices/:id - Get invoice by ID
-router.get('/:id', getInvoiceById);
+// Update invoice
+router.put('/:invoiceId', updateInvoice);
 
-// POST /api/invoices - Create new invoice
-router.post('/', createInvoice);
+// Delete invoice
+router.delete('/:invoiceId', deleteInvoice);
 
 module.exports = router;
 

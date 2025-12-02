@@ -1,23 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const {
+  getCustomerByMobile,
+  getCustomerByID,
+  createOrUpdateCustomer,
   getAllCustomers,
-  getCustomerById,
-  searchCustomers,
-  createCustomer
 } = require('../controllers/customersController');
 
-// GET /api/customers - Get all customers
+// Get customer by mobile number (for QR code lookup)
+router.get('/mobile/:mobileNo', getCustomerByMobile);
+
+// Get customer by CustomerID
+router.get('/:customerId', getCustomerByID);
+
+// Get all customers
 router.get('/', getAllCustomers);
 
-// GET /api/customers/search - Search customers
-router.get('/search', searchCustomers);
-
-// GET /api/customers/:id - Get customer by ID
-router.get('/:id', getCustomerById);
-
-// POST /api/customers - Create new customer
-router.post('/', createCustomer);
+// Create or update customer
+router.post('/', createOrUpdateCustomer);
 
 module.exports = router;
 

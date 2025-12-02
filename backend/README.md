@@ -1,214 +1,245 @@
-# Smart Suite Backend API
+# Mobile App Backend API
 
-Backend API for Employee Sales Invoice application with Microsoft SQL Server integration.
+Backend API for Mobile App - Employee Sale Invoice System
 
-## 🚀 Quick Start
+## 📋 Overview
 
-### Prerequisites
-- Node.js (v14 or higher)
-- Microsoft SQL Server
-- npm or yarn
+This backend provides REST API endpoints for managing Employee Sale Invoices, Customers, and related data. It uses Node.js/Express with Microsoft SQL Server.
 
-### Installation
+## 🗄️ Database
 
+- **Database Name:** `mobileApp`
+- **Server:** `103.98.12.218\SQLEXPRESS,59320`
+- **Username:** `Ikonuser`
+- **Password:** `userikon`
+
+### Tables Created:
+1. **Customers** - Customer data for QR code lookup
+2. **EmployeeSaleInvoiceMain** - Transaction, Voucher, Header, Collections
+3. **EmployeeSaleInvoiceItems** - Item body details
+4. **EmployeeSaleInvoiceAdjustments** - Adjustments details
+
+All tables use `VoucherSeries` and `VoucherNo` as common keys for joining data.
+
+## 🚀 Setup Instructions
+
+### 1. Install Dependencies
 ```bash
-# Navigate to backend directory
 cd backend
-
-# Install dependencies
 npm install
+```
 
-# Start the server
+### 2. Create Database
+1. Open SQL Server Management Studio (SSMS)
+2. Connect to: `103.98.12.218\SQLEXPRESS,59320`
+3. Login with: `Ikonuser` / `userikon`
+4. Run the SQL script: `../database/create_database.sql`
+
+### 3. Start Server
+```bash
 npm start
-
-# Or start with nodemon for development
+# or for development with auto-reload:
 npm run dev
 ```
 
-## 📦 Database Connection
+Server will start on `http://localhost:3000`
 
-### Connection Details
-- **Server:** `103.98.12.218\sqlexpress,59320`
-- **Username:** `Ikonuser`
-- **Password:** `userikon`
-- **Database:** `SmartSuite` (update in `src/config/database.js`)
+## 📡 API Endpoints
 
-### Configuration
-Edit `src/config/database.js` to update database connection settings.
+### Customers API
 
-```javascript
-const config = {
-  server: '103.98.12.218\\sqlexpress',
-  port: 59320,
-  user: 'Ikonuser',
-  password: 'userikon',
-  database: 'SmartSuite', // Your database name
-  // ... other options
-};
+#### Get Customer by Mobile Number (for QR Code)
+```
+GET /api/customers/mobile/:mobileNo
+```
+**Example:**
+```
+GET /api/customers/mobile/9876543210
 ```
 
-## 📚 API Endpoints
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "CustomerID": "CUST-001",
+    "CustomerName": "John Doe",
+    "MobileNo": "9876543210",
+    "WhatsAppNo": "9876543210",
+    "CustomerType": "Regular"
+  }
+}
+```
 
-### Products
-- `GET /api/products` - Get all products
-- `GET /api/products/:id` - Get product by ID
-- `GET /api/products/barcode/:barcode` - Get product by barcode
-- `GET /api/products/category/:category` - Get products by category
+#### Get Customer by ID
+```
+GET /api/customers/:customerId
+```
 
-### Customers
-- `GET /api/customers` - Get all customers
-- `GET /api/customers/:id` - Get customer by ID
-- `GET /api/customers/search?query=xxx` - Search customers
-- `POST /api/customers` - Create new customer
+#### Get All Customers
+```
+GET /api/customers?page=1&limit=50
+```
 
-### Invoices
-- `GET /api/invoices` - Get all invoices
-- `GET /api/invoices/:id` - Get invoice by ID
-- `POST /api/invoices` - Create new invoice
+#### Create/Update Customer
+```
+POST /api/customers
+```
+**Body:**
+```json
+{
+  "customerID": "CUST-001",
+  "customerName": "John Doe",
+  "mobileNo": "9876543210",
+  "whatsAppNo": "9876543210",
+  "customerType": "Regular"
+}
+```
 
-### Adjustments
-- `GET /api/adjustments` - Get all adjustment accounts
+### Invoices API
 
-### Transactions
-- `GET /api/transactions/dropdown-options` - Get all dropdown options
-- `GET /api/transactions/generate-voucher?series=RS24` - Generate voucher number
+#### Create Invoice
+```
+POST /api/invoices
+```
+**Body:**
+```json
+{
+  "voucherSeries": "RS24",
+  "voucherNo": "1",
+  "voucherDatetime": "2025-11-17 19:29:05",
+  "transactionDetails": {
+    "transactionId": "TXN-2025-001234",
+    "date": "17-11-2025",
+    "time": "19:29:05",
+    "status": "Pending",
+    "branch": "Head Office",
+    "location": "Moorthy Location",
+    "employeeLocation": "Moorthy Location",
+    "username": "Supervisor"
+  },
+  "header": {
+    "date": "15-Nov-2025",
+    "billerName": "ABC Enterprises",
+    "employeeName": "John Doe",
+    "customerId": "CUST-001",
+    "customerName": "John Doe",
+    "readingA4": "1250",
+    "readingA3": "850",
+    "machineType": "Xerox Machine Model XYZ",
+    "remarks": "Customer requested urgent delivery",
+    "gstBill": false
+  },
+  "collections": {
+    "cash": 1000,
+    "card": 500,
+    "upi": 200,
+    "balance": 0
+  },
+  "items": [
+    {
+      "sno": 1,
+      "productId": 1,
+      "productName": "A4 Xerox - Black & White",
+      "productSerialNo": "1234567890",
+      "quantity": 2,
+      "rate": 2.00,
+      "gross": 4.00,
+      "net": 4.00,
+      "comments1": "",
+      "salesMan": "",
+      "freeQty": 0,
+      "comments6": ""
+    }
+  ],
+  "adjustments": [
+    {
+      "accountId": 1,
+      "accountName": "Discount - Percentage",
+      "accountType": "less",
+      "addAmount": 0,
+      "lessAmount": 50,
+      "comments": "Early payment discount"
+    }
+  ],
+  "summary": {
+    "itemCount": 1,
+    "totalQty": 2,
+    "totalGross": 4.00,
+    "totalDiscount": 0,
+    "totalAdd": 0,
+    "totalLess": 50,
+    "totalBillValue": -46.00,
+    "ledgerBalance": 0
+  }
+}
+```
 
-## 🗄️ Database Schema
+#### Get Invoice by Voucher
+```
+GET /api/invoices/voucher/:voucherSeries/:voucherNo
+```
+**Example:**
+```
+GET /api/invoices/voucher/RS24/1
+```
 
-See `database-schema.sql` for complete database structure.
+#### Get Invoice by ID
+```
+GET /api/invoices/:invoiceId
+```
 
-### Required Tables:
-- `Products` - Product information
-- `Customers` - Customer information
-- `Invoices` - Invoice headers
-- `InvoiceItems` - Invoice line items
-- `InvoiceAdjustments` - Invoice adjustments
-- `Branches` - Branch information
-- `Locations` - Location information
-- `Users` - User/Employee information
-- `MachineTypes` - Machine type options
-- `AdjustmentAccounts` - Adjustment account types
+#### Get All Invoices
+```
+GET /api/invoices?page=1&limit=20&branch=Head Office&status=Pending
+```
+
+#### Update Invoice
+```
+PUT /api/invoices/:invoiceId
+```
+
+#### Delete Invoice
+```
+DELETE /api/invoices/:invoiceId
+```
 
 ## 🔧 Configuration
 
-### Port Configuration
-Default port is `3000`. Change in `src/server.js` or set `PORT` environment variable.
-
-### CORS Configuration
-Update CORS settings in `src/server.js` if needed:
+Database configuration is in `src/config/database.js`. Update if needed:
 
 ```javascript
-app.use(cors({
-  origin: ['http://localhost:19000', 'http://YOUR_IP:19000']
-}));
+const config = {
+  server: '103.98.12.218\\SQLEXPRESS',
+  port: 59320,
+  database: 'mobileApp',
+  user: 'Ikonuser',
+  password: 'userikon',
+  // ...
+};
 ```
 
-## 🧪 Testing the API
+## 📝 Notes
 
-### Health Check
-```bash
-curl http://localhost:3000
-```
-
-### Get All Products
-```bash
-curl http://localhost:3000/api/products
-```
-
-### Get Product by Barcode
-```bash
-curl http://localhost:3000/api/products/barcode/12345
-```
-
-### Create Invoice
-```bash
-curl -X POST http://localhost:3000/api/invoices \
-  -H "Content-Type: application/json" \
-  -d @invoice-data.json
-```
-
-## 📱 Connect React Native App
-
-Update the API URL in your React Native app:
-
-```javascript
-// In ServiceApp/src/config/api.js (create this file)
-const API_URL = 'http://YOUR_COMPUTER_IP:3000/api';
-
-export default API_URL;
-```
-
-Replace `YOUR_COMPUTER_IP` with your computer's local IP address (e.g., `192.168.1.100`).
+- All endpoints return JSON responses
+- Error responses include `success: false` and error message
+- Success responses include `success: true` and data
+- Customer lookup by mobile number is optimized for QR code scanning
+- Invoice creation uses transactions to ensure data consistency
 
 ## 🐛 Troubleshooting
 
-### Database Connection Issues
-1. Verify SQL Server is running
-2. Check firewall settings (port 59320 should be open)
-3. Verify SQL Server authentication mode (mixed mode required)
-4. Test connection using SQL Server Management Studio first
-
-### Cannot Connect from React Native App
-1. Ensure your phone and computer are on the same network
-2. Use your computer's IP address, not `localhost`
-3. Check firewall allows incoming connections on port 3000
-4. Try: `http://192.168.x.x:3000/api` (replace with your IP)
+### Database Connection Error
+- Verify SQL Server is running
+- Check credentials in `src/config/database.js`
+- Ensure database `mobileApp` exists
+- Run `database/create_database.sql` script
 
 ### Port Already in Use
-```bash
-# Change port in server.js or:
-PORT=3001 npm start
-```
+- Change PORT in `src/server.js` or use environment variable
+- Kill process using port 3000
 
-## 📝 Development
-
-### Project Structure
-```
-backend/
-├── src/
-│   ├── config/
-│   │   └── database.js       # Database configuration
-│   ├── controllers/
-│   │   ├── productsController.js
-│   │   ├── customersController.js
-│   │   ├── invoicesController.js
-│   │   ├── adjustmentsController.js
-│   │   └── transactionsController.js
-│   ├── routes/
-│   │   ├── products.js
-│   │   ├── customers.js
-│   │   ├── invoices.js
-│   │   ├── adjustments.js
-│   │   └── transactions.js
-│   └── server.js            # Main server file
-├── package.json
-└── README.md
-```
-
-### Adding New Endpoints
-1. Create controller in `src/controllers/`
-2. Create route in `src/routes/`
-3. Register route in `src/server.js`
-
-## 🔒 Security Notes
-
-**⚠️ IMPORTANT:**
-- Database credentials are currently hardcoded for development
-- In production, use environment variables (.env file)
-- Enable SSL/TLS for database connection
-- Implement authentication/authorization
-- Use HTTPS in production
-
-## 📄 License
-
-Proprietary - Founditup Team
-
-## 🆘 Support
-
-For issues or questions, contact the development team.
-
----
-
-**Version:** 1.0.0  
-**Last Updated:** November 18, 2025
+### CORS Issues
+- CORS is configured to allow all origins
+- For production, update CORS settings in `src/server.js`
 

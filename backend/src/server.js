@@ -1,21 +1,23 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const { testConnection, closePool } = require('./config/database');
+const { testConnection } = require('./config/database');
 
 // Import routes
-const productsRoutes = require('./routes/products');
 const customersRoutes = require('./routes/customers');
 const invoicesRoutes = require('./routes/invoices');
-const adjustmentsRoutes = require('./routes/adjustments');
-const transactionsRoutes = require('./routes/transactions');
+const executivesRoutes = require('./routes/executives');
+const productsRoutes = require('./routes/products');
 
-// Create Express app
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: '*', // Allow all origins for mobile app
+  credentials: true,
+}));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -29,32 +31,28 @@ app.use((req, res, next) => {
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'Smart Suite Backend API is running!',
+    message: 'Mobile App Backend API is running',
     version: '1.0.0',
     endpoints: {
-      products: '/api/products',
       customers: '/api/customers',
       invoices: '/api/invoices',
-      adjustments: '/api/adjustments',
-      transactions: '/api/transactions'
-    }
+    },
   });
 });
 
 // API Routes
-app.use('/api/products', productsRoutes);
 app.use('/api/customers', customersRoutes);
 app.use('/api/invoices', invoicesRoutes);
-app.use('/api/adjustments', adjustmentsRoutes);
-app.use('/api/transactions', transactionsRoutes);
+app.use('/api/executives', executivesRoutes);
+app.use('/api/products', productsRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Error:', err.message);
+  console.error('Error:', err);
   res.status(err.status || 500).json({
     success: false,
-    error: err.message || 'Internal Server Error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    message: err.message || 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.stack : undefined,
   });
 });
 
@@ -62,61 +60,66 @@ app.use((err, req, res, next) => {
 app.use((req, res) => {
   res.status(404).json({
     success: false,
-    error: 'Endpoint not found'
+    message: 'Endpoint not found',
   });
 });
 
 // Start server
-async function startServer() {
+const startServer = async () => {
   try {
-    // Test database connection
-    console.log('Testing database connection...');
-    const isConnected = await testConnection();
+    // Test database connection (non-blocking - server will start anyway)
+    testConnection().catch((error) => {
+      console.warn('⚠️  Initial database connection test failed');
+      console.warn('   Server will start, but database operations may fail');
+      console.warn('   Connection will be retried on first API call');
+    });
     
-    if (!isConnected) {
-      console.error('⚠️  Warning: Database connection failed. Server will start but API calls may fail.');
-    }
-    
-    // Start listening
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log('='.repeat(60));
-      console.log('🚀 Smart Suite Backend Server Started');
-      console.log('='.repeat(60));
-      console.log(`📡 Server running on: http://localhost:${PORT}`);
-      console.log(`🌐 Network access: http://YOUR_IP:${PORT}`);
-      console.log(`💾 Database: SQL Server connected`);
-      console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log('='.repeat(60));
-      console.log('\n📚 Available Endpoints:');
-      console.log(`  GET  /api/products - Get all products`);
-      console.log(`  GET  /api/products/:id - Get product by ID`);
-      console.log(`  GET  /api/products/barcode/:barcode - Get product by barcode`);
-      console.log(`  GET  /api/customers - Get all customers`);
-      console.log(`  GET  /api/customers/:id - Get customer by ID`);
-      console.log(`  POST /api/invoices - Create new invoice`);
-      console.log(`  GET  /api/invoices/:id - Get invoice by ID`);
-      console.log('='.repeat(60));
+    app.listen(PORT, () => {
+      console.log('========================================');
+      console.log('🚀 Mobile App Backend Server Started');
+      console.log('========================================');
+      console.log(`📡 Server running on port ${PORT}`);
+      console.log(`🌐 API Base URL: http://localhost:${PORT}/api`);
+      console.log('');
+      console.log('📋 Available Endpoints:');
+      console.log('   GET  /api/customers/mobile/:mobileNo  - Get customer by mobile');
+      console.log('   GET  /api/customers/:customerId      - Get customer by ID');
+      console.log('   GET  /api/customers                  - Get all customers');
+      console.log('   POST /api/customers                  - Create/update customer');
+      console.log('');
+      console.log('   POST /api/invoices                   - Create invoice');
+      console.log('   GET  /api/invoices/voucher/:series/:no - Get invoice by voucher');
+      console.log('   GET  /api/invoices/:invoiceId        - Get invoice by ID');
+      console.log('   GET  /api/invoices                   - Get all invoices');
+      console.log('   PUT  /api/invoices/:invoiceId        - Update invoice');
+      console.log('   DELETE /api/invoices/:invoiceId      - Delete invoice');
+      console.log('');
+      console.log('   GET  /api/executives/:username       - Get executive data');
+      console.log('   GET  /api/products/barcode/:barcode  - Get product by barcode');
+      console.log('   GET  /api/products                   - Get all products');
+      console.log('========================================');
     });
   } catch (error) {
-    console.error('❌ Failed to start server:', error.message);
+    console.error('❌ Failed to start server:', error);
     process.exit(1);
   }
-}
+};
 
-// Graceful shutdown
+// Handle graceful shutdown
 process.on('SIGTERM', async () => {
-  console.log('\n🛑 SIGTERM received, closing server gracefully...');
+  console.log('SIGTERM received, shutting down gracefully...');
+  const { closePool } = require('./config/database');
   await closePool();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
-  console.log('\n🛑 SIGINT received, closing server gracefully...');
+  console.log('SIGINT received, shutting down gracefully...');
+  const { closePool } = require('./config/database');
   await closePool();
   process.exit(0);
 });
 
-// Start the server
 startServer();
 
 module.exports = app;
