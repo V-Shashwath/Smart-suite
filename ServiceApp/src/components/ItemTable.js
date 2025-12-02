@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { MaterialIcons } from '@expo/vector-icons';
+
 import {
   View,
   Text,
@@ -134,7 +136,7 @@ const ItemTable = ({
                     style={styles.deleteButton}
                     onPress={() => onDeleteRow(startIndex + rowIndex)}
                   >
-                    <Text style={styles.deleteButtonText}>🗑️</Text>
+                    <MaterialIcons name="delete" size={24} color="red" />
                   </TouchableOpacity>
                 </View>
               )}

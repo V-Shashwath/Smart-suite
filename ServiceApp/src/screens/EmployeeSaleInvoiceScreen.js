@@ -11,8 +11,11 @@ import {
   FlatList,
   Modal,
   ActivityIndicator,
+  Image,
+  Platform,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import { MaterialIcons } from '@expo/vector-icons';
 import {
   transactionDetails,
   voucherDetails,
@@ -31,7 +34,6 @@ import AccordionSection from '../components/AccordionSection';
 import ItemTable from '../components/ItemTable';
 import QRScannerModal from '../components/QRScannerModal';
 import BarcodeScannerModal from '../components/BarcodeScannerModal';
-import AddItemModal from '../components/AddItemModal';
 import AddAdjustmentModal from '../components/AddAdjustmentModal';
 import PDFPreviewModal from '../components/PDFPreviewModal';
 import { sharePDFViaWhatsApp, generateInvoicePDF } from '../utils/pdfUtils';
@@ -83,7 +85,6 @@ const EmployeeSaleInvoiceScreen = () => {
   // Modals state
   const [showScanner, setShowScanner] = useState(false);
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
-  const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [showAddAdjustmentModal, setShowAddAdjustmentModal] = useState(false);
   const [showPDFPreview, setShowPDFPreview] = useState(false);
   const [showMobileSearchModal, setShowMobileSearchModal] = useState(false);
@@ -589,50 +590,6 @@ const EmployeeSaleInvoiceScreen = () => {
     await processBarcode(barcode);
   };
 
-  const handleAddItem = (newItem) => {
-    // SCENARIO 3: Manually added items (without barcode/serial)
-    // Check if same product already exists without serial number
-    const existingItemIndex = items.findIndex(
-      (item) => item.productId === newItem.productId && 
-                item.productSerialNo === ''
-    );
-
-    if (existingItemIndex !== -1) {
-      // Same product exists without serial - INCREMENT QUANTITY
-      const updatedItems = [...items];
-      const existingItem = { ...updatedItems[existingItemIndex] };
-      existingItem.quantity += newItem.quantity;
-      updatedItems[existingItemIndex] = existingItem;
-      
-      commitItems(updatedItems);
-      setShowAddItemModal(false);
-      
-      Alert.alert(
-        'Quantity Updated! ✓',
-        `${newItem.productName}\nNew Qty: ${existingItem.quantity}\n(Manually added items merged)`,
-        [{ text: 'OK' }]
-      );
-    } else {
-      // First time or different product - ADD NEW ROW
-      const extendedItem = {
-        ...newItem,
-        comments1: '',
-        salesMan: '',
-        freeQty: '',
-        productSerialNo: '', // Empty serial for manual adds
-        comments6: '',
-      };
-      
-      commitItems([...items, extendedItem]);
-      setShowAddItemModal(false);
-      
-      Alert.alert(
-        'Item Added Successfully! ✓',
-        `${newItem.productName}\nQty: ${newItem.quantity} × ₹${newItem.rate.toFixed(2)} = ₹${newItem.net.toFixed(2)}`,
-        [{ text: 'OK' }]
-      );
-    }
-  };
 
   const handleUpdateItemField = (itemId, field, value) => {
     const updatedItems = items.map((item) => {
@@ -807,6 +764,10 @@ const EmployeeSaleInvoiceScreen = () => {
     { key: 'rate', label: 'Rate', width: 110, keyboardType: 'numeric' },
     { key: 'gross', label: 'Gross', width: 120, keyboardType: 'numeric', editable: false },
     { key: 'net', label: 'Net Amount', width: 130, keyboardType: 'numeric', editable: false },
+    { key: 'comments1', label: 'Comments1', width: 150 },
+    { key: 'salesMan', label: 'Sales Man', width: 130 },
+    { key: 'freeQty', label: 'Free Qty', width: 100, keyboardType: 'numeric' },
+    { key: 'comments6', label: 'Comments6', width: 150 },
   ];
 
   const handleItemTableCellChange = (rowIndex, field, value) => {
@@ -946,7 +907,7 @@ const EmployeeSaleInvoiceScreen = () => {
 
         {/* Branch - READ ONLY */}
         <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Branch 🔒</Text>
+          <Text style={styles.label}>Branch</Text>
           <View style={[styles.input, styles.readOnlyInput]}>
             <Text style={styles.readOnlyText}>
               {transactionData.branch || 'Loading...'}
@@ -956,7 +917,7 @@ const EmployeeSaleInvoiceScreen = () => {
 
         {/* Location - READ ONLY */}
         <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Location 🔒</Text>
+          <Text style={styles.label}>Location</Text>
           <View style={[styles.input, styles.readOnlyInput]}>
             <Text style={styles.readOnlyText}>
               {transactionData.location || 'Loading...'}
@@ -966,7 +927,7 @@ const EmployeeSaleInvoiceScreen = () => {
 
         {/* Employee Location - READ ONLY */}
         <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Employee Location 🔒</Text>
+          <Text style={styles.label}>Employee Location</Text>
           <View style={[styles.input, styles.readOnlyInput]}>
             <Text style={styles.readOnlyText}>
               {transactionData.employeeLocation || 'Loading...'}
@@ -976,7 +937,7 @@ const EmployeeSaleInvoiceScreen = () => {
 
         {/* Username - READ ONLY */}
         <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Username 🔒</Text>
+          <Text style={styles.label}>Username</Text>
           <View style={[styles.input, styles.readOnlyInput]}>
             <Text style={styles.readOnlyText}>
               {transactionData.username || 'Loading...'}
@@ -1016,7 +977,7 @@ const EmployeeSaleInvoiceScreen = () => {
         {/* Date and Biller Name - READ ONLY */}
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Date 🔒</Text>
+            <Text style={styles.label}>Date</Text>
             <View style={[styles.input, styles.readOnlyInput]}>
               <Text style={styles.readOnlyText}>
                 {customerData.date || 'Loading...'}
@@ -1024,7 +985,7 @@ const EmployeeSaleInvoiceScreen = () => {
             </View>
           </View>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Biller Name 🔒</Text>
+            <Text style={styles.label}>Biller Name</Text>
             <View style={[styles.input, styles.readOnlyInput]}>
               <Text style={styles.readOnlyText}>
                 {customerData.billerName || 'Loading...'}
@@ -1035,7 +996,7 @@ const EmployeeSaleInvoiceScreen = () => {
 
         {/* Employee Name - READ ONLY */}
         <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Employee Name 🔒</Text>
+          <Text style={styles.label}>Employee Name</Text>
           <View style={[styles.input, styles.readOnlyInput]}>
             <Text style={styles.readOnlyText}>
               {customerData.employeeName || customerData.party || 'Loading...'}
@@ -1045,7 +1006,7 @@ const EmployeeSaleInvoiceScreen = () => {
 
         {/* Customer ID with QR Scanner - READ ONLY */}
         <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Customer ID 🔒</Text>
+          <Text style={styles.label}>Customer ID</Text>
           <View style={styles.inputWithIcon}>
             <View style={[styles.input, styles.readOnlyInput, { flex: 1, marginRight: 8 }]}>
               {isLoadingCustomer ? (
@@ -1061,24 +1022,24 @@ const EmployeeSaleInvoiceScreen = () => {
               onPress={() => setShowScanner(true)}
               disabled={isLoadingCustomer}
             >
-              <Text style={styles.iconButtonText}>📷 QR</Text>
+              <MaterialIcons name="qr-code-scanner" size={24} color="#30302d" />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.iconButton, { marginLeft: 4, backgroundColor: '#2196F3' }]}
+              style={[styles.iconButton, { marginLeft: 4, backgroundColor: '#30302d' }]}
               onPress={() => setShowMobileSearchModal(true)}
               disabled={isLoadingCustomer}
             >
-              <Text style={styles.iconButtonText}>🔍</Text>
+              <MaterialIcons name="search" size={24} color="#fff" />
             </TouchableOpacity>
           </View>
           <Text style={styles.helperText}>
-            {isLoadingCustomer ? 'Loading customer...' : 'Scan QR or use 🔍 to search by mobile number'}
+            {isLoadingCustomer ? 'Loading customer...' : 'Scan QR or use search icon to search by mobile number'}
           </Text>
         </View>
 
         {/* Customer Name - READ ONLY (auto-filled from QR) */}
         <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Customer Name 🔒</Text>
+          <Text style={styles.label}>Customer Name</Text>
           <View style={[styles.input, styles.readOnlyInput]}>
             <Text style={styles.readOnlyText}>
               {customerData.customerName || 'Will be filled from QR code'}
@@ -1089,7 +1050,7 @@ const EmployeeSaleInvoiceScreen = () => {
         {/* Mobile No and WhatsApp No - READ ONLY */}
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Mobile No 🔒</Text>
+            <Text style={styles.label}>Mobile No</Text>
             <View style={[styles.input, styles.readOnlyInput]}>
               <Text style={styles.readOnlyText}>
                 {customerData.mobileNo || 'From QR'}
@@ -1097,7 +1058,7 @@ const EmployeeSaleInvoiceScreen = () => {
             </View>
           </View>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>WhatsApp No 🔒</Text>
+            <Text style={styles.label}>WhatsApp No</Text>
             <View style={[styles.input, styles.readOnlyInput]}>
               <Text style={styles.readOnlyText}>
                 {customerData.whatsappNo || 'From QR'}
@@ -1108,7 +1069,7 @@ const EmployeeSaleInvoiceScreen = () => {
 
         {/* Customer Type - READ ONLY */}
         <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Customer Type 🔒</Text>
+          <Text style={styles.label}>Customer Type</Text>
           <View style={[styles.input, styles.readOnlyInput]}>
             <Text style={styles.readOnlyText}>
               {customerData.customerType || 'From QR code'}
@@ -1197,7 +1158,11 @@ const EmployeeSaleInvoiceScreen = () => {
               style={styles.scanBarcodeButton}
               onPress={() => setShowBarcodeScanner(true)}
             >
-              <Text style={styles.scanBarcodeButtonText}>📷</Text>
+              <Image
+                source={require('../../assets/barcode-scanner.png')}
+                style={styles.barcodeScannerIcon}
+                resizeMode="contain"
+              />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.getButton}
@@ -1207,14 +1172,13 @@ const EmployeeSaleInvoiceScreen = () => {
             </TouchableOpacity>
           </View>
           <Text style={styles.helperText}>
-            📷 Scan barcode with camera or enter manually, then click "Get" to add/update item.
+            Scan barcode with camera or enter manually, then click "Get" to add/update item.
           </Text>
         </View>
 
         <ItemTable
           columns={itemColumns}
           data={items}
-          onAddRow={() => setShowAddItemModal(true)}
           onDeleteRow={handleDeleteItemRow}
           onCellChange={handleItemTableCellChange}
         />
@@ -1223,73 +1187,8 @@ const EmployeeSaleInvoiceScreen = () => {
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateText}>No items added yet</Text>
             <Text style={styles.emptyStateSubtext}>
-              Scan a barcode or use the "+ Add" button above
+              Scan a barcode to add items
             </Text>
-          </View>
-        )}
-
-        {/* Extended Item Fields (shown when items exist) */}
-        {items.length > 0 && (
-          <View style={styles.extendedFieldsSection}>
-            <Text style={styles.extendedFieldsTitle}>Additional Item Details (Optional)</Text>
-            {items.map((item, index) => (
-              <View key={item.id} style={styles.extendedFieldsContainer}>
-                <Text style={styles.extendedFieldsLabel}>Item {index + 1}: {item.productName}</Text>
-                
-                <View style={styles.row}>
-                  <View style={styles.fieldContainer}>
-                    <Text style={styles.label}>Comments1</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={item.comments1}
-                      onChangeText={(value) => handleUpdateItemField(item.id, 'comments1', value)}
-                      placeholder="Comments"
-                    />
-                  </View>
-                  <View style={styles.fieldContainer}>
-                    <Text style={styles.label}>Sales Man</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={item.salesMan}
-                      onChangeText={(value) => handleUpdateItemField(item.id, 'salesMan', value)}
-                      placeholder="Sales person"
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.row}>
-                  <View style={styles.fieldContainer}>
-                    <Text style={styles.label}>Free Qty</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={item.freeQty}
-                      onChangeText={(value) => handleUpdateItemField(item.id, 'freeQty', value)}
-                      placeholder="Free quantity"
-                      keyboardType="numeric"
-                    />
-                  </View>
-                  <View style={styles.fieldContainer}>
-                    <Text style={styles.label}>Product Serial No</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={item.productSerialNo}
-                      onChangeText={(value) => handleUpdateItemField(item.id, 'productSerialNo', value)}
-                      placeholder="Serial number"
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.fullWidthField}>
-                  <Text style={styles.label}>Comments6</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={item.comments6}
-                    onChangeText={(value) => handleUpdateItemField(item.id, 'comments6', value)}
-                    placeholder="Additional comments"
-                  />
-                </View>
-              </View>
-            ))}
           </View>
         )}
       </AccordionSection>
@@ -1398,11 +1297,6 @@ const EmployeeSaleInvoiceScreen = () => {
       onClose={() => setShowBarcodeScanner(false)}
     />
 
-    <AddItemModal
-      isVisible={showAddItemModal}
-      onAddItem={handleAddItem}
-      onClose={() => setShowAddItemModal(false)}
-    />
 
     <AddAdjustmentModal
       isVisible={showAddAdjustmentModal}
@@ -1778,8 +1672,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 8,
   },
-  scanBarcodeButtonText: {
-    fontSize: 20,
+  barcodeScannerIcon: {
+    width: 24,
+    height: 24,
+    tintColor: '#fff',
   },
   getButton: {
     backgroundColor: '#4CAF50',
