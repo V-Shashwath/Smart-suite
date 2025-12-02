@@ -44,6 +44,9 @@ build/
 *.sqlite
 *.sqlite3
 
+# Documentation
+README.md
+
 # Temporary files
 tmp/
 temp/
