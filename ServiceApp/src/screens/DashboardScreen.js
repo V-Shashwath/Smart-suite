@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Platform, StatusBar } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { getScreenMeta } from '../constants/screenRegistry';
 
@@ -66,7 +67,7 @@ const DashboardScreen = () => {
                 style={styles.card}
                 onPress={() => navigation.navigate(item.screen)}
               >
-                <Text style={styles.cardIcon}>{item.icon}</Text>
+                <MaterialIcons name={item.icon} size={40} color="#FF7043" />
                 <Text style={styles.cardTitle}>{item.title}</Text>
               </TouchableOpacity>
             ))}
@@ -145,7 +146,6 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   cardIcon: {
-    fontSize: 40,
     marginBottom: 12,
   },
   cardTitle: {

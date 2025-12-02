@@ -13,6 +13,7 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { getScreenMeta } from '../constants/screenRegistry';
 import withScreenPermission from '../components/withScreenPermission';
@@ -263,15 +264,23 @@ const ExecutiveManagementScreen = ({ navigation }) => {
                     ]}
                     onPress={() => toggleScreenSelection(screen.route)}
                   >
-                    <Text
-                      style={[
-                        styles.screenChipText,
-                        formState.assignedScreens.includes(screen.route) &&
-                          styles.screenChipTextSelected,
-                      ]}
-                    >
-                      {screen.icon} {screen.title}
-                    </Text>
+                    <View style={styles.screenChipContent}>
+                      <MaterialIcons 
+                        name={screen.icon} 
+                        size={18} 
+                        color={formState.assignedScreens.includes(screen.route) ? '#fff' : '#546e7a'} 
+                        style={styles.screenChipIcon}
+                      />
+                      <Text
+                        style={[
+                          styles.screenChipText,
+                          formState.assignedScreens.includes(screen.route) &&
+                            styles.screenChipTextSelected,
+                        ]}
+                      >
+                        {screen.title}
+                      </Text>
+                    </View>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -489,9 +498,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#ff7043',
     borderColor: '#ff7043',
   },
+  screenChipContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  screenChipIcon: {
+    marginRight: 0,
+  },
   screenChipText: {
     color: '#546e7a',
     fontWeight: '500',
+    fontSize: 13,
   },
   screenChipTextSelected: {
     color: '#fff',

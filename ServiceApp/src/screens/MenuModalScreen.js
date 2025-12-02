@@ -11,6 +11,7 @@ import {
   StatusBar,
   Alert,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { getScreenMeta } from '../constants/screenRegistry';
 
@@ -60,7 +61,7 @@ const MenuModalScreen = ({ navigation }) => {
         style={styles.menuItem}
         onPress={() => navigateToScreen('ExecutiveManagement')}
       >
-        <Text style={styles.menuIcon}>🧑‍💼</Text>
+        <MaterialIcons name="supervisor-account" size={24} color="#424242" style={styles.menuIcon} />
         <Text style={styles.menuLabel}>Executive Management</Text>
       </TouchableOpacity>
     );
@@ -92,7 +93,7 @@ const MenuModalScreen = ({ navigation }) => {
           style={styles.menuItem}
           onPress={() => navigateToScreen('Dashboard')}
         >
-          <Text style={styles.menuIcon}>🏠</Text>
+          <MaterialIcons name="dashboard" size={24} color="#424242" style={styles.menuIcon} />
           <Text style={styles.menuLabel}>Dashboard</Text>
         </TouchableOpacity>
 
@@ -102,11 +103,14 @@ const MenuModalScreen = ({ navigation }) => {
             style={styles.menuItem}
             onPress={() => toggleSection('transactions')}
           >
-            <Text style={styles.menuIcon}>📊</Text>
+            <MaterialIcons name="analytics" size={24} color="#424242" style={styles.menuIcon} />
             <Text style={styles.menuLabel}>Transactions</Text>
-            <Text style={styles.arrowIcon}>
-              {expandedSections.transactions ? '▼' : '▶'}
-            </Text>
+            <MaterialIcons 
+              name={expandedSections.transactions ? 'keyboard-arrow-down' : 'keyboard-arrow-right'} 
+              size={20} 
+              color="#666" 
+              style={styles.arrowIcon}
+            />
           </TouchableOpacity>
         )}
 
@@ -118,11 +122,14 @@ const MenuModalScreen = ({ navigation }) => {
                   style={styles.subMenuItem}
                   onPress={() => toggleSection('cash')}
                 >
-                  <Text style={styles.subMenuIcon}>💰</Text>
+                  <MaterialIcons name="paid" size={22} color="#424242" style={styles.subMenuIcon} />
                   <Text style={styles.subMenuLabel}>Cash</Text>
-                  <Text style={styles.arrowIcon}>
-                    {expandedSections.cash ? '▼' : '▶'}
-                  </Text>
+                  <MaterialIcons 
+                    name={expandedSections.cash ? 'keyboard-arrow-down' : 'keyboard-arrow-right'} 
+                    size={18} 
+                    color="#666" 
+                    style={styles.arrowIcon}
+                  />
                 </TouchableOpacity>
 
                 {expandedSections.cash && (
@@ -142,11 +149,14 @@ const MenuModalScreen = ({ navigation }) => {
                   style={styles.subMenuItem}
                   onPress={() => toggleSection('bank')}
                 >
-                  <Text style={styles.subMenuIcon}>🏦</Text>
+                  <MaterialIcons name="account-balance" size={22} color="#424242" style={styles.subMenuIcon} />
                   <Text style={styles.subMenuLabel}>Bank</Text>
-                  <Text style={styles.arrowIcon}>
-                    {expandedSections.bank ? '▼' : '▶'}
-                  </Text>
+                  <MaterialIcons 
+                    name={expandedSections.bank ? 'keyboard-arrow-down' : 'keyboard-arrow-right'} 
+                    size={18} 
+                    color="#666" 
+                    style={styles.arrowIcon}
+                  />
                 </TouchableOpacity>
 
                 {expandedSections.bank && (
@@ -167,11 +177,14 @@ const MenuModalScreen = ({ navigation }) => {
                   style={styles.subMenuItem}
                   onPress={() => toggleSection('jobWork')}
                 >
-                  <Text style={styles.subMenuIcon}>💼</Text>
+                  <MaterialIcons name="work" size={22} color="#424242" style={styles.subMenuIcon} />
                   <Text style={styles.subMenuLabel}>Job Work</Text>
-                  <Text style={styles.arrowIcon}>
-                    {expandedSections.jobWork ? '▼' : '▶'}
-                  </Text>
+                  <MaterialIcons 
+                    name={expandedSections.jobWork ? 'keyboard-arrow-down' : 'keyboard-arrow-right'} 
+                    size={18} 
+                    color="#666" 
+                    style={styles.arrowIcon}
+                  />
                 </TouchableOpacity>
 
                 {expandedSections.jobWork && (
@@ -204,11 +217,14 @@ const MenuModalScreen = ({ navigation }) => {
                   style={styles.subMenuItem}
                   onPress={() => toggleSection('copierTransactions')}
                 >
-                  <Text style={styles.subMenuIcon}>🖨️</Text>
+                  <MaterialIcons name="print" size={22} color="#424242" style={styles.subMenuIcon} />
                   <Text style={styles.subMenuLabel}>Copier Transactions</Text>
-                  <Text style={styles.arrowIcon}>
-                    {expandedSections.copierTransactions ? '▼' : '▶'}
-                  </Text>
+                  <MaterialIcons 
+                    name={expandedSections.copierTransactions ? 'keyboard-arrow-down' : 'keyboard-arrow-right'} 
+                    size={18} 
+                    color="#666" 
+                    style={styles.arrowIcon}
+                  />
                 </TouchableOpacity>
 
                 {expandedSections.copierTransactions && (
@@ -240,11 +256,14 @@ const MenuModalScreen = ({ navigation }) => {
                   style={styles.subMenuItem}
                   onPress={() => toggleSection('refurbished')}
                 >
-                  <Text style={styles.subMenuIcon}>♻️</Text>
+                  <MaterialIcons name="recycling" size={22} color="#424242" style={styles.subMenuIcon} />
                   <Text style={styles.subMenuLabel}>Refurbished</Text>
-                  <Text style={styles.arrowIcon}>
-                    {expandedSections.refurbished ? '▼' : '▶'}
-                  </Text>
+                  <MaterialIcons 
+                    name={expandedSections.refurbished ? 'keyboard-arrow-down' : 'keyboard-arrow-right'} 
+                    size={18} 
+                    color="#666" 
+                    style={styles.arrowIcon}
+                  />
                 </TouchableOpacity>
 
                 {expandedSections.refurbished && (
@@ -266,7 +285,7 @@ const MenuModalScreen = ({ navigation }) => {
           style={[styles.menuItem, styles.logoutButton]}
           onPress={handleLogout}
         >
-          <Text style={styles.menuIcon}>🚪</Text>
+          <MaterialIcons name="logout" size={24} color="#424242" style={styles.menuIcon} />
           <Text style={styles.menuLabel}>Logout</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -319,7 +338,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   menuIcon: {
-    fontSize: 20,
     marginRight: 12,
     width: 24,
   },
@@ -329,8 +347,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   arrowIcon: {
-    fontSize: 12,
-    color: '#666',
+    width: 20,
   },
   subMenu: {
     backgroundColor: '#fafafa',
@@ -345,7 +362,6 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e8e8e8',
   },
   subMenuIcon: {
-    fontSize: 18,
     marginRight: 12,
     width: 24,
   },
