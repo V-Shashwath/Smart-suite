@@ -74,12 +74,15 @@ const startServer = async () => {
       console.warn('   Connection will be retried on first API call');
     });
     
+    const BASE_URL = process.env.API_BASE_URL || `http://localhost:${PORT}/api`;
+
     app.listen(PORT, () => {
       console.log('========================================');
       console.log('🚀 Mobile App Backend Server Started');
       console.log('========================================');
       console.log(`📡 Server running on port ${PORT}`);
-      console.log(`🌐 API Base URL: http://localhost:${PORT}/api`);
+      // console.log(`🌐 API Base URL: http://localhost:${PORT}/api`);
+      console.log(`🌐 API Base URL: ${API_BASE_URL}`);
       console.log('');
       console.log('📋 Available Endpoints:');
       console.log('   GET  /api/customers/mobile/:mobileNo  - Get customer by mobile');
