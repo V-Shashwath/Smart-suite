@@ -12,68 +12,65 @@ const getProductByBarcode = async (req, res) => {
       });
     }
 
-    // TODO: Create Products table and implement proper lookup
-    // For now, using a simple query that can be extended
+    // Mock product data - 20 items supporting 3 barcode scan cases
+    // Case 1: Barcodes with serial numbers (ABCD123, DEFG456, etc.) - hasUniqueSerialNo: true
+    // Case 2: Barcodes without serial numbers (GEN001, GEN002, etc.) - hasUniqueSerialNo: false
+    // Case 3: Manual entry follows Case 1 logic
     
-    // Example query structure (adjust based on your Products table):
-    /*
-    const query = `
-      SELECT 
-        ProductId,
-        ProductName,
-        Rate,
-        HasUniqueSerialNo,
-        Barcode
-      FROM Products
-      WHERE Barcode = @barcode OR ProductId = @barcode
-    `;
+    const trimmedBarcode = barcode.trim().toUpperCase();
     
-    const result = await executeQuery(query, { barcode });
-    */
-
-    // Temporary: Return mock data structure
-    // Replace this with actual database query when Products table is created
-    const trimmedBarcode = barcode.trim();
-    const numericBarcode = parseInt(trimmedBarcode);
-
-    // Mock product mapping (replace with database query)
+    // Product mapping - 20 items total
+    const products = [
+      // Case 1: Products WITH serial numbers (10 items) - Each scan adds new row
+      { id: 1, name: 'iPhone 15 Pro', rate: 99999.00, hasUniqueSerialNo: true, barcodes: ['ABCD123', 'ABCD124', 'ABCD125'] },
+      { id: 2, name: 'Samsung Galaxy S24', rate: 89999.00, hasUniqueSerialNo: true, barcodes: ['DEFG456', 'DEFG457', 'DEFG458'] },
+      { id: 3, name: 'MacBook Pro M3', rate: 199999.00, hasUniqueSerialNo: true, barcodes: ['GHIJ789', 'GHIJ790', 'GHIJ791'] },
+      { id: 4, name: 'iPad Air', rate: 59999.00, hasUniqueSerialNo: true, barcodes: ['KLMN012', 'KLMN013', 'KLMN014'] },
+      { id: 5, name: 'Dell XPS 15', rate: 149999.00, hasUniqueSerialNo: true, barcodes: ['OPQR345', 'OPQR346', 'OPQR347'] },
+      { id: 6, name: 'Sony WH-1000XM5', rate: 29999.00, hasUniqueSerialNo: true, barcodes: ['STUV678', 'STUV679', 'STUV680'] },
+      { id: 7, name: 'Canon EOS R5', rate: 399999.00, hasUniqueSerialNo: true, barcodes: ['WXYZ901', 'WXYZ902', 'WXYZ903'] },
+      { id: 8, name: 'Nintendo Switch OLED', rate: 34999.00, hasUniqueSerialNo: true, barcodes: ['ABCD234', 'ABCD235', 'ABCD236'] },
+      { id: 9, name: 'Apple Watch Ultra', rate: 89999.00, hasUniqueSerialNo: true, barcodes: ['EFGH567', 'EFGH568', 'EFGH569'] },
+      { id: 10, name: 'PlayStation 5', rate: 49999.00, hasUniqueSerialNo: true, barcodes: ['IJKL890', 'IJKL891', 'IJKL892'] },
+      
+      // Case 2: Products WITHOUT serial numbers (10 items) - First scan adds row, subsequent scans increment
+      { id: 11, name: 'A4 Xerox - Black & White', rate: 2.00, hasUniqueSerialNo: false, barcodes: ['GEN001', 'GEN002'] },
+      { id: 12, name: 'A4 Xerox - Color', rate: 5.00, hasUniqueSerialNo: false, barcodes: ['GEN003', 'GEN004'] },
+      { id: 13, name: 'A3 Xerox - Black & White', rate: 4.00, hasUniqueSerialNo: false, barcodes: ['GEN005', 'GEN006'] },
+      { id: 14, name: 'A3 Xerox - Color', rate: 10.00, hasUniqueSerialNo: false, barcodes: ['GEN007', 'GEN008'] },
+      { id: 15, name: 'Lamination - A4', rate: 15.00, hasUniqueSerialNo: false, barcodes: ['GEN009', 'GEN010'] },
+      { id: 16, name: 'Lamination - A3', rate: 25.00, hasUniqueSerialNo: false, barcodes: ['GEN011', 'GEN012'] },
+      { id: 17, name: 'Binding - Spiral', rate: 30.00, hasUniqueSerialNo: false, barcodes: ['GEN013', 'GEN014'] },
+      { id: 18, name: 'Binding - Thermal', rate: 40.00, hasUniqueSerialNo: false, barcodes: ['GEN015', 'GEN016'] },
+      { id: 19, name: 'Printing - Single Side', rate: 3.00, hasUniqueSerialNo: false, barcodes: ['GEN017', 'GEN018'] },
+      { id: 20, name: 'Photo Printing - 4x6', rate: 20.00, hasUniqueSerialNo: false, barcodes: ['GEN019', 'GEN020'] },
+    ];
+    
+    // Find product by barcode
     let product = null;
-    
-    // Simple mapping for testing
-    if (!isNaN(numericBarcode) && numericBarcode > 0 && numericBarcode <= 12) {
-      const products = [
-        { id: 1, name: 'A4 Xerox - Black & White', rate: 2.00, hasUniqueSerialNo: true },
-        { id: 2, name: 'A4 Xerox - Color', rate: 5.00, hasUniqueSerialNo: false },
-        { id: 3, name: 'A3 Xerox - Black & White', rate: 4.00, hasUniqueSerialNo: false },
-        { id: 4, name: 'A3 Xerox - Color', rate: 10.00, hasUniqueSerialNo: false },
-        { id: 5, name: 'Lamination - A4', rate: 15.00, hasUniqueSerialNo: false },
-        { id: 6, name: 'Lamination - A3', rate: 25.00, hasUniqueSerialNo: false },
-        { id: 7, name: 'Binding - Spiral', rate: 30.00, hasUniqueSerialNo: false },
-        { id: 8, name: 'Binding - Thermal', rate: 40.00, hasUniqueSerialNo: false },
-        { id: 9, name: 'Printing - Single Side', rate: 3.00, hasUniqueSerialNo: false },
-        { id: 10, name: 'Printing - Double Side', rate: 5.00, hasUniqueSerialNo: false },
-        { id: 11, name: 'Scanning Service', rate: 10.00, hasUniqueSerialNo: false },
-        { id: 12, name: 'Photo Printing - 4x6', rate: 20.00, hasUniqueSerialNo: false },
-      ];
-      
-      product = products.find(p => p.id === numericBarcode);
+    for (const p of products) {
+      if (p.barcodes && p.barcodes.includes(trimmedBarcode)) {
+        product = {
+          id: p.id,
+          name: p.name,
+          rate: p.rate,
+          hasUniqueSerialNo: p.hasUniqueSerialNo,
+        };
+        break;
+      }
     }
-
-    // Also try by barcode length (for different barcode formats)
+    
+    // Also support numeric barcodes (1-20) for backward compatibility
     if (!product) {
-      const barcodeLength = trimmedBarcode.length;
-      const products = [
-        { id: 1, name: 'A4 Xerox - Black & White', rate: 2.00, hasUniqueSerialNo: true },
-        { id: 2, name: 'A4 Xerox - Color', rate: 5.00, hasUniqueSerialNo: false },
-        { id: 3, name: 'A3 Xerox - Black & White', rate: 4.00, hasUniqueSerialNo: false },
-      ];
-      
-      if (barcodeLength >= 7 && barcodeLength <= 8) {
-        product = products[0];
-      } else if (barcodeLength >= 10 && barcodeLength <= 12) {
-        product = products[1];
-      } else if (barcodeLength === 13) {
-        product = products[2];
+      const numericBarcode = parseInt(trimmedBarcode);
+      if (!isNaN(numericBarcode) && numericBarcode >= 1 && numericBarcode <= 20) {
+        const p = products[numericBarcode - 1];
+        product = {
+          id: p.id,
+          name: p.name,
+          rate: p.rate,
+          hasUniqueSerialNo: p.hasUniqueSerialNo,
+        };
       }
     }
 
@@ -104,27 +101,7 @@ const getProductByBarcode = async (req, res) => {
   }
 };
 
-// Get all products
-const getAllProducts = async (req, res) => {
-  try {
-    // TODO: Implement when Products table is created
-    return res.status(200).json({
-      success: true,
-      data: [],
-      message: 'Products endpoint - implement when Products table is created',
-    });
-  } catch (error) {
-    console.error('Error fetching products:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Error fetching products',
-      error: error.message,
-    });
-  }
-};
-
 module.exports = {
   getProductByBarcode,
-  getAllProducts,
 };
 

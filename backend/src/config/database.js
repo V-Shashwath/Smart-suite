@@ -2,21 +2,18 @@ require('dotenv').config();
 const sql = require('mssql');
 
 // Database Configuration
-// Format 3: IP with port only (no instance) - This format works!
-// Values are loaded from .env file
 const config = {
-  server: process.env.DB_SERVER || '103.98.12.218', // IP address only
-  port: parseInt(process.env.DB_PORT) || 59320, // Custom port (direct connection, no instance name needed)
+  server: process.env.DB_SERVER || '103.98.12.218',
+  port: parseInt(process.env.DB_PORT) || 59320,
   database: process.env.DB_NAME || 'mobileApp',
   user: process.env.DB_USER || 'Ikonuser',
   password: process.env.DB_PASSWORD || 'userikon',
   options: {
-    encrypt: process.env.DB_ENCRYPT === 'true' || false,
+    encrypt: false,
     trustServerCertificate: true,
     enableArithAbort: true,
-    connectionTimeout: 60000, // 60 seconds
+    connectionTimeout: 60000,
     requestTimeout: 30000,
-    // Note: No instanceName - port 59320 is the direct SQL Server port
   },
   pool: {
     max: 10,
@@ -34,39 +31,19 @@ const getPool = async () => {
       return pool;
     }
     
-    console.log('🔌 Attempting to connect to SQL Server...');
-    console.log(`   Server: ${config.server}:${config.port}`);
-    console.log(`   Database: ${config.database}`);
-    
     pool = await sql.connect(config);
-    console.log('✅ Connected to SQL Server - mobileApp database');
+    console.log('✅ Connected to database');
     return pool;
   } catch (error) {
     console.error('❌ Database connection error:', error.message);
-    console.error('\n💡 Troubleshooting steps:');
-    console.error('1. Verify SQL Server is running and accessible');
-    console.error('2. Check if you can connect via SSMS with:');
-    console.error(`   Server: ${config.server},${config.port}`);
-    console.error(`   Login: ${config.user} / ${config.password}`);
-    console.error('3. Check Windows Firewall allows port 59320');
-    console.error('4. Verify SQL Server allows remote connections');
-    console.error('5. Ensure database "mobileApp" exists');
-    console.error('6. Check if SQL Server Browser service is running');
     throw error;
   }
 };
 
 // Test database connection
 const testConnection = async () => {
-  try {
-    const pool = await getPool();
-    const result = await pool.request().query('SELECT @@VERSION AS Version');
-    console.log('✅ Database connection test successful');
-    return result.recordset[0];
-  } catch (error) {
-    console.error('❌ Database connection test failed:', error);
-    throw error;
-  }
+  const pool = await getPool();
+  await pool.request().query('SELECT 1');
 };
 
 // Execute query helper
@@ -113,7 +90,6 @@ const closePool = async () => {
     if (pool) {
       await pool.close();
       pool = null;
-      console.log('Database connection pool closed');
     }
   } catch (error) {
     console.error('Error closing connection pool:', error);

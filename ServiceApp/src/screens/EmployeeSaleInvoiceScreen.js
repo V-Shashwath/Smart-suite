@@ -119,9 +119,27 @@ const EmployeeSaleInvoiceScreen = () => {
       if (currentUser?.username) {
         setIsLoadingExecutiveData(true);
         try {
+          console.log(`🔍 Fetching executive data for username: ${currentUser.username}`);
+          console.log(`   User role: ${currentUser.role}`);
+          console.log(`   API URL: ${API_ENDPOINTS.GET_EXECUTIVE_DATA(currentUser.username)}`);
+          
           const result = await apiCall(API_ENDPOINTS.GET_EXECUTIVE_DATA(currentUser.username));
+          
+          console.log(`📥 Executive data response:`, result);
+          
           if (result.success && result.data) {
             const execData = result.data;
+            console.log(`✅ Executive data received:`, {
+              username: execData.transactionDetails?.username,
+              employeeName: execData.header?.employeeName,
+            });
+            
+            // Ensure username matches the logged-in user (not supervisor)
+            const fetchedUsername = execData.transactionDetails?.username || currentUser.username;
+            if (fetchedUsername !== currentUser.username) {
+              console.warn(`⚠️ Username mismatch! Expected: ${currentUser.username}, Got: ${fetchedUsername}`);
+            }
+            
             // Populate transaction details (all fields)
             setTransactionData({
               transactionId: execData.transactionDetails?.transactionId || '',
@@ -131,21 +149,41 @@ const EmployeeSaleInvoiceScreen = () => {
               branch: execData.transactionDetails?.branch || '',
               location: execData.transactionDetails?.location || '',
               employeeLocation: execData.transactionDetails?.employeeLocation || '',
-              username: execData.transactionDetails?.username || currentUser.username,
+              username: currentUser.username, // Always use logged-in username, not API response
             });
             // Populate voucher details (all fields)
-            setVoucherData({
-              voucherSeries: execData.voucherDetails?.voucherSeries || '',
-              voucherNo: execData.voucherDetails?.voucherNo || '',
-              voucherDatetime: execData.voucherDetails?.voucherDatetime || '',
-            });
+            // Ensure we have valid voucher data
+            const voucherSeries = execData.voucherDetails?.voucherSeries || 'ESI';
+            const voucherNo = execData.voucherDetails?.voucherNo || '';
+            const voucherDatetime = execData.voucherDetails?.voucherDatetime || '';
+            
+            if (!voucherSeries || !voucherNo || !voucherDatetime) {
+              console.warn('⚠️ Incomplete voucher data from API:', execData.voucherDetails);
+              // Generate fallback if API data is incomplete
+              const now = new Date();
+              const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+              const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+              const datetimeStr = `${dateStr} ${timeStr}`;
+              
+              setVoucherData({
+                voucherSeries: voucherSeries || 'ESI',
+                voucherNo: voucherNo || `TEMP-${Date.now()}`,
+                voucherDatetime: voucherDatetime || datetimeStr,
+              });
+            } else {
+              setVoucherData({
+                voucherSeries: voucherSeries,
+                voucherNo: voucherNo,
+                voucherDatetime: voucherDatetime,
+              });
+            }
             // Populate header (customer data) - but keep existing customer data if already loaded
             setCustomerData(prev => ({
               ...prev,
               date: execData.header?.date || prev.date,
               billerName: execData.header?.billerName || prev.billerName,
-              employeeName: execData.header?.employeeName || prev.employeeName || currentUser.username,
-              party: execData.header?.employeeName || prev.party || currentUser.username,
+              employeeName: execData.header?.employeeName || currentUser.username, // Use API employee name, fallback to username
+              party: execData.header?.employeeName || currentUser.username, // Use API employee name, fallback to username
               // Don't overwrite customer data if already loaded from QR
               customerId: prev.customerId || execData.header?.customerId || '',
               customerName: prev.customerName || execData.header?.customerName || '',
@@ -183,9 +221,10 @@ const EmployeeSaleInvoiceScreen = () => {
             });
             
             // Set voucher details with fallback values
+            // Use ESI as default series (Employee Sale Invoice)
             setVoucherData({
-              voucherSeries: 'RS24', // Default series
-              voucherNo: '1', // Default voucher number (will be updated when API works)
+              voucherSeries: 'ESI', // Default series
+              voucherNo: `TEMP-${Date.now()}`, // Temporary voucher number
               voucherDatetime: datetimeStr,
             });
             
@@ -287,12 +326,12 @@ const EmployeeSaleInvoiceScreen = () => {
             employeeName: prev.employeeName || customer.CustomerName,
             party: prev.party || prev.employeeName || customer.CustomerName,
           }));
-          
-          Alert.alert(
-            'Customer Details Loaded! ✓',
+        
+        Alert.alert(
+          'Customer Details Loaded! ✓',
             `Customer ID: ${customer.CustomerID}\nName: ${customer.CustomerName}\nMobile: ${customer.MobileNo}\nType: ${customer.CustomerType}`,
-            [{ text: 'OK' }]
-          );
+          [{ text: 'OK' }]
+        );
           customerFound = true;
         }
       } catch (error) {
@@ -342,7 +381,7 @@ const EmployeeSaleInvoiceScreen = () => {
                 party: prev.party || prev.employeeName || customer.CustomerName,
               }));
               
-              Alert.alert(
+        Alert.alert(
                 'Customer Details Loaded! ✓',
                 `Customer ID: ${customer.CustomerID}\nName: ${customer.CustomerName}\nMobile: ${customer.MobileNo}\nType: ${customer.CustomerType}`,
                 [{ text: 'OK' }]
@@ -384,14 +423,14 @@ const EmployeeSaleInvoiceScreen = () => {
           ]
         );
       } else {
-        Alert.alert(
-          'QR Scan Error',
+      Alert.alert(
+        'QR Scan Error',
           `Error: ${error.message}\n\nWould you like to search by mobile number?`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Search by Mobile', onPress: () => setShowMobileSearchModal(true) }
-          ]
-        );
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Search by Mobile', onPress: () => setShowMobileSearchModal(true) }
+        ]
+      );
       }
     } finally {
       setIsLoadingCustomer(false);
@@ -430,13 +469,13 @@ const EmployeeSaleInvoiceScreen = () => {
           party: prev.party || prev.employeeName || customer.CustomerName,
         }));
 
-        setShowMobileSearchModal(false);
+    setShowMobileSearchModal(false);
 
-        Alert.alert(
-          'Customer Found! ✓',
+    Alert.alert(
+      'Customer Found! ✓',
           `Customer ID: ${customer.CustomerID}\nName: ${customer.CustomerName}\nMobile: ${customer.MobileNo}\nType: ${customer.CustomerType}`,
-          [{ text: 'OK' }]
-        );
+      [{ text: 'OK' }]
+    );
       } else {
         throw new Error('Customer not found in database');
       }
@@ -488,62 +527,18 @@ const EmployeeSaleInvoiceScreen = () => {
         hasUniqueSerialNo: result.data.hasUniqueSerialNo || false,
       };
 
-    // CRITICAL LOGIC: Check if product has unique serial numbers
-    // Scenario 1: Product with unique serial (iPhone, electronics) → Check by barcode, increment if same
-    // Scenario 2: Product without unique serial (generic items) → Always add new row
-    // Scenario 3: Manually added without barcode → Always add new row
+    // CRITICAL LOGIC: Handle barcode scanning based on product.hasUniqueSerialNo from API
+    // Case 1: Product HAS productSerialNo (hasUniqueSerialNo: true) → Always add new row (even if same barcode scanned twice)
+    // Case 2: Product DOES NOT HAVE productSerialNo (hasUniqueSerialNo: false) → Increment quantity if same product exists
     
-    const hasUniqueSerialNo = product.hasUniqueSerialNo === true;
+    console.log(`🔍 Scanning barcode: ${trimmedBarcode}`);
+    console.log(`   Product: ${product.name}`);
+    console.log(`   hasUniqueSerialNo: ${product.hasUniqueSerialNo}`);
 
-    if (hasUniqueSerialNo) {
-      // SCENARIO 1: Product tracks unique serial numbers (e.g., iPhone IMEI)
-      // Check if this EXACT barcode already exists
-      const existingItemIndex = items.findIndex(
-        (item) => item.productSerialNo === trimmedBarcode && item.productSerialNo !== ''
-      );
-
-      if (existingItemIndex !== -1) {
-        // SAME UNIQUE BARCODE EXISTS - Increment quantity
-        const updatedItems = [...items];
-        const existingItem = { ...updatedItems[existingItemIndex] };
-        existingItem.quantity += 1;
-        updatedItems[existingItemIndex] = existingItem;
-        commitItems(updatedItems);
-        
-        Alert.alert(
-          'Same Serial No - Quantity Updated! ✓',
-          `${product.name}\nSerial No: ${trimmedBarcode}\nNew Qty: ${existingItem.quantity}`,
-          [{ text: 'OK' }]
-        );
-      } else {
-        // DIFFERENT UNIQUE BARCODE - Add as NEW row
-        const newItem = {
-          id: Date.now(),
-          productId: product.id,
-          productName: product.name,
-          quantity: 1,
-          rate: product.rate,
-          gross: product.rate,
-          net: product.rate,
-          comments1: '',
-          salesMan: '',
-          freeQty: '',
-          productSerialNo: trimmedBarcode, // Store unique serial number
-          comments6: '',
-        };
-        
-        commitItems([...items, newItem]);
-        
-        Alert.alert(
-          'New Item Added! ✓',
-          `${product.name}\nUnique Serial: ${trimmedBarcode}\nRate: ₹${product.rate.toFixed(2)}`,
-          [{ text: 'OK' }]
-        );
-      }
-    } else {
-      // SCENARIO 2 & 3: Product does NOT have unique serial numbers (generic barcode)
-      // OR manually added without barcode
-      // ALWAYS add as NEW row (never increment)
+    if (product.hasUniqueSerialNo) {
+      // CASE 1: Product HAS productSerialNo → Always add new row
+      // Even if the same barcode is scanned twice, add a new row (allows duplicates)
+      console.log(`✅ Product has unique serial number - Adding new row`);
       const newItem = {
         id: Date.now(),
         productId: product.id,
@@ -555,7 +550,7 @@ const EmployeeSaleInvoiceScreen = () => {
         comments1: '',
         salesMan: '',
         freeQty: '',
-        productSerialNo: trimmedBarcode, // Store barcode even if not unique (for reference)
+        productSerialNo: trimmedBarcode, // Store the serial number from barcode
         comments6: '',
       };
       
@@ -563,9 +558,61 @@ const EmployeeSaleInvoiceScreen = () => {
       
       Alert.alert(
         'New Item Added! ✓',
-        `${product.name}\nBarcode: ${trimmedBarcode}\nRate: ₹${product.rate.toFixed(2)}\n\nNote: Generic barcode - each scan creates new row`,
+        `${product.name}\nSerial No: ${trimmedBarcode}\nRate: ₹${product.rate.toFixed(2)}\n\nProduct has serial number - added as new row`,
         [{ text: 'OK' }]
       );
+    } else {
+      // CASE 2: Product DOES NOT HAVE productSerialNo → Check if same product with null serial exists
+      console.log(`❌ Product does not have serial number - Checking for existing product with null serial`);
+      const existingProductIndex = items.findIndex(
+        (item) => item.productId === product.id && 
+                  (item.productSerialNo === null || item.productSerialNo === undefined || item.productSerialNo === '')
+      );
+
+      if (existingProductIndex !== -1) {
+        // Same product exists with null serial - Increment quantity
+        console.log(`✅ Found same product with null serial - Incrementing quantity`);
+        const updatedItems = [...items];
+        const existingItem = { ...updatedItems[existingProductIndex] };
+        existingItem.quantity += 1;
+        existingItem.productSerialNo = null; // Ensure it's null for database
+        // Recalculate gross and net
+        existingItem.gross = existingItem.quantity * existingItem.rate;
+        existingItem.net = existingItem.gross;
+        updatedItems[existingProductIndex] = existingItem;
+        commitItems(updatedItems);
+        
+        Alert.alert(
+          'Quantity Updated! ✓',
+          `${product.name}\nBarcode: ${trimmedBarcode}\nNew Qty: ${existingItem.quantity}\n\nProduct has no serial number - quantity incremented`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        // No item with null serial exists - Add new row with null serial
+        console.log(`❌ No item with null serial found - Adding new row with null serial`);
+        const newItem = {
+          id: Date.now(),
+          productId: product.id,
+          productName: product.name,
+          quantity: 1,
+          rate: product.rate,
+          gross: product.rate,
+          net: product.rate,
+          comments1: '',
+          salesMan: '',
+          freeQty: '',
+          productSerialNo: null, // Set to null when product has no serial number
+          comments6: '',
+        };
+        
+        commitItems([...items, newItem]);
+        
+        Alert.alert(
+          'New Item Added! ✓',
+          `${product.name}\nBarcode: ${trimmedBarcode}\nRate: ₹${product.rate.toFixed(2)}\n\nProduct has no serial number - added as new row`,
+          [{ text: 'OK' }]
+        );
+      }
     }
 
     // Clear barcode input after processing
@@ -630,6 +677,41 @@ const EmployeeSaleInvoiceScreen = () => {
     );
   };
 
+  const handleDeleteAdjustmentRow = (rowIndex) => {
+    const adjustment = adjustments[rowIndex];
+    if (adjustment) {
+      handleDeleteAdjustment(adjustment.id);
+    }
+  };
+
+  const handleAdjustmentTableCellChange = (rowIndex, field, value) => {
+    const updatedAdjustments = adjustments.map((adj, index) => {
+      if (index !== rowIndex) return adj;
+      
+      let parsedValue = value;
+      if (field === 'addAmount' || field === 'lessAmount') {
+        parsedValue = parseFloat(value) || 0;
+      } else if (field === 'accountName') {
+        // When account changes, update accountId and accountType
+        const account = adjustmentsList.find(a => a.name === value);
+        if (account) {
+          return {
+            ...adj,
+            accountName: value,
+            accountId: account.id,
+            accountType: account.type,
+            // Clear opposite amount based on account type
+            ...(account.type === 'add' ? { lessAmount: 0 } : { addAmount: 0 }),
+          };
+        }
+      }
+      
+      return { ...adj, [field]: parsedValue };
+    });
+    
+    setAdjustments(updatedAdjustments);
+  };
+
   const getInvoiceData = useCallback(() => ({
     title: 'Employee Sales Invoice',
     transactionDetails: transactionData,
@@ -661,16 +743,52 @@ const EmployeeSaleInvoiceScreen = () => {
       return;
     }
 
+    // Validate voucher data - generate if missing
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const datetimeStr = `${dateStr} ${timeStr}`;
+
+    // Ensure voucher data exists - validate and generate if missing
+    let finalVoucherData = { ...voucherData };
+    
+    if (!finalVoucherData.voucherSeries || !finalVoucherData.voucherNo || !finalVoucherData.voucherDatetime) {
+      // Generate fallback voucher data
+      finalVoucherData = {
+        voucherSeries: finalVoucherData.voucherSeries || 'ESI',
+        voucherNo: finalVoucherData.voucherNo || `TEMP-${Date.now()}`,
+        voucherDatetime: finalVoucherData.voucherDatetime || datetimeStr,
+      };
+      
+      // Update state
+      setVoucherData(finalVoucherData);
+      
+      // Wait a moment for state to update
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
     setIsSavingInvoice(true);
     
     try {
       const invoiceData = getInvoiceData();
       
+      // Validate required voucher fields one more time
+      const voucherSeries = invoiceData.voucherDetails.voucherSeries;
+      const voucherNo = invoiceData.voucherDetails.voucherNo;
+      const voucherDatetime = invoiceData.voucherDetails.voucherDatetime;
+      
+      console.log('📋 Voucher data before save:', { voucherSeries, voucherNo, voucherDatetime });
+      
+      if (!voucherSeries || !voucherNo || !voucherDatetime) {
+        console.error('❌ Missing voucher data:', { voucherSeries, voucherNo, voucherDatetime });
+        throw new Error('Voucher information is missing. Please refresh the screen and try again.');
+      }
+      
       // Prepare data for API
       const apiData = {
-        voucherSeries: invoiceData.voucherDetails.voucherSeries,
-        voucherNo: invoiceData.voucherDetails.voucherNo,
-        voucherDatetime: invoiceData.voucherDetails.voucherDatetime,
+        voucherSeries: voucherSeries,
+        voucherNo: voucherNo,
+        voucherDatetime: voucherDatetime,
         transactionDetails: {
           transactionId: invoiceData.transactionDetails.transactionId,
           date: invoiceData.transactionDetails.date,
@@ -698,7 +816,7 @@ const EmployeeSaleInvoiceScreen = () => {
           sno: index + 1,
           productId: item.productId || null,
           productName: item.productName || '',
-          productSerialNo: item.productSerialNo || '',
+          productSerialNo: item.productSerialNo === null ? null : (item.productSerialNo || ''),
           quantity: item.quantity || 0,
           rate: item.rate || 0,
           gross: item.gross || 0,
@@ -770,7 +888,54 @@ const EmployeeSaleInvoiceScreen = () => {
     { key: 'comments6', label: 'Comments6', width: 150 },
   ];
 
+  const adjustmentColumns = [
+    { key: 'sno', label: 'S.No', width: 70, editable: false },
+    { 
+      key: 'accountName', 
+      label: 'Account', 
+      width: 200, 
+      type: 'dropdown',
+      options: adjustmentsList.map(acc => ({ label: acc.name, value: acc.name })),
+    },
+    { key: 'addAmount', label: 'Add', width: 120, keyboardType: 'numeric' },
+    { key: 'lessAmount', label: 'Less', width: 120, keyboardType: 'numeric' },
+    { key: 'comments', label: 'Comments1', width: 200 },
+  ];
+
   const handleItemTableCellChange = (rowIndex, field, value) => {
+    // Special handling for productSerialNo: Manual entry always adds new row
+    if (field === 'productSerialNo' && value && value.trim() !== '') {
+      const trimmedSerialNo = value.trim().toUpperCase();
+      const currentItem = items[rowIndex];
+      
+      // Manual entry of productSerialNo → Always add new row (Case 1 logic)
+      console.log(`✅ Manual entry of serial number - Adding new row`);
+      const newItem = {
+        id: Date.now(),
+        productId: currentItem.productId || null,
+        productName: currentItem.productName || '',
+        quantity: 1,
+        rate: currentItem.rate || 0,
+        gross: currentItem.rate || 0,
+        net: currentItem.rate || 0,
+        comments1: currentItem.comments1 || '',
+        salesMan: currentItem.salesMan || '',
+        freeQty: currentItem.freeQty || '',
+        productSerialNo: trimmedSerialNo,
+        comments6: currentItem.comments6 || '',
+      };
+      
+      commitItems([...items, newItem]);
+      
+      Alert.alert(
+        'New Item Added! ✓',
+        `Serial No: ${trimmedSerialNo}\nAdded as new row\n\nSerial number entered - added as new row`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // For all other fields, update normally
     const updatedItems = items.map((item, index) => {
       if (index !== rowIndex) return item;
       let parsedValue = value;
@@ -840,25 +1005,6 @@ const EmployeeSaleInvoiceScreen = () => {
     }
   };
 
-  const renderAdjustmentRow = ({ item, index }) => (
-    <View style={styles.adjustmentRow}>
-      <Text style={[styles.adjustmentCell, { flex: 0.5 }]}>{index + 1}</Text>
-      <Text style={[styles.adjustmentCell, { flex: 2 }]}>{item.accountName}</Text>
-      <Text style={[styles.adjustmentCell, { flex: 1 }]}>
-        {item.addAmount > 0 ? `₹${item.addAmount.toFixed(2)}` : '-'}
-      </Text>
-      <Text style={[styles.adjustmentCell, { flex: 1 }]}>
-        {item.lessAmount > 0 ? `₹${item.lessAmount.toFixed(2)}` : '-'}
-      </Text>
-      <Text style={[styles.adjustmentCell, { flex: 1.5 }]}>{item.comments || '-'}</Text>
-      <TouchableOpacity
-        style={[styles.adjustmentCell, { flex: 0.7 }]}
-        onPress={() => handleDeleteAdjustment(item.id)}
-      >
-        <Text style={styles.deleteIcon}>🗑️</Text>
-      </TouchableOpacity>
-    </View>
-  );
 
   return (
     <>
@@ -1012,9 +1158,9 @@ const EmployeeSaleInvoiceScreen = () => {
               {isLoadingCustomer ? (
                 <ActivityIndicator size="small" color="#2196F3" />
               ) : (
-                <Text style={styles.readOnlyText}>
-                  {customerData.customerId || 'Scan QR Code to load customer'}
-                </Text>
+              <Text style={styles.readOnlyText}>
+                {customerData.customerId || 'Scan QR Code to load customer'}
+              </Text>
               )}
             </View>
             <TouchableOpacity
@@ -1194,38 +1340,16 @@ const EmployeeSaleInvoiceScreen = () => {
       </AccordionSection>
 
       <AccordionSection title="ADJUSTMENTS" defaultExpanded={false}>
-        
-        {/* Add Adjustment Button */}
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => setShowAddAdjustmentModal(true)}
-        >
-          <Text style={styles.addButtonText}>+ Add Adjustment</Text>
-        </TouchableOpacity>
-
-        {/* Adjustments Table Header */}
-        <View style={styles.tableHeader}>
-          <Text style={[styles.tableHeaderText, { flex: 0.5 }]}>Sno</Text>
-          <Text style={[styles.tableHeaderText, { flex: 2 }]}>Account</Text>
-          <Text style={[styles.tableHeaderText, { flex: 1 }]}>Add</Text>
-          <Text style={[styles.tableHeaderText, { flex: 1 }]}>Less</Text>
-          <Text style={[styles.tableHeaderText, { flex: 1.5 }]}>Comments1</Text>
-          <Text style={[styles.tableHeaderText, { flex: 0.7 }]}>Action</Text>
-        </View>
-
-        {/* Adjustments List */}
-        {adjustments.length > 0 ? (
-          <FlatList
-            data={adjustments}
-            renderItem={renderAdjustmentRow}
-            keyExtractor={(item) => item.id.toString()}
-            scrollEnabled={false}
-          />
-        ) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>No adjustments added</Text>
-          </View>
-        )}
+        <ItemTable
+          columns={adjustmentColumns}
+          data={adjustments.map((adj, index) => ({
+            ...adj,
+            sno: String(index + 1),
+          }))}
+          onAddRow={() => setShowAddAdjustmentModal(true)}
+          onDeleteRow={handleDeleteAdjustmentRow}
+          onCellChange={handleAdjustmentTableCellChange}
+        />
       </AccordionSection>
 
       {/* SUMMARY SECTION removed in favor of SmartSuite summary */}
@@ -1337,7 +1461,7 @@ const MobileSearchModal = ({ isVisible, onSearch, onClose }) => {
     try {
       await onSearch(mobileNumber);
       // Only clear if search was successful (modal will close)
-      setMobileNumber('');
+    setMobileNumber('');
     } catch (error) {
       // Error is handled in parent component, but show it here too
       setError(error.message || 'Failed to search customer');
@@ -1398,7 +1522,7 @@ const MobileSearchModal = ({ isVisible, onSearch, onClose }) => {
               {isSearching ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={mobileSearchStyles.searchButtonText}>🔍 Search</Text>
+              <Text style={mobileSearchStyles.searchButtonText}>🔍 Search</Text>
               )}
             </TouchableOpacity>
           </View>

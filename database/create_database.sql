@@ -47,7 +47,8 @@ GO
 CREATE TABLE EmployeeSaleInvoiceMain (
     InvoiceID BIGINT IDENTITY(1,1) PRIMARY KEY,
     
-    -- Voucher Fields (Common Key)
+    -- Voucher Fields (COMMON across all 3 tables: Main, Items, Adjustments)
+    -- These same values are stored in EmployeeSaleInvoiceItems and EmployeeSaleInvoiceAdjustments
     VoucherSeries NVARCHAR(50) NOT NULL,
     VoucherNo NVARCHAR(50) NOT NULL,
     VoucherDatetime DATETIME NOT NULL,
@@ -120,7 +121,8 @@ CREATE TABLE EmployeeSaleInvoiceItems (
     ItemID BIGINT IDENTITY(1,1) PRIMARY KEY,
     InvoiceID BIGINT NOT NULL, -- FK to EmployeeSaleInvoiceMain
     
-    -- Voucher Fields (Common Key for joining)
+    -- Voucher Fields (COMMON across all 3 tables: Main, Items, Adjustments)
+    -- Same VoucherSeries and VoucherNo as EmployeeSaleInvoiceMain
     VoucherSeries NVARCHAR(50) NOT NULL,
     VoucherNo NVARCHAR(50) NOT NULL,
     
@@ -164,7 +166,8 @@ CREATE TABLE EmployeeSaleInvoiceAdjustments (
     AdjustmentID BIGINT IDENTITY(1,1) PRIMARY KEY,
     InvoiceID BIGINT NOT NULL, -- FK to EmployeeSaleInvoiceMain
     
-    -- Voucher Fields (Common Key for joining)
+    -- Voucher Fields (COMMON across all 3 tables: Main, Items, Adjustments)
+    -- Same VoucherSeries and VoucherNo as EmployeeSaleInvoiceMain
     VoucherSeries NVARCHAR(50) NOT NULL,
     VoucherNo NVARCHAR(50) NOT NULL,
     

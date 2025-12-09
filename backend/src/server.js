@@ -11,7 +11,7 @@ const executivesRoutes = require('./routes/executives');
 const productsRoutes = require('./routes/products');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
 // Middleware
 app.use(cors({
@@ -21,23 +21,10 @@ app.use(cors({
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Request logging middleware
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-  next();
-});
 
 // Health check endpoint
 app.get('/', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Mobile App Backend API is running',
-    version: '1.0.0',
-    endpoints: {
-      customers: '/api/customers',
-      invoices: '/api/invoices',
-    },
-  });
+  res.json({ success: true, message: 'Backend API is running' });
 });
 
 // API Routes
@@ -52,7 +39,7 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({
     success: false,
     message: err.message || 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+      error: undefined,
   });
 });
 
@@ -67,40 +54,16 @@ app.use((req, res) => {
 // Start server
 const startServer = async () => {
   try {
-    // Test database connection (non-blocking - server will start anyway)
-    testConnection().catch((error) => {
-      console.warn('⚠️  Initial database connection test failed');
-      console.warn('   Server will start, but database operations may fail');
-      console.warn('   Connection will be retried on first API call');
+    // Test database connection (non-blocking)
+    testConnection().catch(() => {
+      console.warn('⚠️  Database connection test failed - will retry on first API call');
     });
-    
-    const API_BASE_URL = process.env.API_BASE_URL || `http://localhost:${PORT}/api`;
 
-    app.listen(PORT, () => {
-      console.log('========================================');
-      console.log('🚀 Mobile App Backend Server Started');
-      console.log('========================================');
-      console.log(`📡 Server running on port ${PORT}`);
-      // console.log(`🌐 API Base URL: http://localhost:${PORT}/api`);
-      console.log(`🌐 API Base URL: ${API_BASE_URL}`);
-      console.log('');
-      console.log('📋 Available Endpoints:');
-      console.log('   GET  /api/customers/mobile/:mobileNo  - Get customer by mobile');
-      console.log('   GET  /api/customers/:customerId      - Get customer by ID');
-      console.log('   GET  /api/customers                  - Get all customers');
-      console.log('   POST /api/customers                  - Create/update customer');
-      console.log('');
-      console.log('   POST /api/invoices                   - Create invoice');
-      console.log('   GET  /api/invoices/voucher/:series/:no - Get invoice by voucher');
-      console.log('   GET  /api/invoices/:invoiceId        - Get invoice by ID');
-      console.log('   GET  /api/invoices                   - Get all invoices');
-      console.log('   PUT  /api/invoices/:invoiceId        - Update invoice');
-      console.log('   DELETE /api/invoices/:invoiceId      - Delete invoice');
-      console.log('');
-      console.log('   GET  /api/executives/:username       - Get executive data');
-      console.log('   GET  /api/products/barcode/:barcode  - Get product by barcode');
-      console.log('   GET  /api/products                   - Get all products');
-      console.log('========================================');
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Backend Server running on port ${PORT}`);
+      console.log(`🌐 Local API: http://localhost:${PORT}/api`);
+      console.log(`🌐 Public API: http://223.186.254.245:${PORT}/api`);
+      console.log(`📱 Accessible from internet on port ${PORT}`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

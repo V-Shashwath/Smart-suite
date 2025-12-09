@@ -13,6 +13,7 @@ import {
   SUPERVISOR_SCREEN_ROUTES,
   getScreenMeta,
 } from '../constants/screenRegistry';
+import { API_ENDPOINTS, apiCall } from '../config/api';
 
 const STORAGE_KEYS = {
   EXECUTIVES: '@smartSuite:executives',
@@ -126,44 +127,88 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Enter database name, username and password.');
       }
 
-      const supervisorMatch =
-        normalizedUsername.toLowerCase() ===
-          SUPERVISOR_CREDENTIALS.username.toLowerCase() &&
-        normalizedPassword === SUPERVISOR_CREDENTIALS.password &&
-        normalizedDb === SUPERVISOR_CREDENTIALS.databaseName.toLowerCase();
+      try {
+        // Try supervisor authentication first (using backend)
+        // Silently fail if not a supervisor (expected behavior)
+        try {
+          const supervisorResponse = await apiCall(API_ENDPOINTS.AUTHENTICATE_SUPERVISOR, {
+            method: 'POST',
+            body: JSON.stringify({
+              username: normalizedUsername,
+              password: normalizedPassword,
+            }),
+          });
 
-      if (supervisorMatch) {
-        const user = {
-          role: 'supervisor',
-          username: SUPERVISOR_CREDENTIALS.username,
-          databaseName: SUPERVISOR_CREDENTIALS.databaseName,
-          assignedScreens: getSupervisorScreens(),
-        };
-        setCurrentUser(user);
-        return user;
+          if (supervisorResponse.success && supervisorResponse.data) {
+            const supervisor = supervisorResponse.data;
+            const user = {
+              role: 'supervisor',
+              username: supervisor.username,
+              databaseName: normalizedDb,
+              assignedScreens: getSupervisorScreens(),
+              supervisorId: supervisor.supervisorId,
+            };
+            setCurrentUser(user);
+            return user;
+          }
+        } catch (supervisorError) {
+          // Supervisor authentication failed (expected for employees)
+          // Silently continue to employee authentication - don't log as error
+          // Only log if it's not a 401 (unauthorized) which is expected
+          if (!supervisorError.message.includes('Invalid username or password') && 
+              !supervisorError.message.includes('401')) {
+            console.log('Supervisor authentication check failed (non-401 error):', supervisorError.message);
+          }
+        }
+
+        // Try employee authentication (using backend)
+        try {
+          const employeeResponse = await apiCall(API_ENDPOINTS.AUTHENTICATE_EMPLOYEE, {
+            method: 'POST',
+            body: JSON.stringify({
+              username: normalizedUsername,
+              password: normalizedPassword,
+            }),
+          });
+
+          if (employeeResponse.success && employeeResponse.data) {
+            const employee = employeeResponse.data;
+            
+            // Get assigned screens from local executives list if available
+            const localExecutive = executives.find(
+              (exec) => exec.username.toLowerCase() === normalizedUsername.toLowerCase()
+            );
+            
+            const user = {
+              role: 'executive',
+              username: employee.username,
+              databaseName: normalizedDb,
+              assignedScreens: localExecutive 
+                ? sanitizeScreens(localExecutive.assignedScreens)
+                : ['EmployeeSaleInvoice'], // Default screens if not found locally
+              executiveId: employee.employeeId,
+              employeeName: employee.employeeName,
+            };
+            setCurrentUser(user);
+            return user;
+          }
+        } catch (employeeError) {
+          // Employee authentication failed
+          console.error('Employee authentication error:', employeeError);
+        }
+
+        // If both failed, throw error
+        throw new Error('Invalid username or password.');
+      } catch (error) {
+        // If it's already a user-friendly error, re-throw it
+        if (error.message === 'Invalid username or password.' || 
+            error.message.includes('Invalid') ||
+            error.message.includes('credentials')) {
+          throw error;
+        }
+        // Otherwise, wrap network errors
+        throw new Error('Cannot connect to server. Please check your connection and try again.');
       }
-
-      const executive = executives.find(
-        (exec) =>
-          exec.username.toLowerCase() === normalizedUsername.toLowerCase() &&
-          exec.password === normalizedPassword &&
-          exec.databaseName.toLowerCase() === normalizedDb
-      );
-
-      if (!executive) {
-        throw new Error('Invalid executive credentials or database.');
-      }
-
-      const user = {
-        role: 'executive',
-        username: executive.username,
-        databaseName: executive.databaseName,
-        assignedScreens: sanitizeScreens(executive.assignedScreens),
-        executiveId: executive.id,
-      };
-
-      setCurrentUser(user);
-      return user;
     },
     [executives, getSupervisorScreens]
   );

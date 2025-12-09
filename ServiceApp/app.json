@@ -13,7 +13,8 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.ServiceApp"
     },
     "android": {
       "adaptiveIcon": {
@@ -27,7 +28,10 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "apiBaseUrl": "http://192.168.1.100:3000/api"
+      "apiBaseUrl": "https://tenley-ophiologic-danielle.ngrok-free.dev/api"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
     }
   }
 }

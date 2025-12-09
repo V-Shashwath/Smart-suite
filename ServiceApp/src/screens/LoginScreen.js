@@ -25,7 +25,13 @@ const LoginScreen = ({ navigation }) => {
 
   useEffect(() => {
     if (currentUser) {
-      navigation.replace('Dashboard');
+      // Use setTimeout to ensure navigation is ready after state update
+      const timer = setTimeout(() => {
+        if (navigation && navigation.replace) {
+          navigation.replace('Dashboard');
+        }
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, [currentUser, navigation]);
 
@@ -34,7 +40,9 @@ const LoginScreen = ({ navigation }) => {
     try {
       setLoading(true);
       await login({ databaseName, username: userName, password });
-      navigation.replace('Dashboard');
+      // Navigation will be handled by useEffect when currentUser changes
+      // Don't call navigation.replace here to avoid duplicate navigation
+      // Loading will be reset when component unmounts or when navigation happens
     } catch (err) {
       setError(err.message || 'Unable to sign in.');
     } finally {
