@@ -41,11 +41,13 @@ import { sharePDFViaWhatsApp, sharePDFViaSMS, generateInvoicePDF } from '../util
 import useScreenDraft from '../hooks/useScreenDraft';
 import withScreenPermission from '../components/withScreenPermission';
 import { useAuth } from '../context/AuthContext';
+import { useNavigation } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
 const EmployeeSaleInvoiceScreen = () => {
   const { currentUser } = useAuth();
+  const navigation = useNavigation();
   const [isLoadingExecutiveData, setIsLoadingExecutiveData] = useState(false);
   
   // Transaction state
@@ -96,6 +98,9 @@ const EmployeeSaleInvoiceScreen = () => {
   // Loading states
   const [isLoadingCustomer, setIsLoadingCustomer] = useState(false);
   const [isSavingInvoice, setIsSavingInvoice] = useState(false);
+  const [isInvoiceSaved, setIsInvoiceSaved] = useState(false);
+  const [hasPreviewed, setHasPreviewed] = useState(false);
+  const [savedInvoiceID, setSavedInvoiceID] = useState(null); // Track saved invoice ID for updates
   
   // Adjustments state
   const [adjustments, setAdjustments] = useState([]);
@@ -494,6 +499,9 @@ const EmployeeSaleInvoiceScreen = () => {
   const handleScannedBarcode = (scannedData) => {
     console.log('Barcode scanned from camera:', scannedData);
     
+    // Close the barcode scanner first
+    setShowBarcodeScanner(false);
+    
     // Set the barcode value and automatically trigger the get logic
     setBarcode(scannedData);
     
@@ -544,6 +552,9 @@ const EmployeeSaleInvoiceScreen = () => {
       // Get employee name from customerData or transactionData
       const employeeName = customerData.employeeName || transactionData.username || '';
       
+      console.log(`👤 Employee name for issued products check: "${employeeName}"`);
+      console.log(`📦 Checking issued products for barcode: "${trimmedBarcode}"`);
+      
       if (employeeName) {
         try {
           // Check for issued products for this employee
@@ -551,19 +562,31 @@ const EmployeeSaleInvoiceScreen = () => {
             API_ENDPOINTS.GET_ISSUED_PRODUCTS_BY_BARCODE(trimmedBarcode, employeeName)
           );
           
+          console.log(`📥 Issued products API response:`, JSON.stringify(issuedResult, null, 2));
+          
           if (issuedResult.success && 
               issuedResult.data && 
-              issuedResult.data.issuedProducts && 
-              issuedResult.data.issuedProducts.length > 0) {
+              issuedResult.data.issuedProducts) {
             // Found issued products - show selection modal
-            console.log(`📦 Found ${issuedResult.data.issuedProducts.length} issued products`);
-            setIssuedProductsData(issuedResult.data.issuedProducts);
+            const products = issuedResult.data.issuedProducts || [];
+            console.log(`📦 Found ${products.length} issued products`);
+            console.log('📦 Issued products data:', JSON.stringify(products, null, 2));
+            console.log('📦 Products is array?', Array.isArray(products));
+            console.log('📦 First product:', products[0]);
+            
+            // Set data first, then open modal after a small delay to ensure state is updated
             setPendingProductData({
               product: product,
               barcode: trimmedBarcode,
               result: result,
             });
-            setShowSerialNoModal(true);
+            setIssuedProductsData(products);
+            
+            // Use setTimeout to ensure state is updated before opening modal
+            setTimeout(() => {
+              setShowSerialNoModal(true);
+            }, 100);
+            
             // Clear barcode input after processing
             setTimeout(() => setBarcode(''), 500);
             return; // Exit early, modal will handle adding items
@@ -781,10 +804,20 @@ const EmployeeSaleInvoiceScreen = () => {
 
   // Save invoice to backend API
   const handleSaveInvoice = async () => {
+    // Validate required fields
     if (items.length === 0) {
       Alert.alert(
         'No Items',
         'Please add at least one item before saving the invoice.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    if (!customerData.customerName || customerData.customerName.trim() === '') {
+      Alert.alert(
+        'Missing Customer',
+        'Please select or enter a customer name before saving the invoice.',
         [{ text: 'OK' }]
       );
       return;
@@ -832,8 +865,18 @@ const EmployeeSaleInvoiceScreen = () => {
       }
       
       // Prepare data for API
+      // Extract base series from voucherSeries if it's in format "ESI-25-JD", otherwise use as-is
+      // For EmployeeSaleInvoiceScreen, base series is always "ESI"
+      let baseVoucherSeries = 'ESI'; // Default for EmployeeSaleInvoiceScreen
+      if (voucherSeries) {
+        // If voucherSeries is in format "ESI-25-JD", extract just "ESI"
+        const formatMatch = voucherSeries.match(/^([A-Z]+)-?\d{2}-?[A-Z]+$/i);
+        baseVoucherSeries = formatMatch ? formatMatch[1] : voucherSeries;
+      }
+      
       const apiData = {
-        voucherSeries: voucherSeries,
+        invoiceID: savedInvoiceID, // Include invoiceID if updating existing invoice
+        voucherSeries: baseVoucherSeries, // Send base series (ESI, CR, BR, etc.) - backend will construct full format
         voucherNo: voucherNo,
         voucherDatetime: voucherDatetime,
         transactionDetails: {
@@ -883,23 +926,63 @@ const EmployeeSaleInvoiceScreen = () => {
         summary: invoiceData.summary,
       };
 
+      console.log('📤 Sending invoice data:', { 
+        invoiceID: savedInvoiceID, 
+        voucherSeries, 
+        voucherNo,
+        hasInvoiceID: !!savedInvoiceID 
+      });
+
       const result = await apiCall(API_ENDPOINTS.CREATE_INVOICE, {
         method: 'POST',
         body: JSON.stringify(apiData),
       });
 
       if (result.success) {
+        // Mark invoice as saved and store invoice ID
+        setIsInvoiceSaved(true);
+        const newInvoiceID = result.data.invoiceID;
+        setSavedInvoiceID(newInvoiceID); // Store invoice ID for future updates
+        setHasPreviewed(false); // Reset preview flag after save
+        
+        const action = savedInvoiceID ? 'updated' : 'saved';
+        console.log(`✅ Invoice ${action}: ID=${newInvoiceID}, Voucher=${result.data.voucherSeries}-${result.data.voucherNo}`);
+        
         Alert.alert(
           'Success! ✓',
-          `Invoice saved successfully!\n\nVoucher: ${result.data.voucherSeries}-${result.data.voucherNo}\nInvoice ID: ${result.data.invoiceID}`,
+          `Invoice ${action} successfully!\n\nVoucher: ${result.data.voucherSeries}-${result.data.voucherNo}\nInvoice ID: ${result.data.invoiceID}`,
           [{ text: 'OK' }]
         );
       }
     } catch (error) {
       console.error('Error saving invoice:', error);
+      
+      // Provide user-friendly error messages
+      let errorMessage = error.message || 'Unknown error occurred';
+      
+      // Check for gateway errors (502, 503) - backend not reachable
+      if (error.message.includes('502') || error.message.includes('503') || 
+          error.message.includes('Backend server is not reachable')) {
+        errorMessage = 
+          'Cannot connect to backend server.\n\n' +
+          'Please check:\n' +
+          '1. Backend server is running (npm start in backend folder)\n' +
+          '2. Ngrok tunnel is active (check ngrok terminal)\n' +
+          '3. Restart ngrok if tunnel expired\n' +
+          '4. Verify ngrok URL matches app.json config';
+      } else if (error.message.includes('Network request failed') || 
+                 error.message.includes('Cannot connect to server')) {
+        errorMessage = 
+          'Network connection failed.\n\n' +
+          'Please check:\n' +
+          '1. Your internet connection\n' +
+          '2. Backend server is running\n' +
+          '3. API URL is correct';
+      }
+      
       Alert.alert(
-        'Error',
-        `Failed to save invoice: ${error.message}\n\nPlease check your connection and try again.`,
+        'Save Failed',
+        errorMessage,
         [{ text: 'OK' }]
       );
     } finally {
@@ -914,10 +997,74 @@ const EmployeeSaleInvoiceScreen = () => {
 
   // Combined save handler (local + API)
   const handleSaveCombined = async () => {
+    // Prevent duplicate saves - check if already saving
+    if (isSavingInvoice) {
+      console.log('⚠️ Save already in progress, skipping duplicate save');
+      Alert.alert(
+        'Save In Progress',
+        'A save operation is already in progress. Please wait for it to complete.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
+    // If invoice is already saved, it will be updated (not duplicated)
+    // No need to show confirmation - just update the existing record
+    
     // Save locally first (for offline support)
     handleSave();
     // Then save to API
     await handleSaveInvoice();
+  };
+
+  // Handle exit with save reminder
+  const handleExit = () => {
+    // Check if there are unsaved changes
+    const hasUnsavedChanges = items.length > 0 && !isInvoiceSaved;
+    
+    if (hasUnsavedChanges || hasPreviewed) {
+      Alert.alert(
+        'Unsaved Changes',
+        hasPreviewed 
+          ? 'You have previewed the invoice. Please save the invoice before exiting to ensure it is saved to the database.'
+          : 'You have unsaved changes. Are you sure you want to exit without saving?',
+        [
+          { 
+            text: 'Save & Exit', 
+            onPress: async () => {
+              try {
+                await handleSaveCombined();
+                // Reset flags after successful save
+                setIsInvoiceSaved(true);
+                setHasPreviewed(false);
+                // Wait a moment for save to complete, then exit
+                setTimeout(() => {
+                  navigation.goBack();
+                }, 500);
+              } catch (error) {
+                // If save fails, don't exit
+                console.error('Save failed on exit:', error);
+              }
+            },
+            style: 'default'
+          },
+          { 
+            text: 'Exit Without Saving', 
+            onPress: () => {
+              setIsInvoiceSaved(false);
+              setSavedInvoiceID(null); // Reset invoice ID
+              setHasPreviewed(false);
+              navigation.goBack();
+            },
+            style: 'destructive'
+          },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    } else {
+      // No unsaved changes, allow normal exit
+      navigation.goBack();
+    }
   };
 
   const itemColumns = [
@@ -1028,6 +1175,7 @@ const EmployeeSaleInvoiceScreen = () => {
   ];
 
   const handlePreviewInvoice = () => {
+    // Validate required fields before preview
     if (items.length === 0) {
       Alert.alert(
         'No Items',
@@ -1036,6 +1184,18 @@ const EmployeeSaleInvoiceScreen = () => {
       );
       return;
     }
+
+    if (!customerData.customerName || customerData.customerName.trim() === '') {
+      Alert.alert(
+        'Missing Customer',
+        'Please select or enter a customer name before previewing the invoice.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // Mark that user has previewed
+    setHasPreviewed(true);
     setShowPDFPreview(true);
   };
 
@@ -1102,7 +1262,10 @@ const EmployeeSaleInvoiceScreen = () => {
       onPreview={handlePreviewInvoice}
       onWhatsApp={handleSendWhatsApp}
       onSMS={handleSendSMS}
-      actionBarActions={{ onSave: handleSaveCombined }}
+      actionBarActions={{ 
+        onSave: handleSaveCombined,
+        onClose: handleExit
+      }}
       isSaving={isSaving || isSavingInvoice}
     >
 
@@ -1494,7 +1657,37 @@ const EmployeeSaleInvoiceScreen = () => {
 
     <PDFPreviewModal
       isVisible={showPDFPreview}
-      onClose={() => setShowPDFPreview(false)}
+      onClose={() => {
+        setShowPDFPreview(false);
+        // Show reminder to save after previewing
+        if (hasPreviewed && !isInvoiceSaved && !isSavingInvoice) {
+          setTimeout(() => {
+            Alert.alert(
+              'Reminder: Save Invoice',
+              'You have previewed the invoice. Please remember to click the "Save" button to save the invoice to the database.',
+              [
+                { 
+                  text: 'Save Now', 
+                  onPress: async () => {
+                    // Prevent duplicate saves - check flags before saving
+                    if (!isSavingInvoice && !isInvoiceSaved) {
+                      await handleSaveCombined();
+                    } else if (isInvoiceSaved) {
+                      Alert.alert(
+                        'Already Saved',
+                        'This invoice has already been saved.',
+                        [{ text: 'OK' }]
+                      );
+                    }
+                  }, 
+                  style: 'default' 
+                },
+                { text: 'Later', style: 'cancel' }
+              ]
+            );
+          }, 500);
+        }
+      }}
       invoiceData={getInvoiceData()}
     />
 
@@ -1507,11 +1700,14 @@ const EmployeeSaleInvoiceScreen = () => {
       }}
       productName={pendingProductData?.product?.name || ''}
       issuedProducts={issuedProductsData || []}
-      onConfirm={(selectedSerialNos) => {
+      existingItems={items}
+      onConfirm={(newSerialNos, removeSerialNos = []) => {
         if (!pendingProductData) return;
         
         const { product, barcode } = pendingProductData;
-        const newItems = selectedSerialNos.map((serialNo) => {
+        
+        // Add new items
+        const itemsToAdd = newSerialNos.map((serialNo) => {
           // Find the issued product data for this serial number
           const issuedProduct = issuedProductsData.find(
             ip => ip.productSerialNo === serialNo
@@ -1533,11 +1729,30 @@ const EmployeeSaleInvoiceScreen = () => {
           };
         });
         
-        commitItems([...items, ...newItems]);
+        // Remove items with selected serial numbers
+        const updatedItems = items.filter(item => {
+          // Keep items that don't have a serial number to remove
+          if (!item.productSerialNo) return true;
+          // Remove items whose serial number is in the remove list
+          return !removeSerialNos.includes(item.productSerialNo.trim());
+        });
+        
+        // Add new items
+        commitItems([...updatedItems, ...itemsToAdd]);
+        
+        // Show appropriate message
+        let message = '';
+        if (itemsToAdd.length > 0 && removeSerialNos.length > 0) {
+          message = `${itemsToAdd.length} item(s) added and ${removeSerialNos.length} item(s) removed`;
+        } else if (itemsToAdd.length > 0) {
+          message = `${itemsToAdd.length} item(s) added with selected Serial Numbers`;
+        } else if (removeSerialNos.length > 0) {
+          message = `${removeSerialNos.length} item(s) removed`;
+        }
         
         Alert.alert(
-          'Items Added! ✓',
-          `${newItems.length} item(s) added with selected Serial Numbers`,
+          'Items Updated! ✓',
+          message,
           [{ text: 'OK' }]
         );
         

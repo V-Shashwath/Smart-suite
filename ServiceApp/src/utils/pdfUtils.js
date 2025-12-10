@@ -338,8 +338,8 @@ export const generateInvoiceHTML = async (invoiceData) => {
           <div>${formatCurrency(summary.ledgerBalance || 0)}</div>
         </div>
         <div class="summary-row">
-          <div class="summary-label">Received Cash:</div>
-          <div>${formatCurrency(collections.cash || 0)}</div>
+          <div class="summary-label">Received:</div>
+          <div>Cash: ${formatCurrency(collections.cash || 0)}, Credit: ${formatCurrency(collections.card || 0)}, UPI: ${formatCurrency(collections.upi || 0)}</div>
         </div>
         <div class="summary-row">
           <div class="summary-label">Balance:</div>
@@ -488,7 +488,7 @@ export const formatInvoiceAsText = (invoiceData) => {
   if (customerData.whatsappNo) text += `WhatsApp: ${customerData.whatsappNo}\n`;
   if (customerData.machineType) text += `Machine Type: ${customerData.machineType}\n`;
   if (customerData.remarks) text += `Remarks: ${customerData.remarks}\n`;
-
+        
   // Items table (compact, one line per item)
   if (items.length > 0) {
     text += section('Items');
@@ -532,7 +532,7 @@ export const formatInvoiceAsText = (invoiceData) => {
   text += `Qty: ${safeNum(summary.totalQty)}\n`;
   text += `Bill Amount: ${formatCurrency(summary.totalBillValue)}\n`;
   text += `Ledger Balance: ${formatCurrency(summary.ledgerBalance)}\n`;
-  text += `Received Cash: ${formatCurrency(collections.cash)}\n`;
+  text += `Received - Cash: ${formatCurrency(collections.cash)}, Credit: ${formatCurrency(collections.card || 0)}, UPI: ${formatCurrency(collections.upi || 0)}\n`;
   text += `Balance: ${formatCurrency(collections.balance)}\n`;
 
   // Footer

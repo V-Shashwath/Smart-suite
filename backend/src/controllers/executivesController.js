@@ -36,9 +36,21 @@ const getExecutiveData = async (req, res) => {
     const transactionId = `TXN-${now.getFullYear()}-${String(Date.now()).slice(-6)}`;
 
     // Get voucher series and calculate preview of next voucher number (without incrementing)
-    // Format: Just a number (1, 2, 3, etc.) - incremental
+    // Format: {BaseSeries}-{Last2DigitsOfYear}-{ShortName}
+    // Example: ESI-25-JD, CR-25-JD, etc.
     // NOTE: We show a preview but DON'T increment until user saves
-    const voucherSeries = employee.VoucherSeries || 'ESI';
+    const baseSeries = employee.VoucherSeries || 'ESI';
+    
+    // Get last 2 digits of current year
+    const currentYear = new Date().getFullYear();
+    const yearSuffix = String(currentYear).slice(-2);
+    
+    // Get employee ShortName
+    const shortName = employee.ShortName || '';
+    
+    // Construct voucher series: {BaseSeries}-{Year}-{ShortName}
+    const voucherSeries = shortName ? `${baseSeries}-${yearSuffix}-${shortName}` : `${baseSeries}-${yearSuffix}`;
+    
     const lastVoucherNumber = employee.LastVoucherNumber || 0;
     const nextPreviewNumber = lastVoucherNumber + 1; // Preview only, not saved yet
     

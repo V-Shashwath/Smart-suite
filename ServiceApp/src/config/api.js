@@ -70,6 +70,21 @@ export const apiCall = async (endpoint, options = {}) => {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+      
+      // Handle gateway errors (502, 503) with helpful messages
+      if (response.status === 502 || response.status === 503) {
+        const gatewayError = new Error(
+          `Backend server is not reachable (${response.status}). Please check:\n` +
+          `1. Backend server is running on port 3000\n` +
+          `2. Ngrok tunnel is active and pointing to localhost:3000\n` +
+          `3. Restart ngrok if the tunnel expired\n` +
+          `4. Check ngrok dashboard: https://dashboard.ngrok.com/status/tunnels`
+        );
+        gatewayError.status = response.status;
+        console.error(`❌ Gateway Error: ${response.status}`, errorData);
+        throw gatewayError;
+      }
+      
       // Only log as error if it's not a 401 (unauthorized) - 401 is expected for failed auth attempts
       if (response.status !== 401) {
         console.error(`❌ API Error: ${response.status}`, errorData);

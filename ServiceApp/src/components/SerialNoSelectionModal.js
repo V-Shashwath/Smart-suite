@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Modal,
   View,
@@ -6,18 +6,41 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  CheckBox,
   Alert,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 
 const SerialNoSelectionModal = ({ 
   isVisible, 
   onClose, 
   productName,
   issuedProducts = [],
+  existingItems = [],
   onConfirm 
 }) => {
   const [selectedSerialNos, setSelectedSerialNos] = useState([]);
+
+  // Get list of serial numbers that are already added to items
+  const alreadyAddedSerialNos = useMemo(() => {
+    return existingItems
+      .filter(item => item.productSerialNo && item.productSerialNo.trim() !== '')
+      .map(item => item.productSerialNo.trim());
+  }, [existingItems]);
+
+  // Debug: Log when modal opens or data changes
+  useEffect(() => {
+    if (isVisible) {
+      console.log('🔍 SerialNoSelectionModal opened');
+      console.log('   Product Name:', productName);
+      console.log('   Issued Products Type:', typeof issuedProducts);
+      console.log('   Issued Products Is Array:', Array.isArray(issuedProducts));
+      console.log('   Issued Products Count:', issuedProducts?.length || 0);
+      console.log('   Issued Products:', JSON.stringify(issuedProducts, null, 2));
+      
+      // Reset selection when modal opens
+      setSelectedSerialNos([]);
+    }
+  }, [isVisible, productName, issuedProducts]);
 
   const toggleSerialNo = (serialNo) => {
     setSelectedSerialNos(prev => {
@@ -30,11 +53,19 @@ const SerialNoSelectionModal = ({
   };
 
   const handleConfirm = () => {
-    if (selectedSerialNos.length === 0) {
-      Alert.alert('No Selection', 'Please select at least one Serial Number to add.');
+    // Separate new items to add and existing items to remove
+    const newSerialNos = selectedSerialNos.filter(
+      serialNo => !alreadyAddedSerialNos.includes(serialNo)
+    );
+    const removeSerialNos = selectedSerialNos.filter(
+      serialNo => alreadyAddedSerialNos.includes(serialNo)
+    );
+    
+    if (newSerialNos.length === 0 && removeSerialNos.length === 0) {
+      Alert.alert('No Selection', 'Please select at least one Serial Number to add or remove.');
       return;
     }
-    onConfirm(selectedSerialNos);
+    onConfirm(newSerialNos, removeSerialNos);
     setSelectedSerialNos([]); // Reset selection
   };
 
@@ -45,19 +76,56 @@ const SerialNoSelectionModal = ({
 
   const renderItem = ({ item }) => {
     const isSelected = selectedSerialNos.includes(item.productSerialNo);
+    const isAlreadyAdded = alreadyAddedSerialNos.includes(item.productSerialNo);
+    const isSelectedForRemoval = isAlreadyAdded && isSelected;
+    
     return (
       <TouchableOpacity
-        style={[styles.itemRow, isSelected && styles.itemRowSelected]}
+        style={[
+          styles.itemRow, 
+          isSelected && !isAlreadyAdded && styles.itemRowSelected,
+          isAlreadyAdded && !isSelected && styles.itemRowAlreadyAdded,
+          isSelectedForRemoval && styles.itemRowSelectedForRemoval
+        ]}
         onPress={() => toggleSerialNo(item.productSerialNo)}
       >
         <View style={styles.checkboxContainer}>
-          <CheckBox
-            value={isSelected}
-            onValueChange={() => toggleSerialNo(item.productSerialNo)}
-          />
+          <TouchableOpacity
+            style={[
+              styles.checkbox, 
+              isSelected && !isAlreadyAdded && styles.checkboxSelected,
+              isAlreadyAdded && !isSelected && styles.checkboxAlreadyAdded,
+              isSelectedForRemoval && styles.checkboxSelectedForRemoval
+            ]}
+            onPress={() => toggleSerialNo(item.productSerialNo)}
+          >
+            {isSelected && !isAlreadyAdded && (
+              <MaterialIcons name="check" size={20} color="#fff" />
+            )}
+            {isAlreadyAdded && !isSelected && (
+              <MaterialIcons name="check-circle" size={20} color="#4CAF50" />
+            )}
+            {isSelectedForRemoval && (
+              <MaterialIcons name="close" size={20} color="#fff" />
+            )}
+          </TouchableOpacity>
         </View>
         <View style={styles.itemInfo}>
-          <Text style={styles.serialNoText}>{item.productSerialNo}</Text>
+          <View style={styles.serialNoRow}>
+            <Text style={[
+              styles.serialNoText, 
+              isAlreadyAdded && !isSelected && styles.serialNoTextAdded,
+              isSelectedForRemoval && styles.serialNoTextRemoved
+            ]}>
+              {item.productSerialNo}
+            </Text>
+            {isAlreadyAdded && !isSelected && (
+              <Text style={styles.alreadyAddedLabel}>(Already Added)</Text>
+            )}
+            {isSelectedForRemoval && (
+              <Text style={styles.removeLabel}>(Will Remove)</Text>
+            )}
+          </View>
           <Text style={styles.quantityText}>
             Qty: {item.quantity} | Voucher: {item.voucherSeries}-{item.voucherNo}
           </Text>
@@ -92,13 +160,38 @@ const SerialNoSelectionModal = ({
           </View>
 
           {/* Serial Numbers List */}
-          <FlatList
-            data={issuedProducts}
-            renderItem={renderItem}
-            keyExtractor={(item, index) => `${item.productSerialNo}-${index}`}
-            style={styles.list}
-            contentContainerStyle={styles.listContent}
-          />
+          <View style={styles.listContainer}>
+            {issuedProducts && Array.isArray(issuedProducts) && issuedProducts.length > 0 ? (
+              <FlatList
+                data={issuedProducts}
+                renderItem={renderItem}
+                keyExtractor={(item, index) => {
+                  const key = item?.productSerialNo ? `${item.productSerialNo}-${index}` : `item-${index}`;
+                  return key;
+                }}
+                style={styles.list}
+                contentContainerStyle={styles.listContent}
+                extraData={selectedSerialNos}
+                removeClippedSubviews={false}
+              />
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No issued products found</Text>
+                <Text style={styles.emptySubtext}>
+                  No products with serial numbers were issued to you for this barcode.
+                </Text>
+                <Text style={styles.debugText}>
+                  Debug: Products array length = {issuedProducts?.length || 0}
+                </Text>
+                <Text style={styles.debugText}>
+                  Is Array: {Array.isArray(issuedProducts) ? 'Yes' : 'No'}
+                </Text>
+                <Text style={styles.debugText}>
+                  Type: {typeof issuedProducts}
+                </Text>
+              </View>
+            )}
+          </View>
 
           {/* Footer Buttons */}
           <View style={styles.footer}>
@@ -114,7 +207,18 @@ const SerialNoSelectionModal = ({
               disabled={selectedSerialNos.length === 0}
             >
               <Text style={styles.confirmButtonText}>
-                Add Selected ({selectedSerialNos.length})
+                {(() => {
+                  const newCount = selectedSerialNos.filter(s => !alreadyAddedSerialNos.includes(s)).length;
+                  const removeCount = selectedSerialNos.filter(s => alreadyAddedSerialNos.includes(s)).length;
+                  if (newCount > 0 && removeCount > 0) {
+                    return `Add ${newCount} / Remove ${removeCount}`;
+                  } else if (newCount > 0) {
+                    return `Add Selected (${newCount})`;
+                  } else if (removeCount > 0) {
+                    return `Remove Selected (${removeCount})`;
+                  }
+                  return 'Confirm';
+                })()}
               </Text>
             </TouchableOpacity>
           </View>
@@ -132,11 +236,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContainer: {
-    width: '90%',
-    maxHeight: '80%',
+    width: '95%',
+    maxHeight: '82%',
+    height: '85%',
     backgroundColor: '#fff',
     borderRadius: 10,
     overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
   },
   header: {
     flexDirection: 'row',
@@ -175,38 +282,132 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
+  listContainer: {
+    flex: 1,
+    minHeight: 350,
+    maxHeight: '100%',
+  },
   list: {
     flex: 1,
+    width: '100%',
   },
   listContent: {
-    padding: 10,
+    padding: 12,
+    paddingBottom: 20,
+    flexGrow: 1,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#666',
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  debugText: {
+    fontSize: 12,
+    color: '#ccc',
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    marginBottom: 8,
+    marginBottom: 10,
     backgroundColor: '#f5f5f5',
-    borderRadius: 5,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: '#e0e0e0',
+    minHeight: 60,
   },
   itemRowSelected: {
     backgroundColor: '#E3F2FD',
     borderColor: '#2196F3',
     borderWidth: 2,
   },
+  itemRowAlreadyAdded: {
+    backgroundColor: '#F1F8E9',
+    borderColor: '#81C784',
+    borderWidth: 1,
+    opacity: 0.7,
+  },
+  itemRowSelectedForRemoval: {
+    backgroundColor: '#FFEBEE',
+    borderColor: '#F44336',
+    borderWidth: 2,
+    opacity: 1,
+  },
   checkboxContainer: {
     marginRight: 12,
   },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderColor: '#2196F3',
+    borderRadius: 4,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxSelected: {
+    backgroundColor: '#2196F3',
+    borderColor: '#2196F3',
+  },
+  checkboxAlreadyAdded: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#4CAF50',
+    borderWidth: 2,
+  },
+  checkboxSelectedForRemoval: {
+    backgroundColor: '#F44336',
+    borderColor: '#F44336',
+  },
   itemInfo: {
     flex: 1,
+  },
+  serialNoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   serialNoText: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 4,
+  },
+  serialNoTextAdded: {
+    color: '#4CAF50',
+  },
+  alreadyAddedLabel: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontWeight: '600',
+    marginLeft: 8,
+    fontStyle: 'italic',
+  },
+  removeLabel: {
+    fontSize: 12,
+    color: '#F44336',
+    fontWeight: '600',
+    marginLeft: 8,
+    fontStyle: 'italic',
+  },
+  serialNoTextRemoved: {
+    color: '#F44336',
+    textDecorationLine: 'line-through',
   },
   quantityText: {
     fontSize: 12,

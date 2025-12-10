@@ -1,6 +1,6 @@
 const { executeQuery, executeProcedure, getPool, sql } = require('../config/database');
 
-// Create Employee Sale Invoice (Main + Items + Adjustments)
+// Create or Update Employee Sale Invoice (Main + Items + Adjustments)
 const createInvoice = async (req, res) => {
   const pool = await getPool();
   const transaction = new sql.Transaction(pool);
@@ -9,6 +9,7 @@ const createInvoice = async (req, res) => {
     await transaction.begin();
     
     const {
+      invoiceID, // Optional: if provided, update existing invoice
       voucherSeries,
       voucherNo,
       voucherDatetime,
@@ -20,6 +21,32 @@ const createInvoice = async (req, res) => {
       summary,
     } = req.body;
 
+    // Debug logging for update operations
+    if (invoiceID) {
+      console.log('📊 Update request data:', {
+        invoiceID,
+        itemsCount: items?.length || 0,
+        firstItem: items?.[0] ? {
+          productName: items[0].productName,
+          quantity: items[0].quantity,
+          rate: items[0].rate,
+          gross: items[0].gross,
+          net: items[0].net,
+        } : null,
+        collections: {
+          cash: collections?.cash,
+          card: collections?.card,
+          upi: collections?.upi,
+          balance: collections?.balance,
+        },
+        summary: {
+          totalQty: summary?.totalQty,
+          totalGross: summary?.totalGross,
+          totalBillValue: summary?.totalBillValue,
+        },
+      });
+    }
+
     // Validate required fields
     if (!voucherSeries || !voucherDatetime) {
       await transaction.rollback();
@@ -29,168 +56,344 @@ const createInvoice = async (req, res) => {
       });
     }
 
-    // Always generate voucher number on save to ensure it increments
-    // Voucher number increments ONLY when saving (not when opening screen)
-    const username = transactionDetails?.username;
-    if (!username) {
-      await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'Username is required to generate voucher number',
-      });
+    // Check if this is an update (invoiceID provided and exists)
+    let isUpdate = false;
+    let existingInvoiceID = null;
+    
+    console.log(`📋 Received invoiceID: ${invoiceID || 'null'}`);
+    
+    if (invoiceID) {
+      // Check if invoice exists
+      const checkRequest = new sql.Request(transaction);
+      checkRequest.input('invoiceID', sql.Int, invoiceID);
+      const checkResult = await checkRequest.query(`
+        SELECT InvoiceID, VoucherSeries, VoucherNo 
+        FROM EmployeeSaleInvoiceMain 
+        WHERE InvoiceID = @invoiceID
+      `);
+      
+      if (checkResult.recordset && checkResult.recordset.length > 0) {
+        isUpdate = true;
+        existingInvoiceID = invoiceID;
+        const existing = checkResult.recordset[0];
+        console.log(`🔄 Updating existing invoice: ${existing.VoucherSeries}-${existing.VoucherNo} (ID: ${invoiceID})`);
+      } else {
+        console.log(`⚠️ Invoice ID ${invoiceID} not found, creating new invoice`);
+      }
+    } else {
+      console.log(`✨ Creating new invoice (no invoiceID provided)`);
     }
 
-    // Generate the next voucher number using stored procedure (this increments the counter)
-    // Call OUTSIDE transaction so increment persists even if save fails
-    // This prevents duplicate voucher numbers on retry
+    // Generate voucher number only for NEW invoices (not updates)
+    // For updates, use existing voucher number
+    const username = transactionDetails?.username;
     let finalVoucherSeries;
     let finalVoucherNo;
     
-    try {
-      console.log(`🔢 Generating voucher number for username: ${username}`);
+    if (isUpdate) {
+      // For updates, use the existing voucher number from the invoice
+      const voucherRequest = new sql.Request(transaction);
+      voucherRequest.input('invoiceID', sql.Int, existingInvoiceID);
+      const voucherResult = await voucherRequest.query(`
+        SELECT VoucherSeries, VoucherNo 
+        FROM EmployeeSaleInvoiceMain 
+        WHERE InvoiceID = @invoiceID
+      `);
       
-      // First, verify employee exists
-      const checkEmployeeQuery = `SELECT EmployeeID, EmployeeName, ShortName, LastVoucherNumber, VoucherSeries FROM Employees WHERE Username = @username AND Status = 'Active'`;
-      const checkRequest = pool.request();
-      checkRequest.input('username', sql.VarChar(100), username);
-      const employeeResult = await checkRequest.query(checkEmployeeQuery);
-      
-      if (!employeeResult.recordset || employeeResult.recordset.length === 0) {
-        console.error('❌ Employee not found or inactive:', username);
+      if (voucherResult.recordset && voucherResult.recordset.length > 0) {
+        finalVoucherSeries = voucherResult.recordset[0].VoucherSeries;
+        finalVoucherNo = voucherResult.recordset[0].VoucherNo;
+        console.log(`✅ Using existing voucher: ${finalVoucherSeries}-${finalVoucherNo}`);
+      } else {
+        await transaction.rollback();
+        return res.status(404).json({
+          success: false,
+          message: 'Invoice not found for update',
+        });
+      }
+    } else {
+      // For new invoices, generate voucher number
+      if (!username) {
         await transaction.rollback();
         return res.status(400).json({
           success: false,
-          message: `Employee not found or inactive: ${username}`,
+          message: 'Username is required to generate voucher number',
         });
       }
-      
-      const employee = employeeResult.recordset[0];
-      console.log(`   Employee found: ${employee.EmployeeName} (${employee.ShortName})`);
-      console.log(`   LastVoucherNumber: ${employee.LastVoucherNumber || 0}`);
-      console.log(`   VoucherSeries: ${employee.VoucherSeries || 'ESI'}`);
-      
-      // Try to call stored procedure first
-      let voucherGenerated = false;
+
+      // Generate the next voucher number using stored procedure (this increments the counter)
+      // Call OUTSIDE transaction so increment persists even if save fails
+      // This prevents duplicate voucher numbers on retry
       try {
-        const voucherRequest = pool.request();
-        voucherRequest.input('Username', sql.VarChar(100), username);
-        voucherRequest.output('VoucherSeries', sql.VarChar(50));
-        voucherRequest.output('VoucherNo', sql.VarChar(50));
+        console.log(`🔢 Generating voucher number for username: ${username}`);
         
-        await voucherRequest.execute('sp_GetNextVoucherNumber');
+        // First, verify employee exists
+        const checkEmployeeQuery = `SELECT EmployeeID, EmployeeName, ShortName, LastVoucherNumber, VoucherSeries FROM Employees WHERE Username = @username AND Status = 'Active'`;
+        const checkRequest = pool.request();
+        checkRequest.input('username', sql.VarChar(100), username);
+        const employeeResult = await checkRequest.query(checkEmployeeQuery);
         
-        const voucherSeriesParam = voucherRequest.parameters['VoucherSeries'];
-        const voucherNoParam = voucherRequest.parameters['VoucherNo'];
-        
-        if (voucherNoParam && voucherNoParam.value !== null && voucherNoParam.value !== undefined) {
-          finalVoucherSeries = voucherSeriesParam?.value || employee.VoucherSeries || 'ESI';
-          finalVoucherNo = voucherNoParam.value;
-          voucherGenerated = true;
-          console.log(`✅ Generated via stored procedure: ${finalVoucherSeries}-${finalVoucherNo}`);
+        if (!employeeResult.recordset || employeeResult.recordset.length === 0) {
+          console.error('❌ Employee not found or inactive:', username);
+          await transaction.rollback();
+          return res.status(400).json({
+            success: false,
+            message: `Employee not found or inactive: ${username}`,
+          });
         }
-      } catch (spError) {
-        console.warn('⚠️  Stored procedure failed, using manual generation:', spError.message);
+        
+        const employee = employeeResult.recordset[0];
+        console.log(`   Employee found: ${employee.EmployeeName} (${employee.ShortName})`);
+        console.log(`   LastVoucherNumber: ${employee.LastVoucherNumber || 0}`);
+        console.log(`   VoucherSeries: ${employee.VoucherSeries || 'ESI'}`);
+        
+        // Try to call stored procedure first
+        let voucherGenerated = false;
+        try {
+          const voucherRequest = pool.request();
+          voucherRequest.input('Username', sql.VarChar(100), username);
+          voucherRequest.output('VoucherSeries', sql.VarChar(50));
+          voucherRequest.output('VoucherNo', sql.VarChar(50));
+          
+          await voucherRequest.execute('sp_GetNextVoucherNumber');
+          
+          const voucherSeriesParam = voucherRequest.parameters['VoucherSeries'];
+          const voucherNoParam = voucherRequest.parameters['VoucherNo'];
+          
+          if (voucherNoParam && voucherNoParam.value !== null && voucherNoParam.value !== undefined) {
+            // Get base series from stored procedure, request, or employee record
+            let baseSeries = voucherSeriesParam?.value || employee.VoucherSeries || 'ESI';
+            
+            // If voucherSeries is provided in request, use it (might be just base like "ESI" or full format)
+            if (voucherSeries) {
+              // Extract base series if it's in format "ESI-25-JD", otherwise use as-is
+              const formatMatch = voucherSeries.match(/^([A-Z]+)-?\d{2}-?[A-Z]+$/i);
+              baseSeries = formatMatch ? formatMatch[1] : voucherSeries;
+            }
+            
+            // Get last 2 digits of current year
+            const currentYear = new Date().getFullYear();
+            const yearSuffix = String(currentYear).slice(-2);
+            
+            // Get employee ShortName
+            const shortName = employee.ShortName || '';
+            
+            // Construct voucher series: {BaseSeries}-{Year}-{ShortName}
+            // Example: ESI-25-JD, CR-25-JD, BR-25-JD, ER-25-JD, SR-25-JD, RS-25-JD, RMB-25-JD
+            finalVoucherSeries = shortName ? `${baseSeries}-${yearSuffix}-${shortName}` : `${baseSeries}-${yearSuffix}`;
+            finalVoucherNo = voucherNoParam.value;
+            voucherGenerated = true;
+            console.log(`✅ Generated via stored procedure: ${finalVoucherSeries}-${finalVoucherNo}`);
+          }
+        } catch (spError) {
+          console.warn('⚠️  Stored procedure failed, using manual generation:', spError.message);
+        }
+        
+        // Fallback: Generate voucher number manually if stored procedure didn't work
+        // Format: {BaseSeries}-{Last2DigitsOfYear}-{ShortName}
+        // Example: ESI-25-JD, CR-25-JD, etc.
+        if (!voucherGenerated) {
+          const lastNumber = employee.LastVoucherNumber || 0;
+          const nextNumber = lastNumber + 1;
+          
+          // Extract base series from voucherSeries if it's already in format "ESI-25-JD", otherwise use as-is
+          // If voucherSeries is "ESI-25-JD", extract "ESI"; if it's just "ESI", use it
+          let baseSeries = voucherSeries || employee.VoucherSeries || 'ESI';
+          
+          // If voucherSeries already contains the format (e.g., "ESI-25-JD"), extract just the base
+          // Check if it matches pattern: {BaseSeries}-{Year}-{ShortName}
+          const formatMatch = baseSeries.match(/^([A-Z]+)-?\d{2}-?[A-Z]+$/i);
+          if (formatMatch) {
+            baseSeries = formatMatch[1]; // Extract just the base series (e.g., "ESI")
+          }
+          
+          // Get last 2 digits of current year
+          const currentYear = new Date().getFullYear();
+          const yearSuffix = String(currentYear).slice(-2);
+          
+          // Get employee ShortName
+          const shortName = employee.ShortName || '';
+          
+          // Construct voucher series: {BaseSeries}-{Year}-{ShortName}
+          // Example: ESI-25-JD, CR-25-JD, BR-25-JD, ER-25-JD, SR-25-JD, RS-25-JD, RMB-25-JD
+          finalVoucherSeries = shortName ? `${baseSeries}-${yearSuffix}-${shortName}` : `${baseSeries}-${yearSuffix}`;
+          finalVoucherNo = String(nextNumber); // Just the number, no alphanumeric
+          
+          // Update LastVoucherNumber in database
+          const updateRequest = pool.request();
+          updateRequest.input('username', sql.VarChar(100), username);
+          updateRequest.input('nextNumber', sql.Int, nextNumber);
+          await updateRequest.query(`
+            UPDATE Employees 
+            SET LastVoucherNumber = @nextNumber, ModifiedDate = GETDATE()
+            WHERE Username = @username
+          `);
+          
+          console.log(`✅ Generated manually: ${finalVoucherSeries}-${finalVoucherNo}`);
+        }
+      } catch (error) {
+        console.error('❌ Error generating voucher number:', error.message);
+        console.error('   Error stack:', error.stack);
+        console.error('   Username:', username);
+        await transaction.rollback();
+        return res.status(500).json({
+          success: false,
+          message: `Failed to generate voucher number: ${error.message}`,
+        });
       }
-      
-      // Fallback: Generate voucher number manually if stored procedure didn't work
-      // Format: Just a number (1, 2, 3, etc.) - incremental
-      if (!voucherGenerated) {
-        const lastNumber = employee.LastVoucherNumber || 0;
-        const nextNumber = lastNumber + 1;
-        const series = employee.VoucherSeries || 'ESI';
-        
-        finalVoucherSeries = series;
-        finalVoucherNo = String(nextNumber); // Just the number, no alphanumeric
-        
-        // Update LastVoucherNumber in database
-        const updateRequest = pool.request();
-        updateRequest.input('username', sql.VarChar(100), username);
-        updateRequest.input('nextNumber', sql.Int, nextNumber);
-        await updateRequest.query(`
-          UPDATE Employees 
-          SET LastVoucherNumber = @nextNumber, ModifiedDate = GETDATE()
-          WHERE Username = @username
-        `);
-        
-        console.log(`✅ Generated manually: ${finalVoucherSeries}-${finalVoucherNo}`);
-      }
-    } catch (error) {
-      console.error('❌ Error generating voucher number:', error.message);
-      console.error('   Error stack:', error.stack);
-      console.error('   Username:', username);
-      await transaction.rollback();
-      return res.status(500).json({
-        success: false,
-        message: `Failed to generate voucher number: ${error.message}`,
-      });
     }
 
-    // 1. Insert into EmployeeSaleInvoiceMain
-    // NOTE: voucherSeries and voucherNo are COMMON across all 3 tables (Main, Items, Adjustments)
-    // The same values will be used when inserting into Items and Adjustments tables
-    const mainQuery = `
-      INSERT INTO EmployeeSaleInvoiceMain (
-        VoucherSeries, VoucherNo, VoucherDatetime,
-        TransactionDate, TransactionTime,
-        Branch, Location, EmployeeLocation, Username,
-        HeaderDate, BillerName, EmployeeName, CustomerID, CustomerName,
-        ReadingA4, ReadingA3, MachineType, Remarks, GstBill,
-        CollectedCash, CollectedCard, CollectedUpi, Balance,
-        ItemCount, TotalQty, TotalGross, TotalDiscount,
-        TotalAdd, TotalLess, TotalBillValue, LedgerBalance,
-        CreatedBy
-      )
-      VALUES (
-        @voucherSeries, @voucherNo, @voucherDatetime,
-        @transactionDate, @transactionTime,
-        @branch, @location, @employeeLocation, @username,
-        @headerDate, @billerName, @employeeName, @customerID, @customerName,
-        @readingA4, @readingA3, @machineType, @remarks, @gstBill,
-        @collectedCash, @collectedCard, @collectedUpi, @balance,
-        @itemCount, @totalQty, @totalGross, @totalDiscount,
-        @totalAdd, @totalLess, @totalBillValue, @ledgerBalance,
-        @createdBy
-      );
-      SELECT SCOPE_IDENTITY() AS InvoiceID;
-    `;
-
-    const mainRequest = new sql.Request(transaction);
-    mainRequest.input('voucherSeries', finalVoucherSeries);
-    mainRequest.input('voucherNo', finalVoucherNo);
-    mainRequest.input('voucherDatetime', voucherDatetime);
-    // TransactionId and Status removed - not stored in database
-    mainRequest.input('transactionDate', transactionDetails?.date || null);
-    mainRequest.input('transactionTime', transactionDetails?.time || null);
-    mainRequest.input('branch', transactionDetails?.branch || null);
-    mainRequest.input('location', transactionDetails?.location || null);
-    mainRequest.input('employeeLocation', transactionDetails?.employeeLocation || null); // Hidden from UI but kept in database
-    mainRequest.input('username', transactionDetails?.username || null);
-    mainRequest.input('headerDate', header?.date || null);
-    mainRequest.input('billerName', header?.billerName || null);
-    mainRequest.input('employeeName', header?.employeeName || null);
-    mainRequest.input('customerID', header?.customerId || null);
-    mainRequest.input('customerName', header?.customerName || null);
-    mainRequest.input('readingA4', header?.readingA4 || null);
-    mainRequest.input('readingA3', header?.readingA3 || null);
-    mainRequest.input('machineType', header?.machineType || null);
-    mainRequest.input('remarks', header?.remarks || null);
-    mainRequest.input('gstBill', header?.gstBill || false);
-    mainRequest.input('collectedCash', collections?.cash || 0);
-    mainRequest.input('collectedCard', collections?.card || 0);
-    mainRequest.input('collectedUpi', collections?.upi || 0);
-    mainRequest.input('balance', collections?.balance || 0);
-    mainRequest.input('itemCount', summary?.itemCount || 0);
-    mainRequest.input('totalQty', summary?.totalQty || 0);
-    mainRequest.input('totalGross', summary?.totalGross || 0);
-    mainRequest.input('totalDiscount', summary?.totalDiscount || 0);
-    mainRequest.input('totalAdd', summary?.totalAdd || 0);
-    mainRequest.input('totalLess', summary?.totalLess || 0);
-    mainRequest.input('totalBillValue', summary?.totalBillValue || 0);
-    mainRequest.input('ledgerBalance', summary?.ledgerBalance || 0);
-    mainRequest.input('createdBy', transactionDetails?.username || 'System');
+    // 1. Insert or Update EmployeeSaleInvoiceMain
+    let finalInvoiceID;
     
-    const mainResult = await mainRequest.query(mainQuery);
-    const invoiceID = mainResult.recordset[0].InvoiceID;
+    if (isUpdate) {
+      // UPDATE existing invoice
+      const updateQuery = `
+        UPDATE EmployeeSaleInvoiceMain SET
+          VoucherDatetime = @voucherDatetime,
+          TransactionDate = @transactionDate,
+          TransactionTime = @transactionTime,
+          Branch = @branch,
+          Location = @location,
+          EmployeeLocation = @employeeLocation,
+          Username = @username,
+          HeaderDate = @headerDate,
+          BillerName = @billerName,
+          EmployeeName = @employeeName,
+          CustomerID = @customerID,
+          CustomerName = @customerName,
+          ReadingA4 = @readingA4,
+          ReadingA3 = @readingA3,
+          MachineType = @machineType,
+          Remarks = @remarks,
+          GstBill = @gstBill,
+          CollectedCash = @collectedCash,
+          CollectedCard = @collectedCard,
+          CollectedUpi = @collectedUpi,
+          Balance = @balance,
+          ItemCount = @itemCount,
+          TotalQty = @totalQty,
+          TotalGross = @totalGross,
+          TotalDiscount = @totalDiscount,
+          TotalAdd = @totalAdd,
+          TotalLess = @totalLess,
+          TotalBillValue = @totalBillValue,
+          LedgerBalance = @ledgerBalance,
+          ModifiedDate = GETDATE(),
+          ModifiedBy = @modifiedBy
+        WHERE InvoiceID = @invoiceID
+      `;
+      
+      const updateRequest = new sql.Request(transaction);
+      updateRequest.input('invoiceID', existingInvoiceID);
+      updateRequest.input('voucherDatetime', voucherDatetime);
+      updateRequest.input('transactionDate', transactionDetails?.date || null);
+      updateRequest.input('transactionTime', transactionDetails?.time || null);
+      updateRequest.input('branch', transactionDetails?.branch || null);
+      updateRequest.input('location', transactionDetails?.location || null);
+      updateRequest.input('employeeLocation', transactionDetails?.employeeLocation || null);
+      updateRequest.input('username', transactionDetails?.username || null);
+      updateRequest.input('headerDate', header?.date || null);
+      updateRequest.input('billerName', header?.billerName || null);
+      updateRequest.input('employeeName', header?.employeeName || null);
+      updateRequest.input('customerID', header?.customerId || null);
+      updateRequest.input('customerName', header?.customerName || null);
+      updateRequest.input('readingA4', header?.readingA4 || null);
+      updateRequest.input('readingA3', header?.readingA3 || null);
+      updateRequest.input('machineType', header?.machineType || null);
+      updateRequest.input('remarks', header?.remarks || null);
+      updateRequest.input('gstBill', header?.gstBill || false);
+      // Ensure numeric fields are properly converted
+      updateRequest.input('collectedCash', parseFloat(collections?.cash) || 0);
+      updateRequest.input('collectedCard', parseFloat(collections?.card) || 0);
+      updateRequest.input('collectedUpi', parseFloat(collections?.upi) || 0);
+      updateRequest.input('balance', parseFloat(collections?.balance) || 0);
+      updateRequest.input('itemCount', parseInt(summary?.itemCount) || 0);
+      updateRequest.input('totalQty', parseFloat(summary?.totalQty) || 0);
+      updateRequest.input('totalGross', parseFloat(summary?.totalGross) || 0);
+      updateRequest.input('totalDiscount', parseFloat(summary?.totalDiscount) || 0);
+      updateRequest.input('totalAdd', parseFloat(summary?.totalAdd) || 0);
+      updateRequest.input('totalLess', parseFloat(summary?.totalLess) || 0);
+      updateRequest.input('totalBillValue', parseFloat(summary?.totalBillValue) || 0);
+      updateRequest.input('ledgerBalance', parseFloat(summary?.ledgerBalance) || 0);
+      updateRequest.input('modifiedBy', transactionDetails?.username || 'System');
+      
+      await updateRequest.query(updateQuery);
+      finalInvoiceID = existingInvoiceID;
+      
+      // Delete existing items and adjustments for this invoice
+      const deleteItemsRequest = new sql.Request(transaction);
+      deleteItemsRequest.input('invoiceID', sql.Int, finalInvoiceID);
+      await deleteItemsRequest.query(`DELETE FROM EmployeeSaleInvoiceItems WHERE InvoiceID = @invoiceID`);
+      
+      const deleteAdjustmentsRequest = new sql.Request(transaction);
+      deleteAdjustmentsRequest.input('invoiceID', sql.Int, finalInvoiceID);
+      await deleteAdjustmentsRequest.query(`DELETE FROM EmployeeSaleInvoiceAdjustments WHERE InvoiceID = @invoiceID`);
+    } else {
+      // INSERT new invoice
+      const insertQuery = `
+        INSERT INTO EmployeeSaleInvoiceMain (
+          VoucherSeries, VoucherNo, VoucherDatetime,
+          TransactionDate, TransactionTime,
+          Branch, Location, EmployeeLocation, Username,
+          HeaderDate, BillerName, EmployeeName, CustomerID, CustomerName,
+          ReadingA4, ReadingA3, MachineType, Remarks, GstBill,
+          CollectedCash, CollectedCard, CollectedUpi, Balance,
+          ItemCount, TotalQty, TotalGross, TotalDiscount,
+          TotalAdd, TotalLess, TotalBillValue, LedgerBalance,
+          CreatedBy
+        )
+        VALUES (
+          @voucherSeries, @voucherNo, @voucherDatetime,
+          @transactionDate, @transactionTime,
+          @branch, @location, @employeeLocation, @username,
+          @headerDate, @billerName, @employeeName, @customerID, @customerName,
+          @readingA4, @readingA3, @machineType, @remarks, @gstBill,
+          @collectedCash, @collectedCard, @collectedUpi, @balance,
+          @itemCount, @totalQty, @totalGross, @totalDiscount,
+          @totalAdd, @totalLess, @totalBillValue, @ledgerBalance,
+          @createdBy
+        );
+        SELECT SCOPE_IDENTITY() AS InvoiceID;
+      `;
+
+      const mainRequest = new sql.Request(transaction);
+      mainRequest.input('voucherSeries', finalVoucherSeries);
+      mainRequest.input('voucherNo', finalVoucherNo);
+      mainRequest.input('voucherDatetime', voucherDatetime);
+      mainRequest.input('transactionDate', transactionDetails?.date || null);
+      mainRequest.input('transactionTime', transactionDetails?.time || null);
+      mainRequest.input('branch', transactionDetails?.branch || null);
+      mainRequest.input('location', transactionDetails?.location || null);
+      mainRequest.input('employeeLocation', transactionDetails?.employeeLocation || null);
+      mainRequest.input('username', transactionDetails?.username || null);
+      mainRequest.input('headerDate', header?.date || null);
+      mainRequest.input('billerName', header?.billerName || null);
+      mainRequest.input('employeeName', header?.employeeName || null);
+      mainRequest.input('customerID', header?.customerId || null);
+      mainRequest.input('customerName', header?.customerName || null);
+      mainRequest.input('readingA4', header?.readingA4 || null);
+      mainRequest.input('readingA3', header?.readingA3 || null);
+      mainRequest.input('machineType', header?.machineType || null);
+      mainRequest.input('remarks', header?.remarks || null);
+      mainRequest.input('gstBill', header?.gstBill || false);
+      mainRequest.input('collectedCash', collections?.cash || 0);
+      mainRequest.input('collectedCard', collections?.card || 0);
+      mainRequest.input('collectedUpi', collections?.upi || 0);
+      mainRequest.input('balance', collections?.balance || 0);
+      mainRequest.input('itemCount', summary?.itemCount || 0);
+      mainRequest.input('totalQty', summary?.totalQty || 0);
+      mainRequest.input('totalGross', summary?.totalGross || 0);
+      mainRequest.input('totalDiscount', summary?.totalDiscount || 0);
+      mainRequest.input('totalAdd', summary?.totalAdd || 0);
+      mainRequest.input('totalLess', summary?.totalLess || 0);
+      mainRequest.input('totalBillValue', summary?.totalBillValue || 0);
+      mainRequest.input('ledgerBalance', summary?.ledgerBalance || 0);
+      mainRequest.input('createdBy', transactionDetails?.username || 'System');
+      
+      const mainResult = await mainRequest.query(insertQuery);
+      finalInvoiceID = mainResult.recordset[0].InvoiceID;
+    }
 
     // 2. Insert Items into EmployeeSaleInvoiceItems
     // IMPORTANT: Using the SAME voucherSeries and voucherNo from main table (common across all 3 tables)
@@ -212,7 +415,7 @@ const createInvoice = async (req, res) => {
         `;
 
         const itemRequest = new sql.Request(transaction);
-        itemRequest.input('invoiceID', invoiceID);
+        itemRequest.input('invoiceID', finalInvoiceID);
         // Common Voucher Fields: Same voucherSeries and voucherNo as main table
         itemRequest.input('voucherSeries', finalVoucherSeries);
         itemRequest.input('voucherNo', finalVoucherNo);
@@ -220,13 +423,14 @@ const createInvoice = async (req, res) => {
         itemRequest.input('productId', item.productId || null);
         itemRequest.input('productName', item.productName || '');
         itemRequest.input('productSerialNo', item.productSerialNo || '');
-        itemRequest.input('quantity', item.quantity || 0);
-        itemRequest.input('rate', item.rate || 0);
-        itemRequest.input('gross', item.gross || 0);
-        itemRequest.input('net', item.net || 0);
+        // Ensure numeric fields are properly converted
+        itemRequest.input('quantity', parseFloat(item.quantity) || 0);
+        itemRequest.input('rate', parseFloat(item.rate) || 0);
+        itemRequest.input('gross', parseFloat(item.gross) || 0);
+        itemRequest.input('net', parseFloat(item.net) || 0);
         itemRequest.input('comments1', item.comments1 || '');
         itemRequest.input('salesMan', item.salesMan || '');
-        itemRequest.input('freeQty', item.freeQty || 0);
+        itemRequest.input('freeQty', parseFloat(item.freeQty) || 0);
         itemRequest.input('comments6', item.comments6 || '');
         
         await itemRequest.query(itemQuery);
@@ -251,7 +455,7 @@ const createInvoice = async (req, res) => {
         `;
 
         const adjRequest = new sql.Request(transaction);
-        adjRequest.input('invoiceID', invoiceID);
+        adjRequest.input('invoiceID', finalInvoiceID);
         // Common Voucher Fields: Same voucherSeries and voucherNo as main table
         adjRequest.input('voucherSeries', finalVoucherSeries);
         adjRequest.input('voucherNo', finalVoucherNo);
@@ -269,13 +473,14 @@ const createInvoice = async (req, res) => {
     // Commit transaction - all data saved to all 3 tables
     await transaction.commit();
 
-    console.log(`✅ Invoice saved: ${finalVoucherSeries}-${finalVoucherNo}`);
+    const action = isUpdate ? 'updated' : 'saved';
+    console.log(`✅ Invoice ${action}: ${finalVoucherSeries}-${finalVoucherNo}`);
 
-    return res.status(201).json({
+    return res.status(isUpdate ? 200 : 201).json({
       success: true,
-      message: 'Invoice created successfully',
+      message: isUpdate ? 'Invoice updated successfully' : 'Invoice created successfully',
       data: {
-        invoiceID,
+        invoiceID: finalInvoiceID,
         voucherSeries: finalVoucherSeries,
         voucherNo: finalVoucherNo,
         itemsCount: items?.length || 0,
