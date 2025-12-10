@@ -50,7 +50,7 @@ const createInvoice = async (req, res) => {
       console.log(`🔢 Generating voucher number for username: ${username}`);
       
       // First, verify employee exists
-      const checkEmployeeQuery = `SELECT EmployeeID, EmployeeName, EmployeeInitials, LastVoucherNumber, VoucherSeries FROM Employees WHERE Username = @username AND Status = 'Active'`;
+      const checkEmployeeQuery = `SELECT EmployeeID, EmployeeName, ShortName, LastVoucherNumber, VoucherSeries FROM Employees WHERE Username = @username AND Status = 'Active'`;
       const checkRequest = pool.request();
       checkRequest.input('username', sql.VarChar(100), username);
       const employeeResult = await checkRequest.query(checkEmployeeQuery);
@@ -65,7 +65,7 @@ const createInvoice = async (req, res) => {
       }
       
       const employee = employeeResult.recordset[0];
-      console.log(`   Employee found: ${employee.EmployeeName} (${employee.EmployeeInitials})`);
+      console.log(`   Employee found: ${employee.EmployeeName} (${employee.ShortName})`);
       console.log(`   LastVoucherNumber: ${employee.LastVoucherNumber || 0}`);
       console.log(`   VoucherSeries: ${employee.VoucherSeries || 'ESI'}`);
       
@@ -131,7 +131,7 @@ const createInvoice = async (req, res) => {
     const mainQuery = `
       INSERT INTO EmployeeSaleInvoiceMain (
         VoucherSeries, VoucherNo, VoucherDatetime,
-        TransactionId, TransactionDate, TransactionTime, Status,
+        TransactionDate, TransactionTime,
         Branch, Location, EmployeeLocation, Username,
         HeaderDate, BillerName, EmployeeName, CustomerID, CustomerName,
         ReadingA4, ReadingA3, MachineType, Remarks, GstBill,
@@ -142,7 +142,7 @@ const createInvoice = async (req, res) => {
       )
       VALUES (
         @voucherSeries, @voucherNo, @voucherDatetime,
-        @transactionId, @transactionDate, @transactionTime, @status,
+        @transactionDate, @transactionTime,
         @branch, @location, @employeeLocation, @username,
         @headerDate, @billerName, @employeeName, @customerID, @customerName,
         @readingA4, @readingA3, @machineType, @remarks, @gstBill,
@@ -158,13 +158,12 @@ const createInvoice = async (req, res) => {
     mainRequest.input('voucherSeries', finalVoucherSeries);
     mainRequest.input('voucherNo', finalVoucherNo);
     mainRequest.input('voucherDatetime', voucherDatetime);
-    mainRequest.input('transactionId', transactionDetails?.transactionId || null);
+    // TransactionId and Status removed - not stored in database
     mainRequest.input('transactionDate', transactionDetails?.date || null);
     mainRequest.input('transactionTime', transactionDetails?.time || null);
-    mainRequest.input('status', transactionDetails?.status || 'Pending');
     mainRequest.input('branch', transactionDetails?.branch || null);
     mainRequest.input('location', transactionDetails?.location || null);
-    mainRequest.input('employeeLocation', transactionDetails?.employeeLocation || null);
+    mainRequest.input('employeeLocation', transactionDetails?.employeeLocation || null); // Hidden from UI but kept in database
     mainRequest.input('username', transactionDetails?.username || null);
     mainRequest.input('headerDate', header?.date || null);
     mainRequest.input('billerName', header?.billerName || null);

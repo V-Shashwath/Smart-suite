@@ -124,7 +124,7 @@ const authenticateEmployee = async (req, res) => {
         employeeId: employee.EmployeeID,
         username: employee.Username,
         employeeName: employee.EmployeeName,
-        employeeInitials: employee.EmployeeInitials,
+        shortName: employee.ShortName,
         branch: employee.Branch,
         location: employee.Location,
         employeeLocation: employee.EmployeeLocation,

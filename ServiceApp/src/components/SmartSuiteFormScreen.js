@@ -23,6 +23,7 @@ const SmartSuiteFormScreen = ({
   footerContent = null,
   onPreview,
   onWhatsApp,
+  onSMS,
   children,
   isSaving = false,
 }) => {
@@ -129,33 +130,60 @@ const SmartSuiteFormScreen = ({
         {/* Custom Footer Content */}
         {footerContent}
 
-        {(onPreview || onWhatsApp) && (
+        {(onPreview || onWhatsApp || onSMS) && (
           <View style={styles.footerActionWrapper}>
-            <View style={styles.footerButtonsRow}>
-              {onPreview && (
-                <TouchableOpacity
-                  style={[styles.footerButton, styles.previewFooterButton]}
-                  onPress={onPreview}
-                >
-                  <View style={styles.footerButtonContent}>
-                  <Image source={require('../../assets/pdf.png')} style={styles.pdfIcon}/>
-                    <Text style={styles.footerButtonText}>Preview Invoice</Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-              {onWhatsApp && (
-                <TouchableOpacity
-                  style={[styles.footerButton, styles.whatsappFooterButton]}
-                  onPress={onWhatsApp}
-                >
-                  <View style={styles.footerButtonContent}>
-                  <Image source={require('../../assets/whatsapp.png')} style={styles.whatsappIcon}/>
-                    {/* <Text style={styles.footerButtonIcon}>whatsapp.png</Text> */}
-                    <Text style={styles.footerButtonText}>WhatsApp</Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-            </View>
+            {/* First Row: Preview Invoice (Full Width) */}
+            {onPreview && (
+              <TouchableOpacity
+                style={[styles.footerButton, styles.footerButtonFullWidth, styles.previewFooterButton]}
+                onPress={onPreview}
+              >
+                <View style={styles.footerButtonContent}>
+                  <Image 
+                    source={require('../../assets/pdf.png')} 
+                    style={styles.pdfIcon}
+                    resizeMode="contain"
+                  />
+                  <Text style={styles.footerButtonText}>Preview Invoice</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+            
+            {/* Second Row: WhatsApp and SMS (Side by Side) */}
+            {(onWhatsApp || onSMS) && (
+              <View style={styles.footerButtonsRow}>
+                {onWhatsApp && (
+                  <TouchableOpacity
+                    style={[styles.footerButton, styles.whatsappFooterButton]}
+                    onPress={onWhatsApp}
+                  >
+                    <View style={styles.footerButtonContent}>
+                      <Image 
+                        source={require('../../assets/whatsapp.png')} 
+                        style={styles.whatsappIcon}
+                        resizeMode="contain"
+                      />
+                      <Text style={styles.footerButtonText}>WhatsApp</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+                {onSMS && (
+                  <TouchableOpacity
+                    style={[styles.footerButton, styles.smsFooterButton]}
+                    onPress={onSMS}
+                  >
+                    <View style={styles.footerButtonContent}>
+                      <Image 
+                        source={require('../../assets/sms.png')} 
+                        style={styles.smsIcon}
+                        resizeMode="contain"
+                      />
+                      <Text style={styles.footerButtonText}>SMS</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
           </View>
         )}
 
@@ -323,6 +351,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginTop: 12,
     marginBottom: 32,
+    gap: 12,
   },
   footerButtonsRow: {
     flexDirection: 'row',
@@ -331,6 +360,7 @@ const styles = StyleSheet.create({
   footerButton: {
     flex: 1,
     paddingVertical: 14,
+    paddingHorizontal: 8,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
@@ -340,29 +370,42 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 3,
   },
+  footerButtonFullWidth: {
+    flex: 0,
+    width: '100%',
+  },
   previewFooterButton: {
     backgroundColor: '#3949AB',
   },
   whatsappFooterButton: {
     backgroundColor: '#25D366',
   },
+  smsFooterButton: {
+    backgroundColor: '#2196F3',
+  },
 
   pdfIcon: {
-    width: 20,
-    height: 20,
-    resizeMode: 'contain',
+    width: 24,
+    height: 24,
+    tintColor: '#fff',
+  },
+  whatsappIcon: {
+    width: 24,
+    height: 24,
+    tintColor: '#fff',
+  },
+  smsIcon: {
+    width: 24,
+    height: 24,
+    tintColor: '#fff',
   },
 
-  whatsappIcon: {
-    width: 20,
-    height: 20,
-    resizeMode: 'contain',
-  },
 
 
   footerButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
   },
   footerButtonIcon: {

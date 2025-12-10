@@ -36,7 +36,7 @@ import QRScannerModal from '../components/QRScannerModal';
 import BarcodeScannerModal from '../components/BarcodeScannerModal';
 import AddAdjustmentModal from '../components/AddAdjustmentModal';
 import PDFPreviewModal from '../components/PDFPreviewModal';
-import { sharePDFViaWhatsApp, generateInvoicePDF } from '../utils/pdfUtils';
+import { sharePDFViaWhatsApp, sharePDFViaSMS, generateInvoicePDF } from '../utils/pdfUtils';
 import useScreenDraft from '../hooks/useScreenDraft';
 import withScreenPermission from '../components/withScreenPermission';
 import { useAuth } from '../context/AuthContext';
@@ -142,13 +142,12 @@ const EmployeeSaleInvoiceScreen = () => {
             
             // Populate transaction details (all fields)
             setTransactionData({
-              transactionId: execData.transactionDetails?.transactionId || '',
+              // transactionId and status removed - not stored in database
               date: execData.transactionDetails?.date || '',
               time: execData.transactionDetails?.time || '',
-              status: execData.transactionDetails?.status || 'Pending',
               branch: execData.transactionDetails?.branch || '',
               location: execData.transactionDetails?.location || '',
-              employeeLocation: execData.transactionDetails?.employeeLocation || '',
+              employeeLocation: execData.transactionDetails?.employeeLocation || '', // Hidden from UI but kept in database
               username: currentUser.username, // Always use logged-in username, not API response
             });
             // Populate voucher details (all fields)
@@ -206,17 +205,16 @@ const EmployeeSaleInvoiceScreen = () => {
             const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
             const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             const datetimeStr = `${dateStr} ${timeStr}`;
-            const transactionId = `TXN-${now.getFullYear()}-${String(Date.now()).slice(-6)}`;
+            // transactionId and status removed - not stored in database
             
             // Set transaction details with fallback values
             setTransactionData({
-              transactionId: transactionId,
+              // transactionId and status removed - not stored in database
               date: dateStr,
               time: timeStr,
-              status: 'Pending',
               branch: 'Head Office', // Default branch
               location: 'Moorthy Location', // Default location
-              employeeLocation: 'Moorthy Location', // Default employee location
+              employeeLocation: 'Moorthy Location', // Hidden from UI but kept in database
               username: currentUser.username,
             });
             
@@ -440,14 +438,14 @@ const EmployeeSaleInvoiceScreen = () => {
   // Handle mobile number search (fallback if QR fails)
   const handleSearchByMobile = async (mobileNumber) => {
     if (!mobileNumber || mobileNumber.trim().length < 10) {
-      throw new Error('Please enter a valid 10-digit mobile number');
+      throw new Error('Please enter a valid 10-digit mobile or WhatsApp number');
     }
 
     // Clean mobile number (remove non-numeric characters)
     const cleanMobile = mobileNumber.replace(/\D/g, '');
     
     if (cleanMobile.length < 10) {
-      throw new Error('Please enter a valid 10-digit mobile number');
+      throw new Error('Please enter a valid 10-digit mobile or WhatsApp number');
     }
 
     setIsLoadingCustomer(true);
@@ -518,8 +516,8 @@ const EmployeeSaleInvoiceScreen = () => {
       
       if (!result.success || !result.data) {
         throw new Error('Product not found');
-      }
-
+    }
+    
       const product = {
         id: result.data.productId,
         name: result.data.productName,
@@ -539,28 +537,28 @@ const EmployeeSaleInvoiceScreen = () => {
       // CASE 1: Product HAS productSerialNo → Always add new row
       // Even if the same barcode is scanned twice, add a new row (allows duplicates)
       console.log(`✅ Product has unique serial number - Adding new row`);
-      const newItem = {
-        id: Date.now(),
-        productId: product.id,
-        productName: product.name,
-        quantity: 1,
-        rate: product.rate,
-        gross: product.rate,
-        net: product.rate,
-        comments1: '',
-        salesMan: '',
-        freeQty: '',
+        const newItem = {
+          id: Date.now(),
+          productId: product.id,
+          productName: product.name,
+          quantity: 1,
+          rate: product.rate,
+          gross: product.rate,
+          net: product.rate,
+          comments1: '',
+          salesMan: '',
+          freeQty: '',
         productSerialNo: trimmedBarcode, // Store the serial number from barcode
-        comments6: '',
-      };
-      
-      commitItems([...items, newItem]);
-      
-      Alert.alert(
-        'New Item Added! ✓',
+          comments6: '',
+        };
+        
+        commitItems([...items, newItem]);
+        
+        Alert.alert(
+          'New Item Added! ✓',
         `${product.name}\nSerial No: ${trimmedBarcode}\nRate: ₹${product.rate.toFixed(2)}\n\nProduct has serial number - added as new row`,
-        [{ text: 'OK' }]
-      );
+          [{ text: 'OK' }]
+        );
     } else {
       // CASE 2: Product DOES NOT HAVE productSerialNo → Check if same product with null serial exists
       console.log(`❌ Product does not have serial number - Checking for existing product with null serial`);
@@ -590,28 +588,28 @@ const EmployeeSaleInvoiceScreen = () => {
       } else {
         // No item with null serial exists - Add new row with null serial
         console.log(`❌ No item with null serial found - Adding new row with null serial`);
-        const newItem = {
-          id: Date.now(),
-          productId: product.id,
-          productName: product.name,
-          quantity: 1,
-          rate: product.rate,
-          gross: product.rate,
-          net: product.rate,
-          comments1: '',
-          salesMan: '',
-          freeQty: '',
+      const newItem = {
+        id: Date.now(),
+        productId: product.id,
+        productName: product.name,
+        quantity: 1,
+        rate: product.rate,
+        gross: product.rate,
+        net: product.rate,
+        comments1: '',
+        salesMan: '',
+        freeQty: '',
           productSerialNo: null, // Set to null when product has no serial number
-          comments6: '',
-        };
-        
-        commitItems([...items, newItem]);
-        
-        Alert.alert(
-          'New Item Added! ✓',
+        comments6: '',
+      };
+      
+      commitItems([...items, newItem]);
+      
+      Alert.alert(
+        'New Item Added! ✓',
           `${product.name}\nBarcode: ${trimmedBarcode}\nRate: ₹${product.rate.toFixed(2)}\n\nProduct has no serial number - added as new row`,
-          [{ text: 'OK' }]
-        );
+        [{ text: 'OK' }]
+      );
       }
     }
 
@@ -790,13 +788,12 @@ const EmployeeSaleInvoiceScreen = () => {
         voucherNo: voucherNo,
         voucherDatetime: voucherDatetime,
         transactionDetails: {
-          transactionId: invoiceData.transactionDetails.transactionId,
+          // transactionId and status removed - not stored in database
           date: invoiceData.transactionDetails.date,
           time: invoiceData.transactionDetails.time,
-          status: invoiceData.transactionDetails.status || 'Pending',
           branch: invoiceData.transactionDetails.branch,
           location: invoiceData.transactionDetails.location,
-          employeeLocation: invoiceData.transactionDetails.employeeLocation,
+          employeeLocation: invoiceData.transactionDetails.employeeLocation, // Hidden from UI but kept in database
           username: invoiceData.transactionDetails.username,
         },
         header: {
@@ -941,6 +938,11 @@ const EmployeeSaleInvoiceScreen = () => {
       let parsedValue = value;
       if (field === 'quantity' || field === 'rate') {
         parsedValue = Number(value) || 0;
+        // Recalculate gross and net when quantity or rate changes
+        const quantity = field === 'quantity' ? parsedValue : item.quantity;
+        const rate = field === 'rate' ? parsedValue : item.rate;
+        const gross = quantity * rate;
+        return { ...item, [field]: parsedValue, gross, net: gross };
       }
       return { ...item, [field]: parsedValue };
     });
@@ -997,11 +999,48 @@ const EmployeeSaleInvoiceScreen = () => {
       );
       return;
     }
+    if (!customerData.whatsappNo) {
+      Alert.alert(
+        'WhatsApp Number Required',
+        'Please add a customer with a WhatsApp number to send via WhatsApp.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     try {
       const { uri } = await generateInvoicePDF(getInvoiceData());
-      await sharePDFViaWhatsApp(uri, customerData.whatsappNo || customerData.mobileNo);
+      // Use WhatsAppNo for WhatsApp
+      await sharePDFViaWhatsApp(uri, customerData.whatsappNo);
     } catch (error) {
       console.error('Error sending WhatsApp:', error);
+      Alert.alert('Error', 'Failed to send via WhatsApp. Please try again.');
+    }
+  };
+
+  const handleSendSMS = async () => {
+    if (items.length === 0) {
+      Alert.alert(
+        'No Items',
+        'Please add at least one item before sending the invoice.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    if (!customerData.mobileNo) {
+      Alert.alert(
+        'Mobile Number Required',
+        'Please add a customer with a mobile number to send SMS.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    try {
+      const invoiceData = getInvoiceData();
+      // Use MobileNo for SMS, send text format of invoice
+      await sharePDFViaSMS(invoiceData, customerData.mobileNo);
+    } catch (error) {
+      console.error('Error sending SMS:', error);
+      Alert.alert('Error', 'Failed to send via SMS. Please try again.');
     }
   };
 
@@ -1013,40 +1052,25 @@ const EmployeeSaleInvoiceScreen = () => {
       summaryFields={summaryFields}
       onPreview={handlePreviewInvoice}
       onWhatsApp={handleSendWhatsApp}
+      onSMS={handleSendSMS}
       actionBarActions={{ onSave: handleSaveCombined }}
       isSaving={isSaving || isSavingInvoice}
     >
 
       <AccordionSection title="TRANSACTION DETAILS" defaultExpanded={true}>
         
-        {/* Transaction ID and Date */}
+        {/* Date and Time */}
         <View style={styles.row}>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Transaction ID</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{transactionData.transactionId}</Text>
-            </View>
-          </View>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Date</Text>
             <View style={styles.displayBox}>
               <Text style={styles.displayText}>{transactionData.date}</Text>
             </View>
           </View>
-        </View>
-
-        {/* Time and Status */}
-        <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Time</Text>
             <View style={styles.displayBox}>
               <Text style={styles.displayText}>{transactionData.time}</Text>
-            </View>
-          </View>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Status</Text>
-            <View style={[styles.displayBox, styles.statusBox]}>
-              <Text style={styles.statusText}>{transactionData.status}</Text>
             </View>
           </View>
         </View>
@@ -1071,17 +1095,8 @@ const EmployeeSaleInvoiceScreen = () => {
           </View>
         </View>
 
-        {/* Employee Location - READ ONLY */}
-        <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Employee Location</Text>
-          <View style={[styles.input, styles.readOnlyInput]}>
-            <Text style={styles.readOnlyText}>
-              {transactionData.employeeLocation || 'Loading...'}
-            </Text>
-          </View>
-        </View>
-
         {/* Username - READ ONLY */}
+        {/* Employee Location is hidden from UI but kept in database */}
         <View style={styles.fullWidthField}>
           <Text style={styles.label}>Username</Text>
           <View style={[styles.input, styles.readOnlyInput]}>
@@ -1451,7 +1466,7 @@ const MobileSearchModal = ({ isVisible, onSearch, onClose }) => {
 
   const handleSearch = async () => {
     if (!mobileNumber || mobileNumber.trim().length < 10) {
-      setError('Please enter a valid 10-digit mobile number');
+      setError('Please enter a valid 10-digit mobile or WhatsApp number');
       return;
     }
 
@@ -1474,9 +1489,9 @@ const MobileSearchModal = ({ isVisible, onSearch, onClose }) => {
     <Modal visible={isVisible} transparent={true} animationType="slide" onRequestClose={onClose}>
       <View style={mobileSearchStyles.modalOverlay}>
         <View style={mobileSearchStyles.modalContainer}>
-          <Text style={mobileSearchStyles.modalTitle}>Search Customer by Mobile Number</Text>
+          <Text style={mobileSearchStyles.modalTitle}>Search Customer by Mobile/WhatsApp Number</Text>
           <Text style={mobileSearchStyles.modalSubtitle}>
-            Enter mobile number to fetch customer details from database
+            Enter mobile or WhatsApp number to fetch customer details from database
           </Text>
 
           <TextInput
@@ -1486,7 +1501,7 @@ const MobileSearchModal = ({ isVisible, onSearch, onClose }) => {
               setMobileNumber(text);
               setError(''); // Clear error when user types
             }}
-            placeholder="Enter 10-digit mobile number"
+            placeholder="Enter mobile or WhatsApp number"
             keyboardType="phone-pad"
             maxLength={10}
             autoFocus
@@ -1528,7 +1543,7 @@ const MobileSearchModal = ({ isVisible, onSearch, onClose }) => {
           </View>
 
           <Text style={mobileSearchStyles.note}>
-            ⚠️ Note: Make sure backend server is running and API_BASE_URL is configured correctly
+            💡 Searches both Mobile Number and WhatsApp Number
           </Text>
         </View>
       </View>
@@ -1721,15 +1736,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     fontWeight: '500',
-  },
-  statusBox: {
-    backgroundColor: '#fff3e0',
-    borderColor: '#FF9800',
-  },
-  statusText: {
-    fontSize: 14,
-    color: '#FF9800',
-    fontWeight: 'bold',
   },
   pickerContainer: {
     borderWidth: 1,

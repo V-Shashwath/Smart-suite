@@ -1,14 +1,37 @@
 import * as Print from 'expo-print';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { Linking, Alert, Platform } from 'react-native';
+import { Asset } from 'expo-asset';
+import logo from '../../assets/logo.png';
+
+// Convert local bundled asset to Base64
+export const getLogoBase64 = async () => {
+  try {
+    // Load the asset and get its local URI
+    const asset = Asset.fromModule(logo);
+    await asset.downloadAsync();
+
+    // Read the asset file as Base64
+    const base64 = await FileSystem.readAsStringAsync(asset.localUri || asset.uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    return `data:image/png;base64,${base64}`;
+  } catch (error) {
+    console.error('Error loading logo:', error);
+    // Fallback: Return empty string or a placeholder
+    return '';
+  }
+};
 
 /**
- * Generate HTML content for invoice PDF
+ * Generate HTML content for invoice PDF - Matching CodePen design
+ * A5 size document with logo image
  */
-export const generateInvoiceHTML = (invoiceData) => {
+export const generateInvoiceHTML = async (invoiceData) => {
   const {
-    title = 'Invoice',
+    title = 'Employee Sales',
     transactionDetails = {},
     voucherDetails = {},
     customerData = {},
@@ -16,508 +39,318 @@ export const generateInvoiceHTML = (invoiceData) => {
     adjustments = [],
     summary = {},
     collections = {},
-    bodyItems = [], // For Cash/Bank Receipts
-    readings = {}, // For Rental screens
   } = invoiceData;
 
   const formatCurrency = (amount) => {
-    return `₹ ${parseFloat(amount || 0).toFixed(2)}`;
+    return parseFloat(amount || 0).toFixed(2);
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
+    if (!dateString) return '';
     return dateString;
   };
+
+  // Get employee name
+  const employeeName = customerData.employeeName || transactionDetails.username || '';
+  
+  // Get branch name for address
+  const branchName = transactionDetails.branch || '';
+  
+  // Get header fields from customerData
+  const readingA4 = customerData.readingA4 || '';
+  const readingA3 = customerData.readingA3 || '';
+  const machineType = customerData.machineType || '';
+  const remarks = customerData.remarks || '';
+
+  // Get logo as base64
+  const logoBase64 = await getLogoBase64();
 
   let html = `
     <!DOCTYPE html>
     <html>
     <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+      <meta charset="UTF-8" />
       <style>
         @media print {
           @page {
-            size: A4;
-            margin: 10mm;
+            size: A5;
+            margin: 2mm;
           }
           body {
             margin: 0;
             padding: 0;
           }
-          .section {
-            page-break-inside: avoid;
-          }
-          table {
-            page-break-inside: auto;
-          }
-          thead {
-            display: table-header-group;
-          }
-          tfoot {
-            display: table-footer-group;
-          }
-          tr {
-            page-break-inside: avoid;
-            page-break-after: auto;
-          }
         }
         body {
+          width: 148mm;
+          height: auto;
+          margin: auto;
+          padding: 6mm;
           font-family: Arial, sans-serif;
-          margin: 15mm;
-          padding: 0;
-          color: #333;
-          font-size: 11px;
-          line-height: 1.3;
-          max-width: 100%;
-          overflow-x: hidden;
+          font-size: 10px;
+          line-height: 1.2;
+          color: #000;
+          border: 1px solid #ccc;
+          box-sizing: border-box;
         }
+        /* ---------- HEADER ---------- */
         .header {
           text-align: center;
-          border-bottom: 3px solid #FF5722;
-          padding-bottom: 20px;
-          margin-bottom: 30px;
-        }
-        .logo {
-          font-size: 32px;
-          font-weight: bold;
-          color: #FF5722;
-          margin-bottom: 10px;
-        }
-        .company-name {
-          font-size: 24px;
-          font-weight: bold;
-          color: #C62828;
           margin-bottom: 5px;
+          border-bottom: 1px solid #000;
+          padding-bottom: 4px;
         }
-        .invoice-title {
-          font-size: 20px;
-          color: #666;
-          margin-top: 10px;
+        .logo-img {
+          width: 100px;
+          height: auto;
+          margin-bottom: 2px;
         }
+        .address {
+          font-size: 10px;
+          margin-top: 2px;
+        }
+        .contact-row {
+          margin-top: 4px;
+          font-size: 9px;
+        }
+        .title {
+          font-size: 12px;
+          font-weight: bold;
+          margin-top: 4px;
+        }
+        /* ---------- INFO SECTIONS ---------- */
         .section {
-          margin-bottom: 20px;
-          page-break-inside: avoid;
+          margin-top: 8px;
         }
         .section-title {
-          font-size: 16px;
+          font-size: 11px;
           font-weight: bold;
-          color: #FF5722;
-          border-bottom: 2px solid #FF5722;
-          padding-bottom: 5px;
-          margin-bottom: 15px;
+          border-bottom: 1px solid #000;
+          padding-bottom: 3px;
+          margin-bottom: 4px;
         }
-        .info-row {
+        .row {
           display: flex;
           justify-content: space-between;
-          margin-bottom: 8px;
-          padding: 5px 0;
+          margin-bottom: 2px;
         }
-        .info-label {
+        .label {
+          width: 35%;
           font-weight: bold;
-          width: 40%;
         }
-        .info-value {
-          width: 60%;
-          text-align: right;
+        .value {
+          width: 65%;
         }
+        /* ---------- TABLES ---------- */
         table {
           width: 100%;
           border-collapse: collapse;
-          margin: 15px 0;
-          page-break-inside: auto;
-          table-layout: fixed;
-          word-wrap: break-word;
-        }
-        thead {
-          display: table-header-group;
-        }
-        tbody tr {
-          page-break-inside: avoid;
-          page-break-after: auto;
+          border: 1px solid #000;
+          margin-top: 6px;
+          font-size: 9px;
         }
         th {
-          background-color: #FF5722;
-          color: white;
-          padding: 8px 5px;
-          text-align: left;
+          background: #f0f0f0;
+          border: 1px solid #000;
+          padding: 3px;
           font-weight: bold;
-          font-size: 11px;
-          word-wrap: break-word;
-          overflow-wrap: break-word;
-        }
-        td {
-          padding: 6px 5px;
-          border-bottom: 1px solid #ddd;
-          font-size: 11px;
-          word-wrap: break-word;
-          overflow-wrap: break-word;
-        }
-        tr:nth-child(even) {
-          background-color: #f9f9f9;
-        }
-        .text-right {
-          text-align: right;
-        }
-        .text-center {
           text-align: center;
         }
-        .summary {
-          margin-top: 20px;
-          border-top: 2px solid #333;
-          padding-top: 15px;
+        td {
+          border: 1px solid #000;
+          padding: 3px;
+          text-align: center;
+        }
+        .left { text-align: left; }
+        .right { text-align: right; }
+        /* ---------- SUMMARY ---------- */
+        .summary-box {
+          margin-top: 8px;
         }
         .summary-row {
           display: flex;
           justify-content: space-between;
-          margin-bottom: 10px;
-          font-size: 16px;
+          margin-bottom: 2px;
         }
         .summary-label {
+          width: 50%;
           font-weight: bold;
         }
-        .summary-value {
-          font-weight: bold;
-          color: #FF5722;
-        }
-        .total-row {
-          font-size: 18px;
-          font-weight: bold;
-          border-top: 2px solid #333;
-          padding-top: 10px;
-          margin-top: 10px;
-        }
+        /* ---------- FOOTER ---------- */
         .footer {
-          margin-top: 40px;
-          text-align: center;
-          color: #666;
-          font-size: 12px;
-          border-top: 1px solid #ddd;
-          padding-top: 20px;
-        }
-        .payment-summary {
-          background-color: #f5f5f5;
-          padding: 15px;
-          border-radius: 5px;
           margin-top: 10px;
-        }
-        .highlight {
-          background-color: #fff3cd;
-          padding: 5px;
-          border-radius: 3px;
+          text-align: center;
+          font-size: 9px;
+          border-top: 1px solid #000;
+          padding-top: 6px;
         }
       </style>
     </head>
     <body>
+      <!-- HEADER -->
       <div class="header">
-        <div class="logo">SS</div>
-        <div class="company-name">Smart Suite</div>
-        <div class="invoice-title">${title}</div>
+        <img src="${logoBase64}" class="logo-img" />
+        <div class="address">${branchName || 'Branch Name, Street Name, City'}</div>
+        <div class="contact-row">
+          Office: 8870922422 &nbsp; | &nbsp; Service: 8220445868 &nbsp; | &nbsp; Line Marketing: -
+        </div>
+        <div class="title">${title}</div>
       </div>
 
-      <!-- Transaction Details -->
-      ${transactionDetails.date || transactionDetails.transactionId ? `
+      <!-- BILL DETAILS -->
       <div class="section">
-        <div class="section-title">Transaction Details</div>
-        ${transactionDetails.transactionId ? `
-        <div class="info-row">
-          <span class="info-label">Transaction ID:</span>
-          <span class="info-value">${transactionDetails.transactionId}</span>
+        <div class="section-title">Bill Details</div>
+        <div class="row">
+          <div class="label">Bill Series:</div>
+          <div class="value">${voucherDetails.voucherSeries || ''}-${voucherDetails.voucherNo || ''}</div>
         </div>
-        ` : ''}
-        ${transactionDetails.date ? `
-        <div class="info-row">
-          <span class="info-label">Date:</span>
-          <span class="info-value">${formatDate(transactionDetails.date)}</span>
+        <div class="row">
+          <div class="label">Bill No:</div>
+          <div class="value">${voucherDetails.voucherNo || ''}</div>
         </div>
-        ` : ''}
-        ${transactionDetails.time ? `
-        <div class="info-row">
-          <span class="info-label">Time:</span>
-          <span class="info-value">${transactionDetails.time}</span>
+        <div class="row">
+          <div class="label">Bill Date:</div>
+          <div class="value">${formatDate(voucherDetails.voucherDatetime) || formatDate(transactionDetails.date) || ''}</div>
         </div>
-        ` : ''}
-        ${transactionDetails.branch ? `
-        <div class="info-row">
-          <span class="info-label">Branch:</span>
-          <span class="info-value">${transactionDetails.branch}</span>
+        <div class="row">
+          <div class="label">Employee Name:</div>
+          <div class="value">${employeeName}</div>
         </div>
-        ` : ''}
+        <div class="row">
+          <div class="label">A4 Reading:</div>
+          <div class="value">${readingA4}</div>
+        </div>
+        <div class="row">
+          <div class="label">A3 Reading:</div>
+          <div class="value">${readingA3}</div>
+        </div>
       </div>
-      ` : ''}
 
-      <!-- Voucher Details -->
-      ${voucherDetails.voucherNo || voucherDetails.voucherSeries ? `
+      <!-- CUSTOMER INFO -->
       <div class="section">
-        <div class="section-title">Voucher Details</div>
-        ${voucherDetails.voucherSeries ? `
-        <div class="info-row">
-          <span class="info-label">Voucher Series:</span>
-          <span class="info-value">${voucherDetails.voucherSeries}</span>
+        <div class="section-title">Customer Information</div>
+        <div class="row">
+          <div class="label">Customer Name:</div>
+          <div class="value">${customerData.customerName || ''}</div>
         </div>
-        ` : ''}
-        ${voucherDetails.voucherNo ? `
-        <div class="info-row">
-          <span class="info-label">Voucher No:</span>
-          <span class="info-value">${voucherDetails.voucherNo}</span>
+        <div class="row">
+          <div class="label">Address:</div>
+          <div class="value">${customerData.address || ''}</div>
         </div>
-        ` : ''}
-        ${voucherDetails.voucherDatetime ? `
-        <div class="info-row">
-          <span class="info-label">Date & Time:</span>
-          <span class="info-value">${formatDate(voucherDetails.voucherDatetime)}</span>
+        <div class="row">
+          <div class="label">ID:</div>
+          <div class="value">${customerData.customerId || '-'}</div>
         </div>
-        ` : ''}
+        <div class="row">
+          <div class="label">Mobile No:</div>
+          <div class="value">${customerData.mobileNo || '-'}</div>
+        </div>
+        <div class="row">
+          <div class="label">WhatsApp No:</div>
+          <div class="value">${customerData.whatsappNo || '-'}</div>
+        </div>
+        <div class="row">
+          <div class="label">Machine Type:</div>
+          <div class="value">${machineType || '-'}</div>
+        </div>
+        <div class="row">
+          <div class="label">Remarks:</div>
+          <div class="value">${remarks || '-'}</div>
       </div>
-      ` : ''}
-
-      <!-- Customer Details -->
-      ${customerData.customerId || customerData.customerName || customerData.mobileNo ? `
-      <div class="section">
-        <div class="section-title">Customer Details</div>
-        ${customerData.customerId ? `
-        <div class="info-row">
-          <span class="info-label">Customer ID:</span>
-          <span class="info-value">${customerData.customerId}</span>
-        </div>
-        ` : ''}
-        ${customerData.customerName ? `
-        <div class="info-row">
-          <span class="info-label">Customer Name:</span>
-          <span class="info-value">${customerData.customerName}</span>
-        </div>
-        ` : ''}
-        ${customerData.mobileNo ? `
-        <div class="info-row">
-          <span class="info-label">Mobile No:</span>
-          <span class="info-value">${customerData.mobileNo}</span>
-        </div>
-        ` : ''}
-        ${customerData.customerType ? `
-        <div class="info-row">
-          <span class="info-label">Customer Type:</span>
-          <span class="info-value">${customerData.customerType}</span>
-        </div>
-        ` : ''}
-        ${customerData.whatsappNo ? `
-        <div class="info-row">
-          <span class="info-label">WhatsApp No:</span>
-          <span class="info-value">${customerData.whatsappNo}</span>
-        </div>
-        ` : ''}
       </div>
-      ` : ''}
 
-      <!-- Readings (for Rental screens) -->
-      ${readings && Object.keys(readings).length > 0 ? `
-      <div class="section">
-        <div class="section-title">Readings</div>
-        <table>
-          <tr>
-            ${Object.keys(readings).map(key => `<th>${key.replace(/([A-Z])/g, ' $1').trim()}</th>`).join('')}
-          </tr>
-          <tr>
-            ${Object.values(readings).map(value => `<td class="text-center">${value}</td>`).join('')}
-          </tr>
-        </table>
-      </div>
-      ` : ''}
-
-      <!-- Items Table -->
+      <!-- ITEMS TABLE -->
       ${items.length > 0 ? `
-      <div class="section">
-        <div class="section-title">Items</div>
         <table>
           <thead>
             <tr>
-              <th style="width: 5%;">S.No</th>
-              <th style="width: ${items.some(item => item.productSerialNo) ? '25%' : '35%'}; max-width: ${items.some(item => item.productSerialNo) ? '25%' : '35%'};}">Product/Description</th>
-              ${items.some(item => item.productSerialNo) ? '<th style="width: 15%;">Serial No</th>' : ''}
-              <th style="width: 10%;" class="text-right">Qty</th>
-              <th style="width: 12%;" class="text-right">Rate</th>
-              <th style="width: 12%;" class="text-right">Gross</th>
-              <th style="width: 12%;" class="text-right">Discount</th>
-              <th style="width: 14%;" class="text-right">Net</th>
+            <th>SNO</th>
+            <th>Barcode</th>
+            <th class="left">Product</th>
+            <th>Serial</th>
+            <th>Qty</th>
+            <th>Free</th>
+            <th class="right">Rate</th>
+            <th class="right">Amount</th>
             </tr>
           </thead>
           <tbody>
-            ${items.map((item, idx) => `
-            <tr>
-              <td style="width: 5%;">${idx + 1}</td>
-              <td style="width: ${items.some(item => item.productSerialNo) ? '25%' : '35%'}; max-width: ${items.some(item => item.productSerialNo) ? '25%' : '35%'}; word-wrap: break-word;">${(item.productName || item.product || item.account || 'N/A').substring(0, 30)}${(item.productName || item.product || item.account || 'N/A').length > 30 ? '...' : ''}</td>
-              ${items.some(i => i.productSerialNo) ? `<td style="width: 15%; word-wrap: break-word;">${(item.productSerialNo || '-').substring(0, 15)}${(item.productSerialNo || '-').length > 15 ? '...' : ''}</td>` : ''}
-              <td style="width: 10%;" class="text-right">${item.quantity || 0}</td>
-              <td style="width: 12%;" class="text-right">${formatCurrency(item.rate || 0)}</td>
-              <td style="width: 12%;" class="text-right">${formatCurrency(item.gross || 0)}</td>
-              <td style="width: 12%;" class="text-right">${formatCurrency(item.discount || 0)}</td>
-              <td style="width: 14%;" class="text-right">${formatCurrency(item.net || item.gross || item.amount || 0)}</td>
+          ${items.map((item, idx) => {
+            const barcode = item.barcode || (item.productId ? String(item.productId) : '');
+            return `
+          <tr>
+            <td>${idx + 1}</td>
+            <td>${barcode}</td>
+            <td class="left">${item.productName || ''}</td>
+            <td>${item.productSerialNo || ''}</td>
+            <td>${item.quantity || 0}</td>
+            <td>${item.freeQty || 0}</td>
+            <td class="right">${formatCurrency(item.rate || 0)}</td>
+            <td class="right">${formatCurrency(item.net || item.gross || item.amount || 0)}</td>
             </tr>
-            `).join('')}
+          `;
+          }).join('')}
           </tbody>
         </table>
-      </div>
       ` : ''}
 
-      <!-- Body Items (for Cash/Bank Receipts) -->
-      ${bodyItems.length > 0 ? `
-      <div class="section">
-        <div class="section-title">Transaction Items</div>
-        <table>
-          <thead>
-            <tr>
-              <th>S.No</th>
-              <th>Account</th>
-              <th class="text-right">Amount</th>
-              <th class="text-right">Discount</th>
-              <th>Comments</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${bodyItems.map((item, idx) => `
-            <tr>
-              <td>${item.sno || idx + 1}</td>
-              <td>${item.account || 'N/A'}</td>
-              <td class="text-right">${formatCurrency(item.amount || 0)}</td>
-              <td class="text-right">${formatCurrency(item.discount || 0)}</td>
-              <td>${item.comments1 || item.comments2 || ''}</td>
-            </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-      ` : ''}
-
-      <!-- Adjustments -->
+      <!-- SERVICE CHARGES -->
       ${adjustments.length > 0 ? `
-      <div class="section">
-        <div class="section-title">Adjustments</div>
         <table>
           <thead>
             <tr>
-              <th>S.No</th>
-              <th>Account</th>
-              <th class="text-right">Add</th>
-              <th class="text-right">Less</th>
-              <th class="text-right">Amount</th>
+            <th>SNO</th>
+            <th class="left">Description</th>
+            <th class="right">Add</th>
+            <th class="right">Less</th>
             </tr>
           </thead>
           <tbody>
             ${adjustments.map((adj, idx) => `
             <tr>
               <td>${idx + 1}</td>
-              <td>${adj.accountName || adj.account || 'N/A'}</td>
-              <td class="text-right">${formatCurrency(adj.addAmount || 0)}</td>
-              <td class="text-right">${formatCurrency(adj.lessAmount || 0)}</td>
-              <td class="text-right">${formatCurrency((adj.addAmount || 0) - (adj.lessAmount || 0))}</td>
+            <td class="left">${adj.accountName || adj.account || ''}</td>
+            <td class="right">${formatCurrency(adj.addAmount || 0)}</td>
+            <td class="right">${formatCurrency(adj.lessAmount || 0)}</td>
             </tr>
             `).join('')}
           </tbody>
         </table>
-      </div>
       ` : ''}
 
-      <!-- Summary -->
-      ${summary.totalBillValue !== undefined || summary.totalValue !== undefined || summary.totalAmount !== undefined ? `
-      <div class="section summary">
+      <!-- SUMMARY -->
+      <div class="section summary-box">
         <div class="section-title">Summary</div>
-        ${summary.itemCount !== undefined ? `
         <div class="summary-row">
-          <span class="summary-label">Item Count:</span>
-          <span class="summary-value">${summary.itemCount}</span>
+          <div class="summary-label">No.of Items:</div>
+          <div>${summary.itemCount || items.length || 0}</div>
         </div>
-        ` : ''}
-        ${summary.totalQty !== undefined ? `
         <div class="summary-row">
-          <span class="summary-label">Total Quantity:</span>
-          <span class="summary-value">${summary.totalQty}</span>
+          <div class="summary-label">No.of Qty:</div>
+          <div>${formatCurrency(summary.totalQty || 0)}</div>
         </div>
-        ` : ''}
-        ${summary.totalGross !== undefined ? `
         <div class="summary-row">
-          <span class="summary-label">Total Gross:</span>
-          <span class="summary-value">${formatCurrency(summary.totalGross)}</span>
+          <div class="summary-label">Bill Amount:</div>
+          <div>${formatCurrency(summary.totalBillValue || 0)}</div>
         </div>
-        ` : ''}
-        ${summary.totalDiscount !== undefined ? `
         <div class="summary-row">
-          <span class="summary-label">Total Discount:</span>
-          <span class="summary-value">${formatCurrency(summary.totalDiscount)}</span>
+          <div class="summary-label">Ledger Balance:</div>
+          <div>${formatCurrency(summary.ledgerBalance || 0)}</div>
         </div>
-        ` : ''}
-        ${summary.totalAdd !== undefined ? `
         <div class="summary-row">
-          <span class="summary-label">Total Add:</span>
-          <span class="summary-value">${formatCurrency(summary.totalAdd)}</span>
+          <div class="summary-label">Received Cash:</div>
+          <div>${formatCurrency(collections.cash || 0)}</div>
         </div>
-        ` : ''}
-        ${summary.totalLess !== undefined ? `
         <div class="summary-row">
-          <span class="summary-label">Total Less:</span>
-          <span class="summary-value">${formatCurrency(summary.totalLess)}</span>
+          <div class="summary-label">Balance:</div>
+          <div>${formatCurrency(collections.balance || 0)}</div>
         </div>
-        ` : ''}
-        ${summary.totalAmount !== undefined ? `
-        <div class="summary-row">
-          <span class="summary-label">Total Amount:</span>
-          <span class="summary-value">${formatCurrency(summary.totalAmount)}</span>
-        </div>
-        ` : ''}
-        ${summary.totalValue !== undefined ? `
-        <div class="summary-row">
-          <span class="summary-label">Total Value:</span>
-          <span class="summary-value">${formatCurrency(summary.totalValue)}</span>
-        </div>
-        ` : ''}
-        ${summary.totalBillValue !== undefined ? `
-        <div class="summary-row total-row">
-          <span class="summary-label">Total Bill Value:</span>
-          <span class="summary-value">${formatCurrency(summary.totalBillValue)}</span>
-        </div>
-        ` : ''}
       </div>
-      ` : ''}
 
-      <!-- Payment Details / Collections -->
-      ${collections && (collections.cash !== undefined || collections.card !== undefined || collections.upi !== undefined || collections.balance !== undefined) ? `
-      <div class="section">
-        <div class="section-title">Payment Details</div>
-        ${collections.cash !== undefined && collections.cash > 0 ? `
-        <div class="info-row">
-          <span class="info-label">Cash Payment:</span>
-          <span class="info-value">${formatCurrency(collections.cash)}</span>
-        </div>
-        ` : ''}
-        ${collections.card !== undefined && collections.card > 0 ? `
-        <div class="info-row">
-          <span class="info-label">Card Payment:</span>
-          <span class="info-value">${formatCurrency(collections.card)}</span>
-        </div>
-        ` : ''}
-        ${collections.upi !== undefined && collections.upi > 0 ? `
-        <div class="info-row">
-          <span class="info-label">UPI Payment:</span>
-          <span class="info-value">${formatCurrency(collections.upi)}</span>
-        </div>
-        ` : ''}
-        ${collections.cash !== undefined || collections.card !== undefined || collections.upi !== undefined ? `
-        <div class="summary-row" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
-          <span class="summary-label">Total Collected:</span>
-          <span class="summary-value">${formatCurrency((collections.cash || 0) + (collections.card || 0) + (collections.upi || 0))}</span>
-        </div>
-        ` : ''}
-        ${collections.balance !== undefined ? `
-        <div class="summary-row total-row">
-          <span class="summary-label">Outstanding Balance:</span>
-          <span class="summary-value" style="color: ${collections.balance > 0 ? '#f44336' : '#4caf50'};">${formatCurrency(collections.balance)}</span>
-        </div>
-        ` : ''}
-      </div>
-      ` : ''}
-
+      <!-- FOOTER -->
       <div class="footer">
-        <p>Thank you for your business!</p>
-        <p>Smart Suite - Business Management System</p>
-        <p>Generated on ${new Date().toLocaleString()}</p>
+        Free Doorstep Delivery is available weekly. Contact us for details.<br>
+        Branches: Trichy, Perambalur, Pudukkottai, Namakkal, Thanjavur, Thiruvarur, Pattukottai
       </div>
     </body>
     </html>
@@ -527,29 +360,44 @@ export const generateInvoiceHTML = (invoiceData) => {
 };
 
 /**
- * Generate PDF from invoice data
- * Returns both the file URI (for sharing) and base64 (for preview)
+ * Preview PDF (opens PDF viewer)
  */
-export const generateInvoicePDF = async (invoiceData) => {
+export const previewInvoicePDF = async (invoiceData) => {
   try {
-    const html = generateInvoiceHTML(invoiceData);
-    
-    const { uri, base64 } = await Print.printToFileAsync({
-      html,
-      base64: true,
+    const html = await generateInvoiceHTML(invoiceData);
+    const { uri } = await Print.printToFileAsync({ html });
+    await Sharing.shareAsync(uri, {
+      mimeType: 'application/pdf',
+      dialogTitle: 'Preview Invoice PDF',
     });
+  } catch (error) {
+    console.error('Error previewing PDF:', error);
+    Alert.alert('Error', 'Failed to preview PDF. Please try again.');
+  }
+};
 
-    console.log('PDF generated successfully at:', uri);
-    return { uri, base64 };
+/**
+ * Generate PDF file
+ * @param {Object} invoiceData - Invoice data
+ * @param {Boolean} includeBase64 - Whether to include base64 data for preview
+ */
+export const generateInvoicePDF = async (invoiceData, includeBase64 = false) => {
+  try {
+    const html = await generateInvoiceHTML(invoiceData);
+    const result = await Print.printToFileAsync({ 
+      html,
+      base64: includeBase64,
+    });
+    return result; // Returns { uri } or { uri, base64 } depending on includeBase64
   } catch (error) {
     console.error('Error generating PDF:', error);
-    Alert.alert('Error', 'Failed to generate PDF. Please try again.');
     throw error;
   }
 };
 
 /**
  * Share PDF via WhatsApp
+ * Uses WhatsAppNo from customer data
  */
 export const sharePDFViaWhatsApp = async (pdfUri, phoneNumber = null) => {
   try {
@@ -562,11 +410,8 @@ export const sharePDFViaWhatsApp = async (pdfUri, phoneNumber = null) => {
         const documentDir = FileSystem.documentDirectory;
         const newUri = `${documentDir}${fileName}`;
         
-        // Copy file from cache to document directory
-        await FileSystem.copyAsync({
-          from: pdfUri,
-          to: newUri,
-        });
+        // Copy file from cache to document directory (legacy API accepts from/to as strings)
+        await FileSystem.copyAsync(String(pdfUri), String(newUri));
         
         shareableUri = newUri;
       } catch (copyError) {
@@ -598,50 +443,154 @@ export const sharePDFViaWhatsApp = async (pdfUri, phoneNumber = null) => {
 };
 
 /**
- * Preview PDF (opens PDF viewer)
- * Uses Sharing API which shows system dialog where user can choose PDF viewer
+ * Format invoice data as text message
  */
-export const previewInvoicePDF = async (invoiceData) => {
+export const formatInvoiceAsText = (invoiceData) => {
+  const {
+    title = 'Invoice',
+    transactionDetails = {},
+    voucherDetails = {},
+    customerData = {},
+    items = [],
+    adjustments = [],
+    summary = {},
+    collections = {},
+  } = invoiceData;
+
+  const formatCurrency = (amount) => {
+    return `₹${parseFloat(amount || 0).toFixed(2)}`;
+  };
+
+  const divider = () => `${'-'.repeat(40)}\n`;
+  const section = (label) => `\n${label}\n${divider()}`;
+
+  let text = `📄 ${title}\n${'='.repeat(40)}\n`;
+
+  // Header / Bill details
+  const billSeries = voucherDetails.voucherSeries ? `${voucherDetails.voucherSeries}-${voucherDetails.voucherNo || ''}` : (voucherDetails.voucherNo || '');
+  text += section('Bill Details');
+  if (billSeries) text += `Bill No: ${billSeries}\n`;
+  if (voucherDetails.voucherDatetime || transactionDetails.date) {
+    text += `Bill Date: ${voucherDetails.voucherDatetime || transactionDetails.date}\n`;
+  }
+  if (customerData.employeeName || transactionDetails.username) {
+    text += `Employee Name: ${customerData.employeeName || transactionDetails.username}\n`;
+  }
+  if (customerData.readingA4) text += `A4 Reading: ${customerData.readingA4}\n`;
+  if (customerData.readingA3) text += `A3 Reading: ${customerData.readingA3}\n`;
+
+  // Customer info
+  text += section('Customer Information');
+  if (customerData.customerName) text += `Name: ${customerData.customerName}\n`;
+  if (customerData.address) text += `Address: ${customerData.address}\n`;
+  if (customerData.customerId) text += `ID: ${customerData.customerId}\n`;
+  if (customerData.mobileNo) text += `Mobile: ${customerData.mobileNo}\n`;
+  if (customerData.whatsappNo) text += `WhatsApp: ${customerData.whatsappNo}\n`;
+  if (customerData.machineType) text += `Machine Type: ${customerData.machineType}\n`;
+  if (customerData.remarks) text += `Remarks: ${customerData.remarks}\n`;
+
+  // Items table (compact, one line per item)
+  if (items.length > 0) {
+    text += section('Items');
+    text += `# | Barcode | Product | Serial | Qty | Free | Rate | Amount\n`;
+    text += divider();
+    items.forEach((item, idx) => {
+      const barcode = item.barcode || (item.productId ? String(item.productId) : '-');
+      const line = [
+        idx + 1,
+        barcode,
+        item.productName || '-',
+        item.productSerialNo || '-',
+        item.quantity || 0,
+        item.freeQty || 0,
+        formatCurrency(item.rate || 0),
+        formatCurrency(item.net || item.gross || item.amount || 0),
+      ].join(' | ');
+      text += `${line}\n`;
+    });
+  }
+
+  // Adjustments
+  if (adjustments.length > 0) {
+    text += section('Adjustments');
+    text += `# | Description | Add | Less\n`;
+    text += divider();
+    adjustments.forEach((adj, idx) => {
+      text += [
+        idx + 1,
+        adj.accountName || adj.account || '-',
+        formatCurrency(adj.addAmount || 0),
+        formatCurrency(adj.lessAmount || 0),
+      ].join(' | ') + '\n';
+    });
+  }
+
+  // Summary
+  text += section('Summary');
+  const safeNum = (v) => (v !== undefined ? v : 0);
+  text += `Items: ${summary.itemCount ?? items.length ?? 0}\n`;
+  text += `Qty: ${safeNum(summary.totalQty)}\n`;
+  text += `Bill Amount: ${formatCurrency(summary.totalBillValue)}\n`;
+  text += `Ledger Balance: ${formatCurrency(summary.ledgerBalance)}\n`;
+  text += `Received Cash: ${formatCurrency(collections.cash)}\n`;
+  text += `Balance: ${formatCurrency(collections.balance)}\n`;
+
+  // Footer
+  text += `\n${'='.repeat(40)}\n`;
+  text += `Free Doorstep Delivery weekly. Contact us for details.\n`;
+  text += `Branches: Trichy, Perambalur, Pudukkottai, Namakkal, Thanjavur, Thiruvarur, Pattukottai`;
+
+  return text;
+};
+
+/**
+ * Share invoice as text via SMS
+ * Uses MobileNo from customer data
+ * Opens SMS app with formatted invoice text
+ */
+export const sharePDFViaSMS = async (invoiceData, phoneNumber = null) => {
   try {
-    let { uri: pdfUri } = await generateInvoicePDF(invoiceData);
-    
-    // On Android, copy file to document directory for better sharing compatibility
-    if (Platform.OS === 'android') {
-      try {
-        const fileName = `Invoice_${Date.now()}.pdf`;
-        const documentDir = FileSystem.documentDirectory;
-        const newUri = `${documentDir}${fileName}`;
-        
-        // Copy file from cache to document directory
-        await FileSystem.copyAsync({
-          from: pdfUri,
-          to: newUri,
-        });
-        
-        pdfUri = newUri;
-      } catch (copyError) {
-        console.log('Could not copy file, using original URI:', copyError);
-        // Continue with original URI if copy fails
-      }
-    }
-    
-    // Check if sharing is available
-    const isAvailable = await Sharing.isAvailableAsync();
-    
-    if (!isAvailable) {
-      Alert.alert('Error', 'Sharing is not available on this device.');
+    if (!phoneNumber) {
+      Alert.alert('Error', 'Mobile number is required to send SMS.');
       return;
     }
 
-    // Use Sharing API - this will show system dialog where user can choose PDF viewer
-    await Sharing.shareAsync(pdfUri, {
-      mimeType: 'application/pdf',
-      dialogTitle: 'Open PDF with',
-      UTI: Platform.OS === 'ios' ? 'com.adobe.pdf' : undefined,
+    // Clean phone number (remove non-numeric characters except +)
+    const cleanPhone = phoneNumber.replace(/[^\d+]/g, '');
+    
+    // Format invoice as text
+    const invoiceText = formatInvoiceAsText(invoiceData);
+    
+    // URL encode the text for SMS
+    const encodedText = encodeURIComponent(invoiceText);
+    
+    // Open SMS app with phone number and text pre-filled
+    const smsUrl = Platform.select({
+      ios: `sms:${cleanPhone}&body=${encodedText}`,
+      android: `sms:${cleanPhone}?body=${encodedText}`,
     });
+    
+    const canOpen = await Linking.canOpenURL(smsUrl);
+    if (canOpen) {
+      await Linking.openURL(smsUrl);
+    } else {
+      // Fallback: Try without body (some devices don't support body parameter)
+      const fallbackUrl = `sms:${cleanPhone}`;
+      const canOpenFallback = await Linking.canOpenURL(fallbackUrl);
+      if (canOpenFallback) {
+        await Linking.openURL(fallbackUrl);
+        // Show alert to inform user to paste the text
+        Alert.alert(
+          'SMS App Opened',
+          'Please paste the invoice text in the message field.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', 'Could not open SMS app on this device.');
+      }
+    }
   } catch (error) {
-    console.error('Error previewing PDF:', error);
-    Alert.alert('Error', 'Failed to preview PDF. Please try again.');
+    console.error('Error sending SMS:', error);
+    Alert.alert('Error', 'Failed to open SMS app. Please try again.');
   }
 };
-

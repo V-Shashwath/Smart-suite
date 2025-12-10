@@ -39,13 +39,21 @@ const PDFPreviewModal = ({ isVisible, onClose, invoiceData }) => {
     setError(null);
 
     try {
-      const { uri, base64 } = await generateInvoicePDF(invoiceData);
-      console.log('PDFPreviewModal: PDF generated successfully:', uri);
-      setPdfHtml(buildPdfViewerHtml(base64));
+      // Request base64 for preview
+      const result = await generateInvoicePDF(invoiceData, true);
+      console.log('PDFPreviewModal: PDF generated successfully:', result.uri);
+      
+      if (result.base64) {
+        setPdfHtml(buildPdfViewerHtml(result.base64));
+      } else {
+        // Fallback: Use HTML directly if base64 is not available
+        const { generateInvoiceHTML } = require('../utils/pdfUtils');
+        const html = await generateInvoiceHTML(invoiceData);
+        setPdfHtml(buildHtmlViewer(html));
+      }
     } catch (err) {
       console.error('PDFPreviewModal: Error generating PDF:', err);
-      setError(err.message || 'Failed to generate PDF');
-      Alert.alert('Error', 'Failed to generate PDF preview. Please try again.');
+      setError(err.message || 'Failed to generate PDF preview. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -262,6 +270,38 @@ const buildPdfViewerHtml = (base64Data) => {
             container.innerHTML = '<p style="color: #f44336; text-align: center;">Failed to render PDF: ' + error.message + '</p>';
           });
         </script>
+      </body>
+    </html>
+  `;
+};
+
+// Fallback: Build HTML viewer directly (when base64 is not available)
+const buildHtmlViewer = (htmlContent) => {
+  const sanitizedHtml = htmlContent.replace(/'/g, "\\'").replace(/\n/g, '\\n');
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <style>
+          body {
+            margin: 0;
+            padding: 8px;
+            background-color: #f5f5f5;
+            font-family: Arial, sans-serif;
+            overflow-x: hidden;
+          }
+          #invoice-content {
+            background-color: #fff;
+            padding: 8px;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          }
+        </style>
+      </head>
+      <body>
+        <div id="invoice-content">${sanitizedHtml}</div>
       </body>
     </html>
   `;
