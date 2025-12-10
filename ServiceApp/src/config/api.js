@@ -40,6 +40,8 @@ export const API_ENDPOINTS = {
 
   // Products
   GET_PRODUCT_BY_BARCODE: (barcode) => `${API_BASE_URL}/products/barcode/${barcode}`,
+  GET_ISSUED_PRODUCTS_BY_BARCODE: (barcode, employeeName) => 
+    `${API_BASE_URL}/products/issued?barcode=${encodeURIComponent(barcode)}&employeeName=${encodeURIComponent(employeeName)}`,
 };
 
 // Helper function to make API calls

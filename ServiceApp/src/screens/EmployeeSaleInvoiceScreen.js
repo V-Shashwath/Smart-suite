@@ -36,6 +36,7 @@ import QRScannerModal from '../components/QRScannerModal';
 import BarcodeScannerModal from '../components/BarcodeScannerModal';
 import AddAdjustmentModal from '../components/AddAdjustmentModal';
 import PDFPreviewModal from '../components/PDFPreviewModal';
+import SerialNoSelectionModal from '../components/SerialNoSelectionModal';
 import { sharePDFViaWhatsApp, sharePDFViaSMS, generateInvoicePDF } from '../utils/pdfUtils';
 import useScreenDraft from '../hooks/useScreenDraft';
 import withScreenPermission from '../components/withScreenPermission';
@@ -88,6 +89,9 @@ const EmployeeSaleInvoiceScreen = () => {
   const [showAddAdjustmentModal, setShowAddAdjustmentModal] = useState(false);
   const [showPDFPreview, setShowPDFPreview] = useState(false);
   const [showMobileSearchModal, setShowMobileSearchModal] = useState(false);
+  const [showSerialNoModal, setShowSerialNoModal] = useState(false);
+  const [issuedProductsData, setIssuedProductsData] = useState(null);
+  const [pendingProductData, setPendingProductData] = useState(null);
   
   // Loading states
   const [isLoadingCustomer, setIsLoadingCustomer] = useState(false);
@@ -534,29 +538,70 @@ const EmployeeSaleInvoiceScreen = () => {
     console.log(`   hasUniqueSerialNo: ${product.hasUniqueSerialNo}`);
 
     if (product.hasUniqueSerialNo) {
-      // CASE 1: Product HAS productSerialNo → Always add new row
-      // Even if the same barcode is scanned twice, add a new row (allows duplicates)
-      console.log(`✅ Product has unique serial number - Adding new row`);
+      // CASE 1: Product HAS productSerialNo → Check for issued products first
+      console.log(`✅ Product has unique serial number - Checking for issued products`);
+      
+      // Get employee name from customerData or transactionData
+      const employeeName = customerData.employeeName || transactionData.username || '';
+      
+      if (employeeName) {
+        try {
+          // Check for issued products for this employee
+          const issuedResult = await apiCall(
+            API_ENDPOINTS.GET_ISSUED_PRODUCTS_BY_BARCODE(trimmedBarcode, employeeName)
+          );
+          
+          if (issuedResult.success && 
+              issuedResult.data && 
+              issuedResult.data.issuedProducts && 
+              issuedResult.data.issuedProducts.length > 0) {
+            // Found issued products - show selection modal
+            console.log(`📦 Found ${issuedResult.data.issuedProducts.length} issued products`);
+            setIssuedProductsData(issuedResult.data.issuedProducts);
+            setPendingProductData({
+              product: product,
+              barcode: trimmedBarcode,
+              result: result,
+            });
+            setShowSerialNoModal(true);
+            // Clear barcode input after processing
+            setTimeout(() => setBarcode(''), 500);
+            return; // Exit early, modal will handle adding items
+          }
+        } catch (error) {
+          console.log('Could not fetch issued products, proceeding with normal flow:', error.message);
+          // Continue with normal flow if issued products check fails
+        }
+      }
+      
+      // No issued products found or employee name not available - proceed with normal flow
+      // Use SerialNo from API if available, otherwise use barcode
+      const serialNo = result.data.productSerialNo || trimmedBarcode;
+      
         const newItem = {
           id: Date.now(),
           productId: product.id,
           productName: product.name,
           quantity: 1,
-          rate: product.rate,
-          gross: product.rate,
-          net: product.rate,
+          rate: product.rate || 0, // Rate is 0, user will enter manually
+          gross: 0, // Will be recalculated when rate is entered
+          net: 0, // Will be recalculated when rate is entered
           comments1: '',
           salesMan: '',
           freeQty: '',
-        productSerialNo: trimmedBarcode, // Store the serial number from barcode
+        productSerialNo: serialNo, // Use SerialNo from database if available
           comments6: '',
         };
         
         commitItems([...items, newItem]);
         
+        const rateMessage = product.rate > 0 
+          ? `Rate: ₹${product.rate.toFixed(2)}` 
+          : `Rate: Please enter manually`;
+        
         Alert.alert(
           'New Item Added! ✓',
-        `${product.name}\nSerial No: ${trimmedBarcode}\nRate: ₹${product.rate.toFixed(2)}\n\nProduct has serial number - added as new row`,
+        `${product.name}\nSerial No: ${serialNo}\n${rateMessage}\n\nProduct has serial number - added as new row`,
           [{ text: 'OK' }]
         );
     } else {
@@ -593,9 +638,9 @@ const EmployeeSaleInvoiceScreen = () => {
         productId: product.id,
         productName: product.name,
         quantity: 1,
-        rate: product.rate,
-        gross: product.rate,
-        net: product.rate,
+        rate: product.rate || 0, // Rate is 0, user will enter manually
+        gross: 0, // Will be recalculated when rate is entered
+        net: 0, // Will be recalculated when rate is entered
         comments1: '',
         salesMan: '',
         freeQty: '',
@@ -605,9 +650,13 @@ const EmployeeSaleInvoiceScreen = () => {
       
       commitItems([...items, newItem]);
       
+      const rateMessage = product.rate > 0 
+        ? `Rate: ₹${product.rate.toFixed(2)}` 
+        : `Rate: Please enter manually`;
+      
       Alert.alert(
         'New Item Added! ✓',
-          `${product.name}\nBarcode: ${trimmedBarcode}\nRate: ₹${product.rate.toFixed(2)}\n\nProduct has no serial number - added as new row`,
+          `${product.name}\nBarcode: ${trimmedBarcode}\n${rateMessage}\n\nProduct has no serial number - added as new row`,
         [{ text: 'OK' }]
       );
       }
@@ -1447,6 +1496,55 @@ const EmployeeSaleInvoiceScreen = () => {
       isVisible={showPDFPreview}
       onClose={() => setShowPDFPreview(false)}
       invoiceData={getInvoiceData()}
+    />
+
+    <SerialNoSelectionModal
+      isVisible={showSerialNoModal}
+      onClose={() => {
+        setShowSerialNoModal(false);
+        setIssuedProductsData(null);
+        setPendingProductData(null);
+      }}
+      productName={pendingProductData?.product?.name || ''}
+      issuedProducts={issuedProductsData || []}
+      onConfirm={(selectedSerialNos) => {
+        if (!pendingProductData) return;
+        
+        const { product, barcode } = pendingProductData;
+        const newItems = selectedSerialNos.map((serialNo) => {
+          // Find the issued product data for this serial number
+          const issuedProduct = issuedProductsData.find(
+            ip => ip.productSerialNo === serialNo
+          );
+          
+          return {
+            id: Date.now() + Math.random(), // Unique ID
+            productId: product.id,
+            productName: product.name,
+            quantity: issuedProduct?.quantity || 1,
+            rate: product.rate || 0, // Rate is 0, user will enter manually
+            gross: 0, // Will be recalculated when rate is entered
+            net: 0, // Will be recalculated when rate is entered
+            comments1: '',
+            salesMan: '',
+            freeQty: '',
+            productSerialNo: serialNo,
+            comments6: '',
+          };
+        });
+        
+        commitItems([...items, ...newItems]);
+        
+        Alert.alert(
+          'Items Added! ✓',
+          `${newItems.length} item(s) added with selected Serial Numbers`,
+          [{ text: 'OK' }]
+        );
+        
+        setShowSerialNoModal(false);
+        setIssuedProductsData(null);
+        setPendingProductData(null);
+      }}
     />
 
     <MobileSearchModal

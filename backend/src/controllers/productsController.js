@@ -1,6 +1,6 @@
-const { executeQuery } = require('../config/database');
+const { executeQuery, getPool } = require('../config/database');
 
-// Get product by barcode
+// Get product by barcode from CrystalCopier database
 const getProductByBarcode = async (req, res) => {
   try {
     const { barcode } = req.params;
@@ -12,83 +12,81 @@ const getProductByBarcode = async (req, res) => {
       });
     }
 
-    // Mock product data - 20 items supporting 3 barcode scan cases
-    // Case 1: Barcodes with serial numbers (ABCD123, DEFG456, etc.) - hasUniqueSerialNo: true
-    // Case 2: Barcodes without serial numbers (GEN001, GEN002, etc.) - hasUniqueSerialNo: false
-    // Case 3: Manual entry follows Case 1 logic
-    
-    const trimmedBarcode = barcode.trim().toUpperCase();
-    
-    // Product mapping - 20 items total
-    const products = [
-      // Case 1: Products WITH serial numbers (10 items) - Each scan adds new row
-      { id: 1, name: 'iPhone 15 Pro', rate: 99999.00, hasUniqueSerialNo: true, barcodes: ['ABCD123', 'ABCD124', 'ABCD125'] },
-      { id: 2, name: 'Samsung Galaxy S24', rate: 89999.00, hasUniqueSerialNo: true, barcodes: ['DEFG456', 'DEFG457', 'DEFG458'] },
-      { id: 3, name: 'MacBook Pro M3', rate: 199999.00, hasUniqueSerialNo: true, barcodes: ['GHIJ789', 'GHIJ790', 'GHIJ791'] },
-      { id: 4, name: 'iPad Air', rate: 59999.00, hasUniqueSerialNo: true, barcodes: ['KLMN012', 'KLMN013', 'KLMN014'] },
-      { id: 5, name: 'Dell XPS 15', rate: 149999.00, hasUniqueSerialNo: true, barcodes: ['OPQR345', 'OPQR346', 'OPQR347'] },
-      { id: 6, name: 'Sony WH-1000XM5', rate: 29999.00, hasUniqueSerialNo: true, barcodes: ['STUV678', 'STUV679', 'STUV680'] },
-      { id: 7, name: 'Canon EOS R5', rate: 399999.00, hasUniqueSerialNo: true, barcodes: ['WXYZ901', 'WXYZ902', 'WXYZ903'] },
-      { id: 8, name: 'Nintendo Switch OLED', rate: 34999.00, hasUniqueSerialNo: true, barcodes: ['ABCD234', 'ABCD235', 'ABCD236'] },
-      { id: 9, name: 'Apple Watch Ultra', rate: 89999.00, hasUniqueSerialNo: true, barcodes: ['EFGH567', 'EFGH568', 'EFGH569'] },
-      { id: 10, name: 'PlayStation 5', rate: 49999.00, hasUniqueSerialNo: true, barcodes: ['IJKL890', 'IJKL891', 'IJKL892'] },
-      
-      // Case 2: Products WITHOUT serial numbers (10 items) - First scan adds row, subsequent scans increment
-      { id: 11, name: 'A4 Xerox - Black & White', rate: 2.00, hasUniqueSerialNo: false, barcodes: ['GEN001', 'GEN002'] },
-      { id: 12, name: 'A4 Xerox - Color', rate: 5.00, hasUniqueSerialNo: false, barcodes: ['GEN003', 'GEN004'] },
-      { id: 13, name: 'A3 Xerox - Black & White', rate: 4.00, hasUniqueSerialNo: false, barcodes: ['GEN005', 'GEN006'] },
-      { id: 14, name: 'A3 Xerox - Color', rate: 10.00, hasUniqueSerialNo: false, barcodes: ['GEN007', 'GEN008'] },
-      { id: 15, name: 'Lamination - A4', rate: 15.00, hasUniqueSerialNo: false, barcodes: ['GEN009', 'GEN010'] },
-      { id: 16, name: 'Lamination - A3', rate: 25.00, hasUniqueSerialNo: false, barcodes: ['GEN011', 'GEN012'] },
-      { id: 17, name: 'Binding - Spiral', rate: 30.00, hasUniqueSerialNo: false, barcodes: ['GEN013', 'GEN014'] },
-      { id: 18, name: 'Binding - Thermal', rate: 40.00, hasUniqueSerialNo: false, barcodes: ['GEN015', 'GEN016'] },
-      { id: 19, name: 'Printing - Single Side', rate: 3.00, hasUniqueSerialNo: false, barcodes: ['GEN017', 'GEN018'] },
-      { id: 20, name: 'Photo Printing - 4x6', rate: 20.00, hasUniqueSerialNo: false, barcodes: ['GEN019', 'GEN020'] },
-    ];
-    
-    // Find product by barcode
-    let product = null;
-    for (const p of products) {
-      if (p.barcodes && p.barcodes.includes(trimmedBarcode)) {
-        product = {
-          id: p.id,
-          name: p.name,
-          rate: p.rate,
-          hasUniqueSerialNo: p.hasUniqueSerialNo,
-        };
-        break;
-      }
-    }
-    
-    // Also support numeric barcodes (1-20) for backward compatibility
-    if (!product) {
-      const numericBarcode = parseInt(trimmedBarcode);
-      if (!isNaN(numericBarcode) && numericBarcode >= 1 && numericBarcode <= 20) {
-        const p = products[numericBarcode - 1];
-        product = {
-          id: p.id,
-          name: p.name,
-          rate: p.rate,
-          hasUniqueSerialNo: p.hasUniqueSerialNo,
-        };
-      }
-    }
+    const trimmedBarcode = barcode.trim();
 
-    if (!product) {
+    // Query CrystalCopier database
+    // Query: Select a.MasterName,a.ShortName,b.SerialNo from Master_ShortName_Table a 
+    //        left join ProductSerialNosView b on a.MasterName=b.Product 
+    //        where MasterType='Product' AND a.ShortName = @barcode
+    const query = `
+      SELECT 
+        a.MasterName,
+        a.ShortName,
+        b.SerialNo
+      FROM CrystalCopier.dbo.Master_ShortName_Table a
+      LEFT JOIN CrystalCopier.dbo.ProductSerialNosView b ON a.MasterName = b.Product
+      WHERE a.MasterType = 'Product' AND a.ShortName = @barcode
+    `;
+
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('barcode', trimmedBarcode);
+    
+    const result = await request.query(query);
+    const rows = result.recordset;
+
+    if (!rows || rows.length === 0) {
       return res.status(404).json({
         success: false,
         message: `Product not found with barcode: ${trimmedBarcode}`,
       });
     }
 
+    // Get the first row for product details (MasterName, ShortName are same for all rows)
+    const firstRow = rows[0];
+    const masterName = firstRow.MasterName;
+    const shortName = firstRow.ShortName;
+
+    // Determine hasUniqueSerialNo based on SerialNo
+    // Logic: 
+    // - If ANY row has a non-null, non-blank SerialNo, then hasUniqueSerialNo = true
+    //   (This means the product type supports serial numbers, so always add new row)
+    // - If ALL rows have NULL or blank SerialNo, then hasUniqueSerialNo = false
+    //   (This means no serial numbers, so increment quantity when scanned 2nd or more time)
+    // 
+    // Handle case: Same barcode given to multiple items (e.g., 11 iPhones with same barcode,
+    // some have SerialNo, some don't). If ANY has SerialNo, treat as hasUniqueSerialNo: true
+    let hasUniqueSerialNo = false;
+    let serialNo = null;
+
+    // Check if any row has a valid SerialNo
+    // If found, set hasUniqueSerialNo = true (product supports serials, always add new row)
+    for (const row of rows) {
+      const rowSerialNo = row.SerialNo;
+      if (rowSerialNo !== null && rowSerialNo !== undefined && String(rowSerialNo).trim() !== '') {
+        hasUniqueSerialNo = true;
+        // Use the first non-null SerialNo found (or could use a specific one if needed)
+        serialNo = String(rowSerialNo).trim();
+        break; // Found at least one with SerialNo - product type supports serials
+      }
+    }
+
+    // If no SerialNo found in any row, hasUniqueSerialNo remains false
+    // This means: All SerialNo are NULL or blank -> increment quantity when scanned 2nd or more time
+
+    // Rate is set to 0 - user will enter it manually in the UI
+    // The query only returns MasterName, ShortName, and SerialNo (no rate column)
+    const rate = 0; // User will manually enter the rate in the UI
+
     return res.status(200).json({
       success: true,
       data: {
-        productId: product.id,
-        productName: product.name,
-        rate: product.rate,
-        hasUniqueSerialNo: product.hasUniqueSerialNo || false,
+        productId: shortName, // Using ShortName as productId since no ID column in query
+        productName: masterName,
+        rate: rate,
+        hasUniqueSerialNo: hasUniqueSerialNo,
         barcode: trimmedBarcode,
+        productSerialNo: serialNo, // Include the SerialNo if found
       },
     });
   } catch (error) {
@@ -101,7 +99,96 @@ const getProductByBarcode = async (req, res) => {
   }
 };
 
+// Get issued products for an employee by barcode
+const getIssuedProductsByBarcode = async (req, res) => {
+  try {
+    const { barcode, employeeName } = req.query;
+
+    if (!barcode) {
+      return res.status(400).json({
+        success: false,
+        message: 'Barcode is required',
+      });
+    }
+
+    if (!employeeName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Employee name is required',
+      });
+    }
+
+    const trimmedBarcode = barcode.trim();
+    const trimmedEmployeeName = employeeName.trim();
+
+    // Query CrystalCopier database to get issued products
+    // Query: Select a.Product,a.Quantity,a.ProductSerialNo,b.Executive,a.VoucherSeries,a.VoucherNo
+    //        from Transaction_ItemBody_Table a
+    //        left join Transaction_Header_Table b on a.VoucherSeries=b.VoucherSeries and a.VoucherNo=b.VoucherNo 
+    //        WHERE Executive='employeeName'
+    // Note: We need to match products by MasterName (Product) that have the given ShortName (barcode)
+    const query = `
+      SELECT 
+        a.Product,
+        a.Quantity,
+        a.ProductSerialNo,
+        b.Executive,
+        a.VoucherSeries,
+        a.VoucherNo
+      FROM CrystalCopier.dbo.Transaction_ItemBody_Table a
+      LEFT JOIN CrystalCopier.dbo.Transaction_Header_Table b 
+        ON a.VoucherSeries = b.VoucherSeries AND a.VoucherNo = b.VoucherNo
+      WHERE b.Executive = @employeeName
+        AND a.Product IN (
+          SELECT m.MasterName
+          FROM CrystalCopier.dbo.Master_ShortName_Table m
+          WHERE m.MasterType = 'Product' 
+            AND m.ShortName = @barcode
+        )
+    `;
+
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('barcode', trimmedBarcode);
+    request.input('employeeName', trimmedEmployeeName);
+    
+    const result = await request.query(query);
+    const rows = result.recordset;
+
+    // Filter to only include rows with ProductSerialNo (non-null, non-blank)
+    const issuedProducts = rows
+      .filter(row => row.ProductSerialNo !== null && 
+                     row.ProductSerialNo !== undefined && 
+                     String(row.ProductSerialNo).trim() !== '')
+      .map(row => ({
+        product: row.Product,
+        quantity: parseFloat(row.Quantity) || 0,
+        productSerialNo: String(row.ProductSerialNo).trim(),
+        executive: row.Executive,
+        voucherSeries: row.VoucherSeries,
+        voucherNo: row.VoucherNo,
+      }));
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        barcode: trimmedBarcode,
+        employeeName: trimmedEmployeeName,
+        issuedProducts: issuedProducts,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching issued products by barcode:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error fetching issued products',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getProductByBarcode,
+  getIssuedProductsByBarcode,
 };
 
