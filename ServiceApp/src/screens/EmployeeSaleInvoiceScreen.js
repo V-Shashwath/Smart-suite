@@ -42,6 +42,7 @@ import useScreenDraft from '../hooks/useScreenDraft';
 import withScreenPermission from '../components/withScreenPermission';
 import { useAuth } from '../context/AuthContext';
 import { useNavigation } from '@react-navigation/native';
+import { getBranchShortName } from '../utils/branchMapping';
 
 const { width } = Dimensions.get('window');
 

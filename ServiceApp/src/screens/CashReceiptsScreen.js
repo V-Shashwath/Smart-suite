@@ -209,6 +209,11 @@ const CashReceiptsScreen = () => {
   };
 
   const handleCellChange = (rowIndex, columnKey, value) => {
+    // Account field is read-only, don't allow changes
+    if (columnKey === 'account') {
+      return;
+    }
+    
     const newItems = [...bodyItems];
     newItems[rowIndex][columnKey] = value;
     setBodyItems(newItems);
@@ -386,7 +391,7 @@ const CashReceiptsScreen = () => {
 
   const bodyColumns = [
     { key: 'sno', label: 'S.No', width: 70, editable: false },
-    { key: 'account', label: 'Account*', width: 200, required: true },
+    { key: 'account', label: 'Account*', width: 200, required: true, editable: false },
     { key: 'amount', label: 'Amount*', width: 120, keyboardType: 'numeric', required: true },
     { key: 'discount', label: 'Discount', width: 100, keyboardType: 'numeric' },
     { key: 'comments1', label: 'Comments1', width: 150 },

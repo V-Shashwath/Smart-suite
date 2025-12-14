@@ -41,12 +41,14 @@ const ItemTable = ({
       return (
         <View style={styles.cell}>
           <Picker
-            selectedValue={cellValue}
+            selectedValue={cellValue || ''}
             onValueChange={(value) =>
               onCellChange(actualRowIndex, column.key, value)
             }
             style={styles.picker}
+            itemStyle={styles.pickerItem}
           >
+            <Picker.Item label="Select" value="" />
             {column.options?.map((option, idx) => (
               <Picker.Item
                 key={idx}
@@ -271,6 +273,8 @@ const styles = StyleSheet.create({
   },
   cell: {
     padding: 8,
+    minHeight: 50,
+    justifyContent: 'center',
   },
   cellInput: {
     padding: 8,
@@ -279,7 +283,11 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   picker: {
-    height: 40,
+    height: 50,
+    width: '100%',
+  },
+  pickerItem: {
+    fontSize: 14,
   },
   deleteButton: {
     padding: 8,
