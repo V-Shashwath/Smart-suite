@@ -45,6 +45,10 @@ export const generateInvoiceHTML = async (invoiceData) => {
     return parseFloat(amount || 0).toFixed(2);
   };
 
+  const formatInteger = (value) => {
+    return Math.round(parseFloat(value || 0)).toString();
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return '';
     return dateString;
@@ -283,8 +287,8 @@ export const generateInvoiceHTML = async (invoiceData) => {
             <td>${barcode}</td>
             <td class="left">${item.productName || ''}</td>
             <td>${item.productSerialNo || ''}</td>
-            <td>${item.quantity || 0}</td>
-            <td>${item.freeQty || 0}</td>
+            <td>${formatInteger(item.quantity || 0)}</td>
+            <td>${formatInteger(item.freeQty || 0)}</td>
             <td class="right">${formatCurrency(item.rate || 0)}</td>
             <td class="right">${formatCurrency(item.net || item.gross || item.amount || 0)}</td>
             </tr>
@@ -327,7 +331,7 @@ export const generateInvoiceHTML = async (invoiceData) => {
         </div>
         <div class="summary-row">
           <div class="summary-label">No.of Qty:</div>
-          <div>${formatCurrency(summary.totalQty || 0)}</div>
+          <div>${formatInteger(summary.totalQty || 0)}</div>
         </div>
         <div class="summary-row">
           <div class="summary-label">Bill Amount:</div>
@@ -496,13 +500,14 @@ export const formatInvoiceAsText = (invoiceData) => {
     text += divider();
     items.forEach((item, idx) => {
       const barcode = item.barcode || (item.productId ? String(item.productId) : '-');
+      const formatInt = (val) => Math.round(parseFloat(val || 0)).toString();
       const line = [
         idx + 1,
         barcode,
         item.productName || '-',
         item.productSerialNo || '-',
-        item.quantity || 0,
-        item.freeQty || 0,
+        formatInt(item.quantity),
+        formatInt(item.freeQty),
         formatCurrency(item.rate || 0),
         formatCurrency(item.net || item.gross || item.amount || 0),
       ].join(' | ');
@@ -528,8 +533,9 @@ export const formatInvoiceAsText = (invoiceData) => {
   // Summary
   text += section('Summary');
   const safeNum = (v) => (v !== undefined ? v : 0);
+  const formatInt = (val) => Math.round(parseFloat(val || 0)).toString();
   text += `Items: ${summary.itemCount ?? items.length ?? 0}\n`;
-  text += `Qty: ${safeNum(summary.totalQty)}\n`;
+  text += `Qty: ${formatInt(safeNum(summary.totalQty))}\n`;
   text += `Bill Amount: ${formatCurrency(summary.totalBillValue)}\n`;
   text += `Ledger Balance: ${formatCurrency(summary.ledgerBalance)}\n`;
   text += `Received - Cash: ${formatCurrency(collections.cash)}, Credit: ${formatCurrency(collections.card || 0)}, UPI: ${formatCurrency(collections.upi || 0)}\n`;

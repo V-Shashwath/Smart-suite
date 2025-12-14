@@ -119,6 +119,12 @@ export const adjustmentsList = [
   { id: 15, name: 'Round Off', type: 'less' },
 ];
 
+export const accountsList = [
+  { id: 1, name: 'Cash', code: 'CASH' },
+  { id: 2, name: 'Bank', code: 'BANK' },
+  { id: 3, name: 'Sales', code: 'SALES' },
+];
+
 export const mockInvoiceData = {
   transaction: transactionDetails,
   voucher: voucherDetails,

@@ -94,6 +94,7 @@ const getExecutiveData = async (req, res) => {
         date: dateStr,
         billerName: employee.BillerName || '',
         employeeName: employee.EmployeeName || employee.Username,
+        shortName: employee.ShortName || '', // Include ShortName for frontend use
         customerId: '',
         customerName: '',
         readingA4: '',
