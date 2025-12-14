@@ -22,6 +22,9 @@ const createInvoice = async (req, res) => {
       summary,
     } = req.body;
 
+    // Debug: Log the voucherSeries received from frontend
+    console.log(`🔍 Received voucherSeries from frontend: "${voucherSeries}"`);
+
     // Debug logging for update operations
     if (invoiceID) {
       console.log('📊 Update request data:', {
@@ -149,9 +152,11 @@ const createInvoice = async (req, res) => {
         console.log(`   VoucherSeries: ${employee.VoucherSeries || 'ESI'}`);
         
         // Try to call stored procedure first
+        // IMPORTANT: Use transaction.request() to ensure the stored procedure runs within the transaction
+        // This ensures LastVoucherNumber is updated atomically with the invoice save
         let voucherGenerated = false;
         try {
-          const voucherRequest = pool.request();
+          const voucherRequest = transaction.request();
           voucherRequest.input('Username', sql.VarChar(100), username);
           voucherRequest.output('VoucherSeries', sql.VarChar(50));
           voucherRequest.output('VoucherNo', sql.VarChar(50));
@@ -162,8 +167,22 @@ const createInvoice = async (req, res) => {
           const voucherNoParam = voucherRequest.parameters['VoucherNo'];
           
           if (voucherNoParam && voucherNoParam.value !== null && voucherNoParam.value !== undefined) {
-            // For EmployeeSaleInvoiceScreen, use fixed prefix "RS"
-            const fixedPrefix = 'RS';
+            // Get the base prefix from request body (e.g., 'RS' for EmployeeSaleInvoice, 'SRS' for SalesReturns)
+            // IMPORTANT: Use voucherSeries from req.body, not from stored procedure
+            // Extract just the prefix if full format is sent (e.g., 'SRS' from 'SRS-25PAT-JD' or just 'SRS')
+            let basePrefix = 'RS'; // Default
+            if (voucherSeries) {
+              // If it starts with 'SRS', use 'SRS', otherwise use 'RS'
+              if (voucherSeries.trim().toUpperCase().startsWith('SRS')) {
+                basePrefix = 'SRS';
+              } else if (voucherSeries.trim().toUpperCase().startsWith('RS')) {
+                basePrefix = 'RS';
+              } else {
+                // If it's just a prefix like 'SRS' or 'RS', use it directly
+                basePrefix = voucherSeries.trim().toUpperCase();
+              }
+            }
+            console.log(`📋 Voucher series from request: "${voucherSeries}", extracted prefix: "${basePrefix}"`);
             
             // Get last 2 digits of current year and next year
             const currentYear = new Date().getFullYear();
@@ -178,35 +197,66 @@ const createInvoice = async (req, res) => {
             // Get employee ShortName
             const shortName = employee.ShortName || '';
             
-            // Construct voucher series: RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
+            // Construct voucher series based on prefix
+            // For 'RS' (EmployeeSaleInvoice): RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
             // Example: RS25-26PAT-Mo
-            if (branchShortName && shortName) {
-              finalVoucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}${branchShortName}-${shortName}`;
-            } else if (branchShortName) {
-              finalVoucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}${branchShortName}`;
-            } else if (shortName) {
-              finalVoucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}-${shortName}`;
+            // For 'SRS' (SalesReturns): SRS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
+            // Example: SRS-25PAT-JD
+            if (basePrefix === 'SRS') {
+              // Sales Returns format: SRS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
+              if (branchShortName && shortName) {
+                finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}-${shortName}`;
+              } else if (branchShortName) {
+                finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}`;
+              } else if (shortName) {
+                finalVoucherSeries = `${basePrefix}-${currentYearSuffix}-${shortName}`;
+              } else {
+                finalVoucherSeries = `${basePrefix}-${currentYearSuffix}`;
+              }
             } else {
-              finalVoucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}`;
+              // Employee Sale Invoice format: RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
+              if (branchShortName && shortName) {
+                finalVoucherSeries = `${basePrefix}${currentYearSuffix}-${nextYearSuffix}${branchShortName}-${shortName}`;
+              } else if (branchShortName) {
+                finalVoucherSeries = `${basePrefix}${currentYearSuffix}-${nextYearSuffix}${branchShortName}`;
+              } else if (shortName) {
+                finalVoucherSeries = `${basePrefix}${currentYearSuffix}-${nextYearSuffix}-${shortName}`;
+              } else {
+                finalVoucherSeries = `${basePrefix}${currentYearSuffix}-${nextYearSuffix}`;
+              }
             }
             
             finalVoucherNo = voucherNoParam.value;
             voucherGenerated = true;
             console.log(`✅ Generated via stored procedure: ${finalVoucherSeries}-${finalVoucherNo}`);
+            console.log(`   📝 Prefix used: "${basePrefix}", Format: ${basePrefix === 'SRS' ? 'SRS-{Year}{Branch}-{Employee}' : 'RS{Year}-{NextYear}{Branch}-{Employee}'}`);
+            console.log(`   🔢 LastVoucherNumber updated to: ${finalVoucherNo} for employee: ${username}`);
           }
         } catch (spError) {
           console.warn('⚠️  Stored procedure failed, using manual generation:', spError.message);
         }
         
         // Fallback: Generate voucher number manually if stored procedure didn't work
-        // Format: RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
-        // Example: RS25-26PAT-Mo
         if (!voucherGenerated) {
           const lastNumber = employee.LastVoucherNumber || 0;
           const nextNumber = lastNumber + 1;
           
-          // For EmployeeSaleInvoiceScreen, use fixed prefix "RS"
-          const fixedPrefix = 'RS';
+          // Get the base prefix from request body (e.g., 'RS' for EmployeeSaleInvoice, 'SRS' for SalesReturns)
+          // IMPORTANT: Use voucherSeries from req.body
+          // Extract just the prefix if full format is sent (e.g., 'SRS' from 'SRS-25PAT-JD' or just 'SRS')
+          let basePrefix = 'RS'; // Default
+          if (voucherSeries) {
+            // If it starts with 'SRS', use 'SRS', otherwise use 'RS'
+            if (voucherSeries.trim().toUpperCase().startsWith('SRS')) {
+              basePrefix = 'SRS';
+            } else if (voucherSeries.trim().toUpperCase().startsWith('RS')) {
+              basePrefix = 'RS';
+            } else {
+              // If it's just a prefix like 'SRS' or 'RS', use it directly
+              basePrefix = voucherSeries.trim().toUpperCase();
+            }
+          }
+          console.log(`📋 Fallback: Voucher series from request: "${voucherSeries}", extracted prefix: "${basePrefix}"`);
           
           // Get last 2 digits of current year and next year
           const currentYear = new Date().getFullYear();
@@ -221,22 +271,41 @@ const createInvoice = async (req, res) => {
           // Get employee ShortName
           const shortName = employee.ShortName || '';
           
-          // Construct voucher series: RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
+          // Construct voucher series based on prefix
+          // For 'RS' (EmployeeSaleInvoice): RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
           // Example: RS25-26PAT-Mo
-          if (branchShortName && shortName) {
-            finalVoucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}${branchShortName}-${shortName}`;
-          } else if (branchShortName) {
-            finalVoucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}${branchShortName}`;
-          } else if (shortName) {
-            finalVoucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}-${shortName}`;
+          // For 'SRS' (SalesReturns): SRS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
+          // Example: SRS-25PAT-JD
+          if (basePrefix === 'SRS') {
+            // Sales Returns format: SRS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
+            if (branchShortName && shortName) {
+              finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}-${shortName}`;
+            } else if (branchShortName) {
+              finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}`;
+            } else if (shortName) {
+              finalVoucherSeries = `${basePrefix}-${currentYearSuffix}-${shortName}`;
+            } else {
+              finalVoucherSeries = `${basePrefix}-${currentYearSuffix}`;
+            }
           } else {
-            finalVoucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}`;
+            // Employee Sale Invoice format: RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
+            if (branchShortName && shortName) {
+              finalVoucherSeries = `${basePrefix}${currentYearSuffix}-${nextYearSuffix}${branchShortName}-${shortName}`;
+            } else if (branchShortName) {
+              finalVoucherSeries = `${basePrefix}${currentYearSuffix}-${nextYearSuffix}${branchShortName}`;
+            } else if (shortName) {
+              finalVoucherSeries = `${basePrefix}${currentYearSuffix}-${nextYearSuffix}-${shortName}`;
+            } else {
+              finalVoucherSeries = `${basePrefix}${currentYearSuffix}-${nextYearSuffix}`;
+            }
           }
           
           finalVoucherNo = String(nextNumber); // Just the number, no alphanumeric
           
           // Update LastVoucherNumber in database
-          const updateRequest = pool.request();
+          // IMPORTANT: Use transaction.request() to ensure this update is within the transaction
+          // This ensures LastVoucherNumber is updated atomically with the invoice save
+          const updateRequest = transaction.request();
           updateRequest.input('username', sql.VarChar(100), username);
           updateRequest.input('nextNumber', sql.Int, nextNumber);
           await updateRequest.query(`
@@ -246,6 +315,7 @@ const createInvoice = async (req, res) => {
           `);
           
           console.log(`✅ Generated manually: ${finalVoucherSeries}-${finalVoucherNo}`);
+          console.log(`   🔢 LastVoucherNumber updated to: ${nextNumber} for employee: ${username}`);
         }
       } catch (error) {
         console.error('❌ Error generating voucher number:', error.message);
@@ -485,10 +555,32 @@ const createInvoice = async (req, res) => {
     }
 
     // Commit transaction - all data saved to all 3 tables
+    // IMPORTANT: This commit also commits the LastVoucherNumber update
     await transaction.commit();
+
+    // Verify LastVoucherNumber was updated correctly (for debugging)
+    try {
+      const verifyRequest = pool.request();
+      verifyRequest.input('username', sql.VarChar(100), username);
+      const verifyResult = await verifyRequest.query(`
+        SELECT LastVoucherNumber 
+        FROM Employees 
+        WHERE Username = @username
+      `);
+      if (verifyResult.recordset && verifyResult.recordset.length > 0) {
+        const actualLastVoucherNumber = verifyResult.recordset[0].LastVoucherNumber;
+        console.log(`   ✅ Verified: LastVoucherNumber in database is now ${actualLastVoucherNumber} for employee: ${username}`);
+        if (actualLastVoucherNumber !== parseInt(finalVoucherNo)) {
+          console.warn(`   ⚠️ WARNING: LastVoucherNumber mismatch! Expected ${finalVoucherNo}, but database shows ${actualLastVoucherNumber}`);
+        }
+      }
+    } catch (verifyError) {
+      console.warn(`   ⚠️ Could not verify LastVoucherNumber update: ${verifyError.message}`);
+    }
 
     const action = isUpdate ? 'updated' : 'saved';
     console.log(`✅ Invoice ${action}: ${finalVoucherSeries}-${finalVoucherNo}`);
+    console.log(`   💾 Transaction committed - LastVoucherNumber should be ${finalVoucherNo} for employee: ${username}`);
 
     return res.status(isUpdate ? 200 : 201).json({
       success: true,

@@ -34,7 +34,10 @@ export const API_ENDPOINTS = {
   CREATE_INVOICE: `${API_BASE_URL}/invoices`,
 
   // Executives
-  GET_EXECUTIVE_DATA: (username) => `${API_BASE_URL}/executives/${username}`,
+  GET_EXECUTIVE_DATA: (username, screen) => {
+    const baseUrl = `${API_BASE_URL}/executives/${username}`;
+    return screen ? `${baseUrl}?screen=${encodeURIComponent(screen)}` : baseUrl;
+  },
   AUTHENTICATE_EMPLOYEE: `${API_BASE_URL}/executives/auth/employee`,
   AUTHENTICATE_SUPERVISOR: `${API_BASE_URL}/executives/auth/supervisor`,
   GET_ALL_EXECUTIVES_WITH_SCREENS: `${API_BASE_URL}/executives/screens/all`,

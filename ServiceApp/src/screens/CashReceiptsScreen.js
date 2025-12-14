@@ -10,7 +10,7 @@ import PDFPreviewModal from '../components/PDFPreviewModal';
 import useScreenDraft from '../hooks/useScreenDraft';
 import withScreenPermission from '../components/withScreenPermission';
 import { useAuth } from '../context/AuthContext';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { API_ENDPOINTS, apiCall } from '../config/api';
 import { getBranchShortName } from '../utils/branchMapping';
 
@@ -80,68 +80,73 @@ const CashReceiptsScreen = () => {
   const [savedReceiptID, setSavedReceiptID] = useState(null);
 
   // Auto-populate executive data on mount
-  useEffect(() => {
-    const loadExecutiveData = async () => {
-      if (currentUser?.username) {
-        setIsLoadingExecutiveData(true);
-        try {
-          console.log(`🔍 Fetching executive data for Cash Receipts - username: ${currentUser.username}`);
-          
-          const result = await apiCall(API_ENDPOINTS.GET_EXECUTIVE_DATA(currentUser.username));
-          
-          if (result.success && result.data) {
-            const execData = result.data;
-            const employee = execData.transactionDetails || {};
+  // Auto-populate executive data on mount and when screen comes into focus
+  // This ensures we always have the latest LastVoucherNumber when navigating between screens
+  useFocusEffect(
+    useCallback(() => {
+      const loadExecutiveData = async () => {
+        if (currentUser?.username) {
+          setIsLoadingExecutiveData(true);
+          try {
+            console.log(`🔍 Fetching executive data for Cash Receipts - username: ${currentUser.username}`);
             
-            // Get current year last 2 digits
-            const currentYear = new Date().getFullYear();
-            const yearSuffix = String(currentYear).slice(-2);
+            const result = await apiCall(API_ENDPOINTS.GET_EXECUTIVE_DATA(currentUser.username));
             
-            // Get branch short name
-            const branchName = employee.branch || '';
-            const branchShortName = getBranchShortName(branchName);
-            
-            // Get employee short name from API response
-            const shortName = execData.header?.shortName || '';
-            
-            if (!shortName) {
-              console.warn('⚠️ Employee ShortName not found in API response');
-            }
-            
-            // Construct voucher series: CR-25PAT-JD
-            // Format: CR-{Year}{BranchShortName}-{EmployeeShortName}
-            let voucherSeries;
-            if (branchShortName && shortName) {
-              voucherSeries = `CR-${yearSuffix}${branchShortName}-${shortName}`;
-            } else if (branchShortName) {
-              voucherSeries = `CR-${yearSuffix}${branchShortName}`;
-            } else if (shortName) {
-              voucherSeries = `CR-${yearSuffix}-${shortName}`;
-            } else {
-              voucherSeries = `CR-${yearSuffix}`;
-            }
-            
-            // Get current date/time
-            const now = new Date();
-            const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            const datetimeStr = `${dateStr} ${timeStr}`;
-            
-            // Set transaction data
-            setTransactionData({
-              date: employee.date || dateStr,
-              time: employee.time || timeStr,
-              branch: employee.branch || '',
-              employeeName: execData.header?.employeeName || currentUser.username,
-              username: currentUser.username,
-            });
-            
-            // Set voucher data (preview - will be generated on save)
-            setVoucherData({
-              voucherSeries: voucherSeries,
-              voucherNo: '1', // Preview only
-              voucherDatetime: datetimeStr,
-            });
+            if (result.success && result.data) {
+              const execData = result.data;
+              const employee = execData.transactionDetails || {};
+              
+              // Get current year last 2 digits
+              const currentYear = new Date().getFullYear();
+              const yearSuffix = String(currentYear).slice(-2);
+              
+              // Get branch short name
+              const branchName = employee.branch || '';
+              const branchShortName = getBranchShortName(branchName);
+              
+              // Get employee short name from API response
+              const shortName = execData.header?.shortName || '';
+              
+              if (!shortName) {
+                console.warn('⚠️ Employee ShortName not found in API response');
+              }
+              
+              // Construct voucher series: CR-25PAT-JD
+              // Format: CR-{Year}{BranchShortName}-{EmployeeShortName}
+              let voucherSeries;
+              if (branchShortName && shortName) {
+                voucherSeries = `CR-${yearSuffix}${branchShortName}-${shortName}`;
+              } else if (branchShortName) {
+                voucherSeries = `CR-${yearSuffix}${branchShortName}`;
+              } else if (shortName) {
+                voucherSeries = `CR-${yearSuffix}-${shortName}`;
+              } else {
+                voucherSeries = `CR-${yearSuffix}`;
+              }
+              
+              // Get current date/time
+              const now = new Date();
+              const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+              const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+              const datetimeStr = `${dateStr} ${timeStr}`;
+              
+              // Set transaction data
+              setTransactionData({
+                date: employee.date || dateStr,
+                time: employee.time || timeStr,
+                branch: employee.branch || '',
+                employeeName: execData.header?.employeeName || currentUser.username,
+                username: currentUser.username,
+              });
+              
+              // Set voucher data (preview - use LastVoucherNumber from API)
+              // The API returns the next preview number based on LastVoucherNumber
+              const voucherNoPreview = execData.voucherDetails?.voucherNo || '1';
+              setVoucherData({
+                voucherSeries: voucherSeries,
+                voucherNo: voucherNoPreview, // Use preview number from API (LastVoucherNumber + 1)
+                voucherDatetime: execData.voucherDetails?.voucherDatetime || datetimeStr,
+              });
             
             // Set header data
             setHeaderData({
@@ -175,14 +180,15 @@ const CashReceiptsScreen = () => {
             date: dateStr,
             cashAccount: 'Cash',
           });
-        } finally {
-          setIsLoadingExecutiveData(false);
+          } finally {
+            setIsLoadingExecutiveData(false);
+          }
         }
-      }
-    };
-    
-    loadExecutiveData();
-  }, [currentUser?.username]);
+      };
+      
+      loadExecutiveData();
+    }, [currentUser?.username])
+  );
 
   const handleDeleteRow = (index) => {
     // For cash receipt, clearing the item means removing customer

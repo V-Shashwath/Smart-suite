@@ -5,6 +5,7 @@ const { getBranchShortName } = require('../utils/branchMapping');
 const getExecutiveData = async (req, res) => {
   try {
     const { username } = req.params;
+    const { screen } = req.query; // Get screen type from query parameter (e.g., ?screen=SalesReturns)
 
     if (!username) {
       return res.status(400).json({
@@ -37,10 +38,12 @@ const getExecutiveData = async (req, res) => {
     const transactionId = `TXN-${now.getFullYear()}-${String(Date.now()).slice(-6)}`;
 
     // Get voucher series and calculate preview of next voucher number (without incrementing)
-    // Format: RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
-    // Example: RS25-26PAT-Mo
-    // NOTE: We show a preview but DON'T increment until user saves
-    const fixedPrefix = 'RS';
+    // Determine prefix and format based on screen type
+    // For EmployeeSaleInvoice: RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName} (e.g., RS25-26PAT-Mo)
+    // For SalesReturns: SRS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName} (e.g., SRS-25PAT-JD)
+    // Default to 'RS' if screen not specified (backward compatibility)
+    const isSalesReturns = screen === 'SalesReturns';
+    const basePrefix = isSalesReturns ? 'SRS' : 'RS';
     
     // Get last 2 digits of current year and next year
     const currentYear = new Date().getFullYear();
@@ -55,21 +58,40 @@ const getExecutiveData = async (req, res) => {
     // Get employee ShortName
     const shortName = employee.ShortName || '';
     
-    // Construct voucher series: RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
-    // Example: RS25-26PAT-Mo
+    // Construct voucher series based on screen type
     let voucherSeries;
-    if (branchShortName && shortName) {
-      voucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}${branchShortName}-${shortName}`;
-    } else if (branchShortName) {
-      voucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}${branchShortName}`;
-    } else if (shortName) {
-      voucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}-${shortName}`;
+    if (isSalesReturns) {
+      // Sales Returns format: SRS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
+      // Example: SRS-25PAT-JD
+      if (branchShortName && shortName) {
+        voucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}-${shortName}`;
+      } else if (branchShortName) {
+        voucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}`;
+      } else if (shortName) {
+        voucherSeries = `${basePrefix}-${currentYearSuffix}-${shortName}`;
+      } else {
+        voucherSeries = `${basePrefix}-${currentYearSuffix}`;
+      }
     } else {
-      voucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}`;
+      // Employee Sale Invoice format: RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
+      // Example: RS25-26PAT-Mo
+      if (branchShortName && shortName) {
+        voucherSeries = `${basePrefix}${currentYearSuffix}-${nextYearSuffix}${branchShortName}-${shortName}`;
+      } else if (branchShortName) {
+        voucherSeries = `${basePrefix}${currentYearSuffix}-${nextYearSuffix}${branchShortName}`;
+      } else if (shortName) {
+        voucherSeries = `${basePrefix}${currentYearSuffix}-${nextYearSuffix}-${shortName}`;
+      } else {
+        voucherSeries = `${basePrefix}${currentYearSuffix}-${nextYearSuffix}`;
+      }
     }
+    
+    console.log(`📋 Generated preview voucher series for screen "${screen || 'EmployeeSaleInvoice'}": ${voucherSeries}`);
     
     const lastVoucherNumber = employee.LastVoucherNumber || 0;
     const nextPreviewNumber = lastVoucherNumber + 1; // Preview only, not saved yet
+    
+    console.log(`   🔢 Preview voucher number: LastVoucherNumber=${lastVoucherNumber}, NextPreview=${nextPreviewNumber} for employee: ${username}`);
     
     // Generate preview voucher number (just the number, for display only)
     const voucherNoPreview = String(nextPreviewNumber);
