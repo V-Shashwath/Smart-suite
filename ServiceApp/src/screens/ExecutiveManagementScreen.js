@@ -51,17 +51,18 @@ const ExecutiveManagementScreen = ({ navigation }) => {
   };
 
   const openCreateModal = () => {
-    resetForm();
-    setIsModalVisible(true);
+    Alert.alert(
+      'Create Employee',
+      'Employees must be created in the Employees table first. Please create the employee in the database, then you can assign screens here.',
+      [{ text: 'OK' }]
+    );
   };
 
   const openEditModal = (executive) => {
     setEditingExecutive(executive);
     setFormState({
-      name: executive.name,
+      name: executive.name || executive.employeeName,
       username: executive.username,
-      password: executive.password,
-      databaseName: executive.databaseName,
       assignedScreens: executive.assignedScreens || [],
     });
     setIsModalVisible(true);
@@ -81,29 +82,26 @@ const ExecutiveManagementScreen = ({ navigation }) => {
   };
 
   const handleSubmit = async () => {
-    if (!formState.username || !formState.password || !formState.databaseName) {
-      Alert.alert('Missing details', 'Username, password and database are required.');
-      return;
-    }
-
     if (!formState.assignedScreens.length) {
       Alert.alert('Assign at least one screen', 'Executives need at least one screen to access.');
       return;
     }
 
+    if (!editingExecutive || !editingExecutive.employeeId) {
+      Alert.alert('Error', 'Employee ID is required. Please select an existing employee.');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
-      if (editingExecutive) {
-        await updateExecutive(editingExecutive.id, formState);
-        Alert.alert('Updated', `${formState.username} updated successfully.`);
-      } else {
-        await addExecutive(formState);
-        Alert.alert('Executive added', `${formState.username} can now sign in.`);
-      }
+      await updateExecutive(editingExecutive.id, {
+        assignedScreens: formState.assignedScreens,
+      });
+      Alert.alert('Updated', `Screen assignments for ${formState.username || editingExecutive.name} updated successfully.`);
       setIsModalVisible(false);
       resetForm();
     } catch (error) {
-      Alert.alert('Unable to save executive', error.message || 'Please try again.');
+      Alert.alert('Unable to save', error.message || 'Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -111,14 +109,21 @@ const ExecutiveManagementScreen = ({ navigation }) => {
 
   const confirmDelete = (executive) => {
     Alert.alert(
-      'Remove executive',
-      `Delete ${executive.username}? This cannot be undone.`,
+      'Remove Screen Assignments',
+      `Remove all screen assignments for ${executive.username}? They will not be able to access any screens until reassigned.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete',
+          text: 'Remove',
           style: 'destructive',
-          onPress: () => deleteExecutive(executive.id),
+          onPress: async () => {
+            try {
+              await updateExecutive(executive.id, { assignedScreens: [] });
+              Alert.alert('Success', 'Screen assignments removed.');
+            } catch (error) {
+              Alert.alert('Error', error.message || 'Failed to remove assignments.');
+            }
+          },
         },
       ]
     );
@@ -205,51 +210,24 @@ const ExecutiveManagementScreen = ({ navigation }) => {
           <View style={styles.modalContainer}>
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.modalTitle}>
-                {editingExecutive ? 'Edit Executive' : 'Create Executive'}
+                Assign Screens to Executive
               </Text>
 
               <Text style={styles.label}>Name</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, styles.readOnlyInput]}
                 value={formState.name}
                 placeholder="Display name"
-                onChangeText={(text) =>
-                  setFormState((prev) => ({ ...prev, name: text }))
-                }
+                editable={false}
               />
 
               <Text style={styles.label}>Username</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, styles.readOnlyInput]}
                 value={formState.username}
                 placeholder="Unique username"
                 autoCapitalize="none"
-                onChangeText={(text) =>
-                  setFormState((prev) => ({ ...prev, username: text }))
-                }
-              />
-
-              <Text style={styles.label}>Password</Text>
-              <TextInput
-                style={styles.input}
-                value={formState.password}
-                placeholder="Password"
-                secureTextEntry
-                autoCapitalize="none"
-                onChangeText={(text) =>
-                  setFormState((prev) => ({ ...prev, password: text }))
-                }
-              />
-
-              <Text style={styles.label}>Database Name</Text>
-              <TextInput
-                style={styles.input}
-                value={formState.databaseName}
-                placeholder="Database name"
-                autoCapitalize="none"
-                onChangeText={(text) =>
-                  setFormState((prev) => ({ ...prev, databaseName: text }))
-                }
+                editable={false}
               />
 
               <Text style={[styles.label, styles.screenLabel]}>Assign Screens</Text>
@@ -476,6 +454,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 12,
     color: '#263238',
+  },
+  readOnlyInput: {
+    backgroundColor: '#f5f5f5',
+    color: '#78909c',
   },
   screenLabel: {
     marginTop: 4,

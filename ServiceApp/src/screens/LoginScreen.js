@@ -37,9 +37,17 @@ const LoginScreen = ({ navigation }) => {
 
   const handleSignIn = async () => {
     setError('');
+    
+    // Validate database name is always CrystalCopier
+    const dbName = 'CrystalCopier';
+    if (databaseName.toLowerCase() !== 'crystalcopier') {
+      setError('Database name must be "CrystalCopier"');
+      return;
+    }
+    
     try {
       setLoading(true);
-      await login({ databaseName, username: userName, password });
+      await login({ databaseName: dbName, username: userName, password });
       // Navigation will be handled by useEffect when currentUser changes
       // Don't call navigation.replace here to avoid duplicate navigation
       // Loading will be reset when component unmounts or when navigation happens
@@ -69,10 +77,10 @@ const LoginScreen = ({ navigation }) => {
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Database Name</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, styles.readOnlyInput]}
                 placeholder="Database Name"
-                value={databaseName}
-                onChangeText={setDatabaseName}
+                value="CrystalCopier"
+                editable={false}
                 autoCapitalize="none"
               />
             </View>
@@ -188,6 +196,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#fff',
     color: '#333',
+  },
+  readOnlyInput: {
+    backgroundColor: '#f5f5f5',
+    color: '#666',
   },
   signInButton: {
     backgroundColor: '#FF5722',

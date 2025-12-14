@@ -4,7 +4,7 @@
 // Backend API URL (backend runs on port 3000, database on port 59320)
 // Priority: app.json config > default value
 // Using ngrok for cross-network access
-let API_BASE_URL = 'https://tenley-ophiologic-danielle.ngrok-free.dev/api'; // Default fallback (ngrok URL)
+let API_BASE_URL = ' https://tenley-ophiologic-danielle.ngrok-free.dev/api'; // Default fallback (ngrok URL)
 
 // Try to get from app.json config if available
 try {
@@ -37,6 +37,9 @@ export const API_ENDPOINTS = {
   GET_EXECUTIVE_DATA: (username) => `${API_BASE_URL}/executives/${username}`,
   AUTHENTICATE_EMPLOYEE: `${API_BASE_URL}/executives/auth/employee`,
   AUTHENTICATE_SUPERVISOR: `${API_BASE_URL}/executives/auth/supervisor`,
+  GET_ALL_EXECUTIVES_WITH_SCREENS: `${API_BASE_URL}/executives/screens/all`,
+  GET_EXECUTIVE_SCREEN_ASSIGNMENTS: (employeeId) => `${API_BASE_URL}/executives/screens/${employeeId}`,
+  SET_EXECUTIVE_SCREEN_ASSIGNMENTS: `${API_BASE_URL}/executives/screens/assign`,
 
   // Products
   GET_PRODUCT_BY_BARCODE: (barcode) => `${API_BASE_URL}/products/barcode/${barcode}`,

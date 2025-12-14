@@ -339,7 +339,7 @@ export const generateInvoiceHTML = async (invoiceData) => {
         </div>
         <div class="summary-row">
           <div class="summary-label">Received:</div>
-          <div>Cash: ${formatCurrency(collections.cash || 0)}, Credit: ${formatCurrency(collections.card || 0)}, UPI: ${formatCurrency(collections.upi || 0)}</div>
+          <div>Cash: ${formatCurrency(collections.cash || 0)}, Card: ${formatCurrency(collections.card || 0)}, UPI: ${formatCurrency(collections.upi || 0)}</div>
         </div>
         <div class="summary-row">
           <div class="summary-label">Balance:</div>

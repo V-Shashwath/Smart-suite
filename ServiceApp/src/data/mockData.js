@@ -61,7 +61,6 @@ export const transactionDetails = {
   transactionId: 'TXN-2025-001234',
   date: '17-11-2025',
   time: '19:29:05',
-  status: 'Pending',
   branch: 'Head Office',
   location: 'Moorthy Location',
   employeeLocation: 'Moorthy Location',

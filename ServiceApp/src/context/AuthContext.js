@@ -69,7 +69,19 @@ export const AuthProvider = ({ children }) => {
         }
 
         if (storedUser) {
-          setCurrentUser(JSON.parse(storedUser));
+          const parsedUser = JSON.parse(storedUser);
+          // Validate stored user has required fields
+          if (parsedUser && parsedUser.username && parsedUser.role) {
+            console.log(`📱 Restored user from storage:`, {
+              role: parsedUser.role,
+              username: parsedUser.username,
+              assignedScreens: parsedUser.assignedScreens,
+            });
+            setCurrentUser(parsedUser);
+          } else {
+            console.warn('⚠️ Invalid user data in storage, clearing...');
+            AsyncStorage.removeItem(STORAGE_KEYS.CURRENT_USER).catch(() => {});
+          }
         }
       } catch (error) {
         console.warn('Auth bootstrap failed', error);
@@ -106,10 +118,20 @@ export const AuthProvider = ({ children }) => {
       );
       return;
     }
-    AsyncStorage.setItem(
-      STORAGE_KEYS.CURRENT_USER,
-      JSON.stringify(currentUser)
-    ).catch((error) => console.warn('Saving user failed', error));
+    // Validate user object before saving
+    if (currentUser && currentUser.username && currentUser.role) {
+      console.log(`💾 Saving user to storage:`, {
+        role: currentUser.role,
+        username: currentUser.username,
+        assignedScreens: currentUser.assignedScreens,
+      });
+      AsyncStorage.setItem(
+        STORAGE_KEYS.CURRENT_USER,
+        JSON.stringify(currentUser)
+      ).catch((error) => console.warn('Saving user failed', error));
+    } else {
+      console.warn('⚠️ Invalid user object, not saving to storage');
+    }
   }, [currentUser, hydrated]);
 
   const getSupervisorScreens = useCallback(
@@ -119,7 +141,12 @@ export const AuthProvider = ({ children }) => {
 
   const login = useCallback(
     async ({ databaseName, username, password }) => {
+      // Validate database name must be CrystalCopier
       const normalizedDb = normalizeValue(databaseName).toLowerCase();
+      if (normalizedDb !== 'crystalcopier') {
+        throw new Error('Database name must be "CrystalCopier"');
+      }
+      
       const normalizedUsername = normalizeValue(username);
       const normalizedPassword = normalizeValue(password);
 
@@ -127,42 +154,16 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Enter database name, username and password.');
       }
 
+      // Clear any existing user before attempting login
+      console.log(`🔐 Starting login process for: ${normalizedUsername}`);
+      setCurrentUser(null);
+      await AsyncStorage.removeItem(STORAGE_KEYS.CURRENT_USER).catch(() => {});
+
       try {
-        // Try supervisor authentication first (using backend)
-        // Silently fail if not a supervisor (expected behavior)
+        // Try employee authentication FIRST (employees are more common)
+        // This ensures employees are treated as employees even if they exist in both tables
         try {
-          const supervisorResponse = await apiCall(API_ENDPOINTS.AUTHENTICATE_SUPERVISOR, {
-            method: 'POST',
-            body: JSON.stringify({
-              username: normalizedUsername,
-              password: normalizedPassword,
-            }),
-          });
-
-          if (supervisorResponse.success && supervisorResponse.data) {
-            const supervisor = supervisorResponse.data;
-            const user = {
-              role: 'supervisor',
-              username: supervisor.username,
-              databaseName: normalizedDb,
-              assignedScreens: getSupervisorScreens(),
-              supervisorId: supervisor.supervisorId,
-            };
-            setCurrentUser(user);
-            return user;
-          }
-        } catch (supervisorError) {
-          // Supervisor authentication failed (expected for employees)
-          // Silently continue to employee authentication - don't log as error
-          // Only log if it's not a 401 (unauthorized) which is expected
-          if (!supervisorError.message.includes('Invalid username or password') && 
-              !supervisorError.message.includes('401')) {
-            console.log('Supervisor authentication check failed (non-401 error):', supervisorError.message);
-          }
-        }
-
-        // Try employee authentication (using backend)
-        try {
+          console.log(`🔐 Attempting employee authentication for: ${normalizedUsername}`);
           const employeeResponse = await apiCall(API_ENDPOINTS.AUTHENTICATE_EMPLOYEE, {
             method: 'POST',
             body: JSON.stringify({
@@ -173,32 +174,127 @@ export const AuthProvider = ({ children }) => {
 
           if (employeeResponse.success && employeeResponse.data) {
             const employee = employeeResponse.data;
+            console.log(`✅ Employee authenticated: ${employee.username}`);
             
-            // Get assigned screens from local executives list if available
-            const localExecutive = executives.find(
-              (exec) => exec.username.toLowerCase() === normalizedUsername.toLowerCase()
-            );
+            // Use assigned screens from backend response (already fetched during authentication)
+            // If assignedScreens is null, undefined, or empty array, use default
+            let assignedScreens = [];
+            if (employee.assignedScreens && Array.isArray(employee.assignedScreens) && employee.assignedScreens.length > 0) {
+              assignedScreens = sanitizeScreens(employee.assignedScreens);
+            } else {
+              // Default to EmployeeSaleInvoice only if no screens assigned
+              assignedScreens = sanitizeScreens(['EmployeeSaleInvoice']);
+              console.log(`⚠️ No screens assigned for ${employee.username}, using default: EmployeeSaleInvoice`);
+            }
+            
+            console.log(`📱 Assigned screens for ${employee.username}:`, assignedScreens);
             
             const user = {
               role: 'executive',
               username: employee.username,
               databaseName: normalizedDb,
-              assignedScreens: localExecutive 
-                ? sanitizeScreens(localExecutive.assignedScreens)
-                : ['EmployeeSaleInvoice'], // Default screens if not found locally
+              assignedScreens,
               executiveId: employee.employeeId,
               employeeName: employee.employeeName,
             };
+            console.log(`👤 Setting current user:`, {
+              role: user.role,
+              username: user.username,
+              assignedScreens: user.assignedScreens,
+              executiveId: user.executiveId,
+            });
             setCurrentUser(user);
             return user;
+          } else {
+            console.log(`⚠️ Employee authentication returned success=false for: ${normalizedUsername}`);
           }
         } catch (employeeError) {
-          // Employee authentication failed
-          console.error('Employee authentication error:', employeeError);
+          // Employee authentication failed - try supervisor authentication
+          const is401Error = employeeError.message.includes('Invalid username or password') || 
+                            employeeError.message.includes('401');
+          if (is401Error) {
+            console.log(`ℹ️ Employee authentication failed (401) for: ${normalizedUsername} - trying supervisor authentication`);
+          } else {
+            console.warn(`⚠️ Employee authentication error (non-401) for: ${normalizedUsername}:`, employeeError.message);
+          }
+        }
+
+        // Try supervisor authentication (only if employee auth failed)
+        try {
+          console.log(`🔐 Attempting supervisor authentication for: ${normalizedUsername}`);
+          const supervisorResponse = await apiCall(API_ENDPOINTS.AUTHENTICATE_SUPERVISOR, {
+            method: 'POST',
+            body: JSON.stringify({
+              username: normalizedUsername,
+              password: normalizedPassword,
+            }),
+          });
+
+          if (supervisorResponse.success && supervisorResponse.data) {
+            const supervisor = supervisorResponse.data;
+            console.log(`✅ Supervisor authenticated: ${supervisor.username}`);
+            
+            // Fetch all executives with screen assignments from backend
+            // Do this asynchronously after login succeeds to avoid blocking login
+            setTimeout(async () => {
+              try {
+                const executivesResponse = await apiCall(API_ENDPOINTS.GET_ALL_EXECUTIVES_WITH_SCREENS);
+                if (executivesResponse.success && executivesResponse.data) {
+                  // Map backend data to frontend format
+                  const backendExecutives = executivesResponse.data.map((exec) => ({
+                    id: `exec-${exec.employeeId}`,
+                    name: exec.employeeName || exec.username,
+                    username: exec.username,
+                    password: '', // Don't store password in frontend
+                    databaseName: normalizedDb,
+                    assignedScreens: exec.assignedScreens || [],
+                    employeeId: exec.employeeId,
+                  }));
+                  setExecutives(backendExecutives);
+                  console.log(`✅ Loaded ${backendExecutives.length} executives from backend`);
+                }
+              } catch (execError) {
+                console.warn('⚠️ Could not load executives from backend:', execError.message);
+                // Continue with empty executives list - don't block supervisor login
+              }
+            }, 100);
+            
+            const user = {
+              role: 'supervisor',
+              username: supervisor.username,
+              databaseName: normalizedDb,
+              assignedScreens: getSupervisorScreens(),
+              supervisorId: supervisor.supervisorId,
+            };
+            console.log(`👤 Setting current user:`, {
+              role: user.role,
+              username: user.username,
+              assignedScreens: user.assignedScreens,
+              supervisorId: user.supervisorId,
+            });
+            setCurrentUser(user);
+            return user;
+          } else {
+            console.log(`⚠️ Supervisor authentication returned success=false for: ${normalizedUsername}`);
+          }
+        } catch (supervisorError) {
+          // Supervisor authentication also failed
+          const is401Error = supervisorError.message.includes('Invalid username or password') || 
+                            supervisorError.message.includes('401');
+          if (is401Error) {
+            console.log(`❌ Both employee and supervisor authentication failed for: ${normalizedUsername}`);
+            console.log(`   Please check:`);
+            console.log(`   1. Username is correct: "${normalizedUsername}"`);
+            console.log(`   2. Password is correct`);
+            console.log(`   3. User exists in Employees or Supervisors table`);
+            console.log(`   4. Status is 'Active' (for supervisors)`);
+          } else {
+            console.error('❌ Supervisor authentication error:', supervisorError.message);
+          }
         }
 
         // If both failed, throw error
-        throw new Error('Invalid username or password.');
+        throw new Error('Invalid username or password. Please check your credentials and try again.');
       } catch (error) {
         // If it's already a user-friendly error, re-throw it
         if (error.message === 'Invalid username or password.' || 
@@ -227,52 +323,119 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Username, database name and password are required.');
       }
 
-      const exists = executives.some(
-        (exec) => exec.username.toLowerCase() === username.toLowerCase()
-      );
-      if (exists) {
-        throw new Error('Username already exists.');
+      // Check if employee exists in database (by username)
+      // Note: This assumes the employee is already created in Employees table
+      // For now, we'll just update screen assignments
+      // In a full implementation, you'd create the employee first, then assign screens
+      
+      // For now, we'll use the employeeId if provided, or try to find by username
+      if (!payload.employeeId) {
+        throw new Error('Employee must exist in database first. Please create employee in Employees table.');
       }
 
-      const entity = {
-        id: payload.id || `exec-${Date.now()}`,
-        name: payload.name || username,
-        username,
-        password,
-        databaseName,
-        assignedScreens: sanitizeScreens(payload.assignedScreens),
-      };
+      // Set screen assignments via backend
+      const assignedScreens = sanitizeScreens(payload.assignedScreens || []);
+      try {
+        const response = await apiCall(API_ENDPOINTS.SET_EXECUTIVE_SCREEN_ASSIGNMENTS, {
+          method: 'POST',
+          body: JSON.stringify({
+            employeeId: payload.employeeId,
+            assignedScreens,
+            modifiedBy: currentUser?.username || 'System',
+          }),
+        });
 
-      setExecutives((prev) => [...prev, entity]);
-      return entity;
+        if (!response.success) {
+          throw new Error(response.message || 'Failed to assign screens');
+        }
+
+        // Refresh executives list
+        const executivesResponse = await apiCall(API_ENDPOINTS.GET_ALL_EXECUTIVES_WITH_SCREENS);
+        if (executivesResponse.success && executivesResponse.data) {
+          const backendExecutives = executivesResponse.data.map((exec) => ({
+            id: `exec-${exec.employeeId}`,
+            name: exec.employeeName || exec.username,
+            username: exec.username,
+            password: '',
+            databaseName: databaseName || currentUser?.databaseName || 'CrystalCopier',
+            assignedScreens: exec.assignedScreens || [],
+            employeeId: exec.employeeId,
+          }));
+          setExecutives(backendExecutives);
+        }
+
+        return {
+          id: `exec-${payload.employeeId}`,
+          name: payload.name || username,
+          username,
+          password: '',
+          databaseName,
+          assignedScreens,
+          employeeId: payload.employeeId,
+        };
+      } catch (error) {
+        console.error('Error adding executive screen assignments:', error);
+        throw error;
+      }
     },
-    [executives]
+    [executives, currentUser]
   );
 
-  const updateExecutive = useCallback((id, updates) => {
-    setExecutives((prev) =>
-      prev.map((exec) => {
-        if (exec.id !== id) return exec;
-        return {
-          ...exec,
-          ...updates,
-          assignedScreens: sanitizeScreens(updates.assignedScreens || exec.assignedScreens),
-        };
-      })
-    );
+  const updateExecutive = useCallback(async (id, updates) => {
+    // Find the executive to get employeeId
+    const executive = executives.find((exec) => exec.id === id);
+    if (!executive || !executive.employeeId) {
+      throw new Error('Executive not found or missing employeeId');
+    }
 
-    setCurrentUser((prev) => {
-      if (!prev || prev.role !== 'executive' || prev.executiveId !== id) {
-        return prev;
+    // Update screen assignments via backend
+    if (updates.assignedScreens !== undefined) {
+      const assignedScreens = sanitizeScreens(updates.assignedScreens);
+      try {
+        const response = await apiCall(API_ENDPOINTS.SET_EXECUTIVE_SCREEN_ASSIGNMENTS, {
+          method: 'POST',
+          body: JSON.stringify({
+            employeeId: executive.employeeId,
+            assignedScreens,
+            modifiedBy: currentUser?.username || 'System',
+          }),
+        });
+
+        if (!response.success) {
+          throw new Error(response.message || 'Failed to update screen assignments');
+        }
+
+        // Refresh executives list
+        const executivesResponse = await apiCall(API_ENDPOINTS.GET_ALL_EXECUTIVES_WITH_SCREENS);
+        if (executivesResponse.success && executivesResponse.data) {
+          const backendExecutives = executivesResponse.data.map((exec) => ({
+            id: `exec-${exec.employeeId}`,
+            name: exec.employeeName || exec.username,
+            username: exec.username,
+            password: '',
+            databaseName: currentUser?.databaseName || 'CrystalCopier',
+            assignedScreens: exec.assignedScreens || [],
+            employeeId: exec.employeeId,
+          }));
+          setExecutives(backendExecutives);
+        }
+
+        // Update current user if it's the logged-in executive
+        setCurrentUser((prev) => {
+          if (!prev || prev.role !== 'executive' || prev.executiveId !== executive.employeeId) {
+            return prev;
+          }
+          return {
+            ...prev,
+            assignedScreens,
+          };
+        });
+      } catch (error) {
+        console.error('Error updating executive screen assignments:', error);
+        throw error;
       }
-      return {
-        ...prev,
-        assignedScreens: sanitizeScreens(
-          updates.assignedScreens || prev.assignedScreens
-        ),
-      };
-    });
-  }, []);
+    }
+  }, [executives, currentUser]);
 
   const deleteExecutive = useCallback((id) => {
     setExecutives((prev) => prev.filter((exec) => exec.id !== id));
@@ -287,18 +450,62 @@ export const AuthProvider = ({ children }) => {
   const hasAccessToScreen = useCallback(
     (routeName) => {
       if (!currentUser) return false;
-      if (currentUser.role === 'supervisor') return true;
-      return currentUser.assignedScreens?.includes(routeName);
+      
+      // Supervisors have access to all screens
+      if (currentUser.role === 'supervisor') {
+        return true;
+      }
+      
+      // Executives only have access to assigned screens
+      if (currentUser.role !== 'executive') {
+        console.warn(`⚠️ Unknown role: ${currentUser.role} for user: ${currentUser.username}`);
+        return false;
+      }
+      
+      const hasAccess = currentUser.assignedScreens?.includes(routeName) || false;
+      if (!hasAccess) {
+        console.log(`🚫 Executive ${currentUser.username} does NOT have access to: ${routeName}`);
+        console.log(`   Assigned screens: ${JSON.stringify(currentUser.assignedScreens)}`);
+      }
+      return hasAccess;
     },
     [currentUser]
   );
 
   const getAccessibleScreens = useCallback(() => {
-    if (!currentUser) return [];
-    if (currentUser.role === 'supervisor') {
-      return getSupervisorScreens();
+    if (!currentUser) {
+      console.warn(`⚠️ getAccessibleScreens: No currentUser`);
+      return [];
     }
-    return sanitizeScreens(currentUser.assignedScreens);
+    
+    // Validate role
+    if (currentUser.role !== 'supervisor' && currentUser.role !== 'executive') {
+      console.error(`❌ Invalid role: ${currentUser.role} for user: ${currentUser.username}`);
+      return [];
+    }
+    
+    if (currentUser.role === 'supervisor') {
+      // Supervisors can access all screens
+      const supervisorScreens = getSupervisorScreens();
+      console.log(`✅ Supervisor ${currentUser.username} - returning all ${supervisorScreens.length} screens`);
+      return supervisorScreens;
+    }
+    
+    // For executives, ONLY return assigned screens - never all screens
+    if (currentUser.role !== 'executive') {
+      console.error(`❌ Expected executive role but got: ${currentUser.role}`);
+      return [];
+    }
+    
+    const screens = currentUser.assignedScreens;
+    if (!screens || !Array.isArray(screens) || screens.length === 0) {
+      // If no screens assigned, return empty array (not default screens)
+      console.warn(`⚠️ Executive ${currentUser.username} has no assigned screens - returning empty array`);
+      return [];
+    }
+    const sanitized = sanitizeScreens(screens);
+    console.log(`✅ Executive ${currentUser.username} - returning ${sanitized.length} assigned screens:`, sanitized);
+    return sanitized;
   }, [currentUser, getSupervisorScreens]);
 
   const saveFormDraft = useCallback(
