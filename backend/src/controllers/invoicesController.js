@@ -1,4 +1,5 @@
 const { executeQuery, executeProcedure, getPool, sql } = require('../config/database');
+const { getBranchShortName } = require('../utils/branchMapping');
 
 // Create or Update Employee Sale Invoice (Main + Items + Adjustments)
 const createInvoice = async (req, res) => {
@@ -68,7 +69,7 @@ const createInvoice = async (req, res) => {
       checkRequest.input('invoiceID', sql.Int, invoiceID);
       const checkResult = await checkRequest.query(`
         SELECT InvoiceID, VoucherSeries, VoucherNo 
-        FROM EmployeeSaleInvoiceMain 
+        FROM InvoiceMain 
         WHERE InvoiceID = @invoiceID
       `);
       
@@ -96,7 +97,7 @@ const createInvoice = async (req, res) => {
       voucherRequest.input('invoiceID', sql.Int, existingInvoiceID);
       const voucherResult = await voucherRequest.query(`
         SELECT VoucherSeries, VoucherNo 
-        FROM EmployeeSaleInvoiceMain 
+        FROM InvoiceMain 
         WHERE InvoiceID = @invoiceID
       `);
       
@@ -128,7 +129,7 @@ const createInvoice = async (req, res) => {
         console.log(`🔢 Generating voucher number for username: ${username}`);
         
         // First, verify employee exists
-        const checkEmployeeQuery = `SELECT EmployeeID, EmployeeName, ShortName, LastVoucherNumber, VoucherSeries FROM Employees WHERE Username = @username AND Status = 'Active'`;
+        const checkEmployeeQuery = `SELECT EmployeeID, EmployeeName, ShortName, LastVoucherNumber, VoucherSeries FROM Employees WHERE Username = @username`;
         const checkRequest = pool.request();
         checkRequest.input('username', sql.VarChar(100), username);
         const employeeResult = await checkRequest.query(checkEmployeeQuery);
@@ -161,26 +162,34 @@ const createInvoice = async (req, res) => {
           const voucherNoParam = voucherRequest.parameters['VoucherNo'];
           
           if (voucherNoParam && voucherNoParam.value !== null && voucherNoParam.value !== undefined) {
-            // Get base series from stored procedure, request, or employee record
-            let baseSeries = voucherSeriesParam?.value || employee.VoucherSeries || 'ESI';
+            // For EmployeeSaleInvoiceScreen, use fixed prefix "RS"
+            const fixedPrefix = 'RS';
             
-            // If voucherSeries is provided in request, use it (might be just base like "ESI" or full format)
-            if (voucherSeries) {
-              // Extract base series if it's in format "ESI-25-JD", otherwise use as-is
-              const formatMatch = voucherSeries.match(/^([A-Z]+)-?\d{2}-?[A-Z]+$/i);
-              baseSeries = formatMatch ? formatMatch[1] : voucherSeries;
-            }
-            
-            // Get last 2 digits of current year
+            // Get last 2 digits of current year and next year
             const currentYear = new Date().getFullYear();
-            const yearSuffix = String(currentYear).slice(-2);
+            const nextYear = currentYear + 1;
+            const currentYearSuffix = String(currentYear).slice(-2);
+            const nextYearSuffix = String(nextYear).slice(-2);
+            
+            // Get branch short name from employee's branch
+            const branchName = employee.Branch || '';
+            const branchShortName = getBranchShortName(branchName);
             
             // Get employee ShortName
             const shortName = employee.ShortName || '';
             
-            // Construct voucher series: {BaseSeries}-{Year}-{ShortName}
-            // Example: ESI-25-JD, CR-25-JD, BR-25-JD, ER-25-JD, SR-25-JD, RS-25-JD, RMB-25-JD
-            finalVoucherSeries = shortName ? `${baseSeries}-${yearSuffix}-${shortName}` : `${baseSeries}-${yearSuffix}`;
+            // Construct voucher series: RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
+            // Example: RS25-26PAT-Mo
+            if (branchShortName && shortName) {
+              finalVoucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}${branchShortName}-${shortName}`;
+            } else if (branchShortName) {
+              finalVoucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}${branchShortName}`;
+            } else if (shortName) {
+              finalVoucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}-${shortName}`;
+            } else {
+              finalVoucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}`;
+            }
+            
             finalVoucherNo = voucherNoParam.value;
             voucherGenerated = true;
             console.log(`✅ Generated via stored procedure: ${finalVoucherSeries}-${finalVoucherNo}`);
@@ -190,33 +199,40 @@ const createInvoice = async (req, res) => {
         }
         
         // Fallback: Generate voucher number manually if stored procedure didn't work
-        // Format: {BaseSeries}-{Last2DigitsOfYear}-{ShortName}
-        // Example: ESI-25-JD, CR-25-JD, etc.
+        // Format: RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
+        // Example: RS25-26PAT-Mo
         if (!voucherGenerated) {
           const lastNumber = employee.LastVoucherNumber || 0;
           const nextNumber = lastNumber + 1;
           
-          // Extract base series from voucherSeries if it's already in format "ESI-25-JD", otherwise use as-is
-          // If voucherSeries is "ESI-25-JD", extract "ESI"; if it's just "ESI", use it
-          let baseSeries = voucherSeries || employee.VoucherSeries || 'ESI';
+          // For EmployeeSaleInvoiceScreen, use fixed prefix "RS"
+          const fixedPrefix = 'RS';
           
-          // If voucherSeries already contains the format (e.g., "ESI-25-JD"), extract just the base
-          // Check if it matches pattern: {BaseSeries}-{Year}-{ShortName}
-          const formatMatch = baseSeries.match(/^([A-Z]+)-?\d{2}-?[A-Z]+$/i);
-          if (formatMatch) {
-            baseSeries = formatMatch[1]; // Extract just the base series (e.g., "ESI")
-          }
-          
-          // Get last 2 digits of current year
+          // Get last 2 digits of current year and next year
           const currentYear = new Date().getFullYear();
-          const yearSuffix = String(currentYear).slice(-2);
+          const nextYear = currentYear + 1;
+          const currentYearSuffix = String(currentYear).slice(-2);
+          const nextYearSuffix = String(nextYear).slice(-2);
+          
+          // Get branch short name from employee's branch
+          const branchName = employee.Branch || '';
+          const branchShortName = getBranchShortName(branchName);
           
           // Get employee ShortName
           const shortName = employee.ShortName || '';
           
-          // Construct voucher series: {BaseSeries}-{Year}-{ShortName}
-          // Example: ESI-25-JD, CR-25-JD, BR-25-JD, ER-25-JD, SR-25-JD, RS-25-JD, RMB-25-JD
-          finalVoucherSeries = shortName ? `${baseSeries}-${yearSuffix}-${shortName}` : `${baseSeries}-${yearSuffix}`;
+          // Construct voucher series: RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
+          // Example: RS25-26PAT-Mo
+          if (branchShortName && shortName) {
+            finalVoucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}${branchShortName}-${shortName}`;
+          } else if (branchShortName) {
+            finalVoucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}${branchShortName}`;
+          } else if (shortName) {
+            finalVoucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}-${shortName}`;
+          } else {
+            finalVoucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}`;
+          }
+          
           finalVoucherNo = String(nextNumber); // Just the number, no alphanumeric
           
           // Update LastVoucherNumber in database
@@ -243,13 +259,13 @@ const createInvoice = async (req, res) => {
       }
     }
 
-    // 1. Insert or Update EmployeeSaleInvoiceMain
+    // 1. Insert or Update InvoiceMain
     let finalInvoiceID;
     
     if (isUpdate) {
       // UPDATE existing invoice
       const updateQuery = `
-        UPDATE EmployeeSaleInvoiceMain SET
+        UPDATE InvoiceMain SET
           VoucherDatetime = @voucherDatetime,
           TransactionDate = @transactionDate,
           TransactionTime = @transactionTime,
@@ -324,15 +340,15 @@ const createInvoice = async (req, res) => {
       // Delete existing items and adjustments for this invoice
       const deleteItemsRequest = new sql.Request(transaction);
       deleteItemsRequest.input('invoiceID', sql.Int, finalInvoiceID);
-      await deleteItemsRequest.query(`DELETE FROM EmployeeSaleInvoiceItems WHERE InvoiceID = @invoiceID`);
+      await deleteItemsRequest.query(`DELETE FROM InvoiceItems WHERE InvoiceID = @invoiceID`);
       
       const deleteAdjustmentsRequest = new sql.Request(transaction);
       deleteAdjustmentsRequest.input('invoiceID', sql.Int, finalInvoiceID);
-      await deleteAdjustmentsRequest.query(`DELETE FROM EmployeeSaleInvoiceAdjustments WHERE InvoiceID = @invoiceID`);
+      await deleteAdjustmentsRequest.query(`DELETE FROM InvoiceAdjustments WHERE InvoiceID = @invoiceID`);
     } else {
       // INSERT new invoice
       const insertQuery = `
-        INSERT INTO EmployeeSaleInvoiceMain (
+        INSERT INTO InvoiceMain (
           VoucherSeries, VoucherNo, VoucherDatetime,
           TransactionDate, TransactionTime,
           Branch, Location, EmployeeLocation, Username,
@@ -395,22 +411,22 @@ const createInvoice = async (req, res) => {
       finalInvoiceID = mainResult.recordset[0].InvoiceID;
     }
 
-    // 2. Insert Items into EmployeeSaleInvoiceItems
+    // 2. Insert Items into InvoiceItems
     // IMPORTANT: Using the SAME voucherSeries and voucherNo from main table (common across all 3 tables)
     if (items && items.length > 0) {
       for (const item of items) {
         const itemQuery = `
-          INSERT INTO EmployeeSaleInvoiceItems (
+          INSERT INTO InvoiceItems (
             InvoiceID, VoucherSeries, VoucherNo,
-            SNo, ProductId, ProductName, ProductSerialNo,
-            Quantity, Rate, Gross, Net,
-            Comments1, SalesMan, FreeQty, Comments6
+            SNo, ProductId, ProductName, Barcode, ProductSerialNo,
+            Quantity, FreeQty, Rate, Net,
+            Comments1
           )
           VALUES (
             @invoiceID, @voucherSeries, @voucherNo,
-            @sno, @productId, @productName, @productSerialNo,
-            @quantity, @rate, @gross, @net,
-            @comments1, @salesMan, @freeQty, @comments6
+            @sno, @productId, @productName, @barcode, @productSerialNo,
+            @quantity, @freeQty, @rate, @net,
+            @comments1
           )
         `;
 
@@ -422,27 +438,25 @@ const createInvoice = async (req, res) => {
         itemRequest.input('sno', item.sno || 0);
         itemRequest.input('productId', item.productId || null);
         itemRequest.input('productName', item.productName || '');
+        itemRequest.input('barcode', item.barcode || '');
         itemRequest.input('productSerialNo', item.productSerialNo || '');
         // Ensure numeric fields are properly converted
         itemRequest.input('quantity', parseFloat(item.quantity) || 0);
+        itemRequest.input('freeQty', parseFloat(item.freeQty) || 0);
         itemRequest.input('rate', parseFloat(item.rate) || 0);
-        itemRequest.input('gross', parseFloat(item.gross) || 0);
         itemRequest.input('net', parseFloat(item.net) || 0);
         itemRequest.input('comments1', item.comments1 || '');
-        itemRequest.input('salesMan', item.salesMan || '');
-        itemRequest.input('freeQty', parseFloat(item.freeQty) || 0);
-        itemRequest.input('comments6', item.comments6 || '');
         
         await itemRequest.query(itemQuery);
       }
     }
 
-    // 3. Insert Adjustments into EmployeeSaleInvoiceAdjustments
+    // 3. Insert Adjustments into InvoiceAdjustments
     // IMPORTANT: Using the SAME voucherSeries and voucherNo from main table (common across all 3 tables)
     if (adjustments && adjustments.length > 0) {
       for (const adj of adjustments) {
         const adjQuery = `
-          INSERT INTO EmployeeSaleInvoiceAdjustments (
+          INSERT INTO InvoiceAdjustments (
             InvoiceID, VoucherSeries, VoucherNo,
             AccountId, AccountName, AccountType,
             AddAmount, LessAmount, Comments

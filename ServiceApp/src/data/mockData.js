@@ -110,20 +110,13 @@ export const products = [
 ];
 
 export const adjustmentsList = [
-  { id: 1, name: 'Discount - Percentage', type: 'less' },
   { id: 2, name: 'Discount - Flat Amount', type: 'less' },
-  { id: 3, name: 'GST - 18%', type: 'add' },
-  { id: 4, name: 'GST - 12%', type: 'add' },
-  { id: 5, name: 'GST - 5%', type: 'add' },
-  { id: 6, name: 'CGST - 9%', type: 'add' },
-  { id: 7, name: 'SGST - 9%', type: 'add' },
   { id: 8, name: 'Service Charge', type: 'add' },
   { id: 9, name: 'Delivery Charge', type: 'add' },
   { id: 10, name: 'Handling Fee', type: 'add' },
-  { id: 11, name: 'Packing Charge', type: 'add' },
-  { id: 12, name: 'Round Off', type: 'less' },
-  { id: 13, name: 'Early Payment Discount', type: 'less' },
-  { id: 14, name: 'Loyalty Discount', type: 'less' },
+  { id: 11, name: 'Courier Charge', type: 'add' },
+  { id: 12, name: 'Round Off', type: 'add' },
+  { id: 15, name: 'Round Off', type: 'less' },
 ];
 
 export const mockInvoiceData = {

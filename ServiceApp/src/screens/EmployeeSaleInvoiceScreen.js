@@ -70,13 +70,13 @@ const EmployeeSaleInvoiceScreen = () => {
     list.map((item, index) => {
       const quantity = parseFloat(item.quantity) || 0;
       const rate = parseFloat(item.rate) || 0;
-      const gross = quantity * rate;
+      const net = quantity * rate;
       return {
         ...item,
         quantity,
         rate,
-        gross,
-        net: gross,
+        net,
+        barcode: item.barcode || '',
         sno: String(index + 1),
       };
     });
@@ -264,7 +264,7 @@ const EmployeeSaleInvoiceScreen = () => {
   const calculateSummary = () => {
     // Calculate item totals
     const itemCount = items.length;
-    const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
+    const totalQty = items.reduce((sum, item) => sum + item.quantity + (parseFloat(item.freeQty) || 0), 0);
     const itemsGross = items.reduce((sum, item) => sum + item.net, 0);
 
     // Calculate adjustment totals
@@ -605,15 +605,13 @@ const EmployeeSaleInvoiceScreen = () => {
           id: Date.now(),
           productId: product.id,
           productName: product.name,
+          barcode: trimmedBarcode,
           quantity: 1,
           rate: product.rate || 0, // Rate is 0, user will enter manually
-          gross: 0, // Will be recalculated when rate is entered
           net: 0, // Will be recalculated when rate is entered
           comments1: '',
-          salesMan: '',
           freeQty: '',
-        productSerialNo: serialNo, // Use SerialNo from database if available
-          comments6: '',
+          productSerialNo: serialNo, // Use SerialNo from database if available
         };
         
         commitItems([...items, newItem]);
@@ -642,9 +640,8 @@ const EmployeeSaleInvoiceScreen = () => {
         const existingItem = { ...updatedItems[existingProductIndex] };
         existingItem.quantity += 1;
         existingItem.productSerialNo = null; // Ensure it's null for database
-        // Recalculate gross and net
-        existingItem.gross = existingItem.quantity * existingItem.rate;
-        existingItem.net = existingItem.gross;
+        // Recalculate net
+        existingItem.net = existingItem.quantity * existingItem.rate;
         updatedItems[existingProductIndex] = existingItem;
         commitItems(updatedItems);
         
@@ -660,15 +657,13 @@ const EmployeeSaleInvoiceScreen = () => {
         id: Date.now(),
         productId: product.id,
         productName: product.name,
+        barcode: trimmedBarcode,
         quantity: 1,
         rate: product.rate || 0, // Rate is 0, user will enter manually
-        gross: 0, // Will be recalculated when rate is entered
         net: 0, // Will be recalculated when rate is entered
         comments1: '',
-        salesMan: '',
         freeQty: '',
-          productSerialNo: null, // Set to null when product has no serial number
-        comments6: '',
+        productSerialNo: null, // Set to null when product has no serial number
       };
       
       commitItems([...items, newItem]);
@@ -865,18 +860,14 @@ const EmployeeSaleInvoiceScreen = () => {
       }
       
       // Prepare data for API
-      // Extract base series from voucherSeries if it's in format "ESI-25-JD", otherwise use as-is
-      // For EmployeeSaleInvoiceScreen, base series is always "ESI"
-      let baseVoucherSeries = 'ESI'; // Default for EmployeeSaleInvoiceScreen
-      if (voucherSeries) {
-        // If voucherSeries is in format "ESI-25-JD", extract just "ESI"
-        const formatMatch = voucherSeries.match(/^([A-Z]+)-?\d{2}-?[A-Z]+$/i);
-        baseVoucherSeries = formatMatch ? formatMatch[1] : voucherSeries;
-      }
+      // For EmployeeSaleInvoiceScreen, backend will construct the full format: RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
+      // Example: RS25-26PAT-Mo
+      // The backend uses "RS" as fixed prefix and constructs the full format, so we just send "RS"
+      const baseVoucherSeries = 'RS'; // Fixed prefix for EmployeeSaleInvoiceScreen
       
       const apiData = {
         invoiceID: savedInvoiceID, // Include invoiceID if updating existing invoice
-        voucherSeries: baseVoucherSeries, // Send base series (ESI, CR, BR, etc.) - backend will construct full format
+        voucherSeries: baseVoucherSeries, // Send "RS" - backend will construct full format
         voucherNo: voucherNo,
         voucherDatetime: voucherDatetime,
         transactionDetails: {
@@ -905,15 +896,13 @@ const EmployeeSaleInvoiceScreen = () => {
           sno: index + 1,
           productId: item.productId || null,
           productName: item.productName || '',
+          barcode: item.barcode || '',
           productSerialNo: item.productSerialNo === null ? null : (item.productSerialNo || ''),
           quantity: item.quantity || 0,
+          freeQty: item.freeQty || 0,
           rate: item.rate || 0,
-          gross: item.gross || 0,
           net: item.net || 0,
           comments1: item.comments1 || '',
-          salesMan: item.salesMan || '',
-          freeQty: item.freeQty || 0,
-          comments6: item.comments6 || '',
         })),
         adjustments: invoiceData.adjustments.map((adj) => ({
           accountId: adj.accountId || null,
@@ -1069,16 +1058,14 @@ const EmployeeSaleInvoiceScreen = () => {
 
   const itemColumns = [
     { key: 'sno', label: 'S.No', width: 70, editable: false },
+    { key: 'barcode', label: 'Barcode', width: 150 },
     { key: 'productName', label: 'Product / Description', width: 200 },
-    { key: 'productSerialNo', label: 'Serial No', width: 160 },
+    { key: 'productSerialNo', label: 'Product Serial No', width: 160 },
     { key: 'quantity', label: 'Qty', width: 90, keyboardType: 'numeric' },
+    { key: 'freeQty', label: 'Free Qty', width: 100, keyboardType: 'numeric' },
     { key: 'rate', label: 'Rate', width: 110, keyboardType: 'numeric' },
-    { key: 'gross', label: 'Gross', width: 120, keyboardType: 'numeric', editable: false },
     { key: 'net', label: 'Net Amount', width: 130, keyboardType: 'numeric', editable: false },
     { key: 'comments1', label: 'Comments1', width: 150 },
-    { key: 'salesMan', label: 'Sales Man', width: 130 },
-    { key: 'freeQty', label: 'Free Qty', width: 100, keyboardType: 'numeric' },
-    { key: 'comments6', label: 'Comments6', width: 150 },
   ];
 
   const adjustmentColumns = [
@@ -1107,15 +1094,13 @@ const EmployeeSaleInvoiceScreen = () => {
         id: Date.now(),
         productId: currentItem.productId || null,
         productName: currentItem.productName || '',
+        barcode: currentItem.barcode || '',
         quantity: 1,
         rate: currentItem.rate || 0,
-        gross: currentItem.rate || 0,
         net: currentItem.rate || 0,
         comments1: currentItem.comments1 || '',
-        salesMan: currentItem.salesMan || '',
         freeQty: currentItem.freeQty || '',
         productSerialNo: trimmedSerialNo,
-        comments6: currentItem.comments6 || '',
       };
       
       commitItems([...items, newItem]);
@@ -1134,11 +1119,11 @@ const EmployeeSaleInvoiceScreen = () => {
       let parsedValue = value;
       if (field === 'quantity' || field === 'rate') {
         parsedValue = Number(value) || 0;
-        // Recalculate gross and net when quantity or rate changes
+        // Recalculate net when quantity or rate changes
         const quantity = field === 'quantity' ? parsedValue : item.quantity;
         const rate = field === 'rate' ? parsedValue : item.rate;
-        const gross = quantity * rate;
-        return { ...item, [field]: parsedValue, gross, net: gross };
+        const net = quantity * rate;
+        return { ...item, [field]: parsedValue, net };
       }
       return { ...item, [field]: parsedValue };
     });
@@ -1717,15 +1702,13 @@ const EmployeeSaleInvoiceScreen = () => {
             id: Date.now() + Math.random(), // Unique ID
             productId: product.id,
             productName: product.name,
+            barcode: barcode || '',
             quantity: issuedProduct?.quantity || 1,
             rate: product.rate || 0, // Rate is 0, user will enter manually
-            gross: 0, // Will be recalculated when rate is entered
             net: 0, // Will be recalculated when rate is entered
             comments1: '',
-            salesMan: '',
             freeQty: '',
             productSerialNo: serialNo,
-            comments6: '',
           };
         });
         

@@ -28,7 +28,7 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "apiBaseUrl": " https://tenley-ophiologic-danielle.ngrok-free.dev/api",
+      "apiBaseUrl": "https://tenley-ophiologic-danielle.ngrok-free.dev/api",
       "eas": {
         "projectId": "8c038637-a140-4f5d-afc8-560e726ec851"
       }

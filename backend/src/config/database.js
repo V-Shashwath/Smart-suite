@@ -5,7 +5,7 @@ const sql = require('mssql');
 const config = {
   server: process.env.DB_SERVER || '103.98.12.218',
   port: parseInt(process.env.DB_PORT) || 59320,
-  database: process.env.DB_NAME || 'mobileApp',
+  database: process.env.DB_NAME || 'CrystalCopier',
   user: process.env.DB_USER || 'Ikonuser',
   password: process.env.DB_PASSWORD || 'userikon',
   options: {

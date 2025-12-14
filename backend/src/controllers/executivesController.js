@@ -1,4 +1,5 @@
 const { executeQuery, executeProcedure, getPool, sql } = require('../config/database');
+const { getBranchShortName } = require('../utils/branchMapping');
 
 // Get executive data for auto-populating transaction, voucher, and header
 const getExecutiveData = async (req, res) => {
@@ -36,20 +37,36 @@ const getExecutiveData = async (req, res) => {
     const transactionId = `TXN-${now.getFullYear()}-${String(Date.now()).slice(-6)}`;
 
     // Get voucher series and calculate preview of next voucher number (without incrementing)
-    // Format: {BaseSeries}-{Last2DigitsOfYear}-{ShortName}
-    // Example: ESI-25-JD, CR-25-JD, etc.
+    // Format: RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
+    // Example: RS25-26PAT-Mo
     // NOTE: We show a preview but DON'T increment until user saves
-    const baseSeries = employee.VoucherSeries || 'ESI';
+    const fixedPrefix = 'RS';
     
-    // Get last 2 digits of current year
+    // Get last 2 digits of current year and next year
     const currentYear = new Date().getFullYear();
-    const yearSuffix = String(currentYear).slice(-2);
+    const nextYear = currentYear + 1;
+    const currentYearSuffix = String(currentYear).slice(-2);
+    const nextYearSuffix = String(nextYear).slice(-2);
+    
+    // Get branch short name from employee's branch
+    const branchName = employee.Branch || '';
+    const branchShortName = getBranchShortName(branchName);
     
     // Get employee ShortName
     const shortName = employee.ShortName || '';
     
-    // Construct voucher series: {BaseSeries}-{Year}-{ShortName}
-    const voucherSeries = shortName ? `${baseSeries}-${yearSuffix}-${shortName}` : `${baseSeries}-${yearSuffix}`;
+    // Construct voucher series: RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
+    // Example: RS25-26PAT-Mo
+    let voucherSeries;
+    if (branchShortName && shortName) {
+      voucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}${branchShortName}-${shortName}`;
+    } else if (branchShortName) {
+      voucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}${branchShortName}`;
+    } else if (shortName) {
+      voucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}-${shortName}`;
+    } else {
+      voucherSeries = `${fixedPrefix}${currentYearSuffix}-${nextYearSuffix}`;
+    }
     
     const lastVoucherNumber = employee.LastVoucherNumber || 0;
     const nextPreviewNumber = lastVoucherNumber + 1; // Preview only, not saved yet
@@ -63,7 +80,6 @@ const getExecutiveData = async (req, res) => {
         transactionId: transactionId,
         date: dateStr,
         time: timeStr,
-        status: 'Pending',
         branch: employee.Branch || 'Head Office',
         location: employee.Location || 'Moorthy Location',
         employeeLocation: employee.EmployeeLocation || 'Moorthy Location',
@@ -121,13 +137,30 @@ const authenticateEmployee = async (req, res) => {
     });
 
     if (!authResult || authResult.length === 0) {
+      console.log(`❌ Employee authentication failed for username: ${username}`);
       return res.status(401).json({
         success: false,
         message: 'Invalid username or password',
       });
     }
+    
+    console.log(`✅ Employee authenticated: ${username}`);
 
     const employee = authResult[0];
+
+    // Get screen assignments for this employee
+    let assignedScreens = [];
+    try {
+      const screenResult = await executeProcedure('sp_GetExecutiveScreenAssignments', {
+        EmployeeID: employee.EmployeeID,
+      });
+      assignedScreens = screenResult ? screenResult.map((row) => row.ScreenRoute) : [];
+      console.log(`📱 Screen assignments for ${employee.Username} (ID: ${employee.EmployeeID}):`, assignedScreens);
+    } catch (screenError) {
+      console.warn('⚠️ Warning: Could not fetch screen assignments for employee:', screenError.message);
+      // Continue without screen assignments - will default to empty array
+      assignedScreens = [];
+    }
 
     return res.status(200).json({
       success: true,
@@ -141,7 +174,7 @@ const authenticateEmployee = async (req, res) => {
         location: employee.Location,
         employeeLocation: employee.EmployeeLocation,
         billerName: employee.BillerName,
-        status: employee.Status,
+        assignedScreens,
       },
     });
   } catch (error) {
@@ -167,19 +200,50 @@ const authenticateSupervisor = async (req, res) => {
     }
 
     // Authenticate using stored procedure
+    console.log(`🔐 Attempting supervisor authentication for: ${username}`);
+    console.log(`   Password provided: "${password}"`);
+    
+    // First, let's check if supervisor exists (for debugging)
+    try {
+      const checkQuery = `SELECT SupervisorID, Username, Password, Status FROM CrystalCopier.dbo.Supervisors WHERE Username = @username`;
+      const pool = await getPool();
+      const checkRequest = pool.request();
+      checkRequest.input('username', sql.NVarChar, username);
+      const checkResult = await checkRequest.query(checkQuery);
+      
+      if (checkResult.recordset.length > 0) {
+        const supervisor = checkResult.recordset[0];
+        console.log(`   Found supervisor in database:`);
+        console.log(`     Username: "${supervisor.Username}"`);
+        console.log(`     Password in DB: "${supervisor.Password}"`);
+        console.log(`     Status: "${supervisor.Status}"`);
+        console.log(`     Password match: ${supervisor.Password === password}`);
+      } else {
+        console.log(`   ❌ No supervisor found with username: "${username}"`);
+      }
+    } catch (checkError) {
+      console.warn(`   ⚠️ Could not check supervisor existence:`, checkError.message);
+    }
+    
     const authResult = await executeProcedure('sp_AuthenticateSupervisor', {
       Username: username,
       Password: password,
     });
 
     if (!authResult || authResult.length === 0) {
+      console.log(`❌ Supervisor authentication failed for username: ${username}`);
+      console.log(`   Check: 1) Supervisor exists in Supervisors table`);
+      console.log(`         2) Username matches exactly: "${username}"`);
+      console.log(`         3) Password matches exactly: "${password}"`);
+      console.log(`         4) Status is 'Active' or NULL`);
       return res.status(401).json({
         success: false,
         message: 'Invalid username or password',
       });
     }
-
+    
     const supervisor = authResult[0];
+    console.log(`✅ Supervisor authenticated: ${username} (ID: ${supervisor.SupervisorID})`);
 
     return res.status(200).json({
       success: true,
@@ -190,7 +254,6 @@ const authenticateSupervisor = async (req, res) => {
         supervisorName: supervisor.SupervisorName,
         branch: supervisor.Branch,
         location: supervisor.Location,
-        status: supervisor.Status,
       },
     });
   } catch (error) {

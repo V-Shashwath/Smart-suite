@@ -4,7 +4,7 @@
 // Backend API URL (backend runs on port 3000, database on port 59320)
 // Priority: app.json config > default value
 // Using ngrok for cross-network access
-let API_BASE_URL = ' https://tenley-ophiologic-danielle.ngrok-free.dev/api'; // Default fallback (ngrok URL)
+let API_BASE_URL = 'https://tenley-ophiologic-danielle.ngrok-free.dev/api'; // Default fallback (ngrok URL)
 
 // Try to get from app.json config if available
 try {
