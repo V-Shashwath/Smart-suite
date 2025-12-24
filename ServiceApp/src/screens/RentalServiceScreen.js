@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import SmartSuiteFormScreen from '../components/SmartSuiteFormScreen';
@@ -6,10 +6,30 @@ import AccordionSection from '../components/AccordionSection';
 import ItemTable from '../components/ItemTable';
 import { branches, employeeUsernames, productOptions, adjustmentAccounts, machineTypes } from '../data/mockData';
 import { previewInvoicePDF, sharePDFViaWhatsApp, generateInvoicePDF } from '../utils/pdfUtils';
+import { API_ENDPOINTS, apiCall } from '../config/api';
+import { useAuth } from '../context/AuthContext';
 import useScreenDraft from '../hooks/useScreenDraft';
 import withScreenPermission from '../components/withScreenPermission';
 
 const RentalServiceScreen = () => {
+  const { currentUser } = useAuth();
+
+  // Transaction state
+  const [transactionData, setTransactionData] = useState({
+    date: '',
+    time: '',
+    branch: '',
+    location: '',
+    username: '',
+  });
+
+  // Voucher state
+  const [voucherData, setVoucherData] = useState({
+    voucherSeries: '',
+    voucherNo: '',
+    voucherDatetime: '',
+  });
+
   const [branch, setBranch] = useState('');
   const [executive, setExecutive] = useState('');
   const [vSeries, setVSeries] = useState('VSeries');
@@ -41,6 +61,113 @@ const RentalServiceScreen = () => {
 
   // Barcode state
   const [barcode, setBarcode] = useState('0');
+
+  // Auto-populate executive data on mount
+  useEffect(() => {
+    const loadExecutiveData = async () => {
+      if (currentUser?.username) {
+        try {
+          console.log(`🔍 Fetching executive data for username: ${currentUser.username}`);
+
+          // Pass screen=RentalService to get correct voucher format
+          const result = await apiCall(`${API_ENDPOINTS.GET_EXECUTIVE_DATA(currentUser.username)}?screen=RentalService`);
+
+          console.log(`📥 Executive data response:`, result);
+
+          if (result.success && result.data) {
+            const execData = result.data;
+
+            // Populate transaction details
+            setTransactionData({
+              date: execData.transactionDetails?.date || '',
+              time: execData.transactionDetails?.time || '',
+              branch: execData.transactionDetails?.branch || '',
+              location: execData.transactionDetails?.location || '',
+              username: currentUser.username,
+            });
+
+            // Set individual states for compatibility
+            setBranch(execData.transactionDetails?.branch || '');
+            setExecutive(currentUser.username);
+            setDate(execData.transactionDetails?.date || '');
+
+            // Populate voucher details with RS prefix for Rental Service
+            // Format should be RS-25PAT-Mo (not RS25-26PAT-Mo)
+            let voucherSeries = execData.voucherDetails?.voucherSeries || 'RS';
+
+            // If backend returns RS25-26PAT-Mo format, convert to RS-25PAT-Mo
+            if (voucherSeries.match(/^RS\d{2}-\d{2}/)) {
+              // Backend returned RS25-26PAT-Mo, convert to RS-25PAT-Mo
+              // Extract parts: RS25-26PAT-Mo -> RS, 25, PAT-Mo
+              const match = voucherSeries.match(/^RS(\d{2})-\d{2}(.*)$/);
+              if (match) {
+                voucherSeries = `RS-${match[1]}${match[2]}`; // RS-25PAT-Mo
+              }
+            }
+
+            const voucherNo = execData.voucherDetails?.voucherNo || '';
+            const voucherDatetime = execData.voucherDetails?.voucherDatetime || '';
+
+            if (!voucherSeries || !voucherNo || !voucherDatetime) {
+              console.warn('⚠️ Incomplete voucher data from API:', execData.voucherDetails);
+              const now = new Date();
+              const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+              const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+              const datetimeStr = `${dateStr} ${timeStr}`;
+
+              setVoucherData({
+                voucherSeries: 'RS',
+                voucherNo: `TEMP-${Date.now()}`,
+                voucherDatetime: datetimeStr,
+              });
+              setVoucherSeries('RS');
+              setVoucherNo(`TEMP-${Date.now()}`);
+            } else {
+              setVoucherData({
+                voucherSeries: voucherSeries,
+                voucherNo: voucherNo,
+                voucherDatetime: voucherDatetime,
+              });
+              setVoucherSeries(voucherSeries);
+              setVoucherNo(voucherNo);
+            }
+          }
+        } catch (error) {
+          console.error('Error loading executive data:', error);
+          // Use fallback values if API fails
+          if (currentUser?.username) {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const datetimeStr = `${dateStr} ${timeStr}`;
+
+            setTransactionData({
+              date: dateStr,
+              time: timeStr,
+              branch: 'Head Office',
+              location: 'Default Location',
+              username: currentUser.username,
+            });
+
+            setDate(dateStr);
+            setBranch('Head Office');
+            setExecutive(currentUser.username);
+
+            setVoucherData({
+              voucherSeries: 'RS',
+              voucherNo: `TEMP-${Date.now()}`,
+              voucherDatetime: datetimeStr,
+            });
+
+            setVoucherSeries('RS');
+            setVoucherNo(`TEMP-${Date.now()}`);
+          }
+        }
+      }
+    };
+
+    loadExecutiveData();
+  }, [currentUser?.username]);
 
   const [itemBody, setItemBody] = useState([
     {
@@ -282,73 +409,74 @@ const RentalServiceScreen = () => {
       isSaving={isSaving}
     >
       <AccordionSection title="TRANSACTION DETAILS" defaultExpanded={true}>
+        {/* Date and Time */}
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Branch</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={branch}
-                onValueChange={setBranch}
-                style={styles.picker}
-              >
-                <Picker.Item label="Branch" value="" />
-                {branches.map((b, idx) => (
-                  <Picker.Item key={idx} label={b} value={b} />
-                ))}
-              </Picker>
+            <Text style={styles.label}>Date</Text>
+            <View style={styles.displayBox}>
+              <Text style={styles.displayText}>{transactionData.date || date}</Text>
             </View>
           </View>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Executive</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={executive}
-                onValueChange={setExecutive}
-                style={styles.picker}
-              >
-                <Picker.Item label="Executive" value="" />
-                {employeeUsernames.map((e, idx) => (
-                  <Picker.Item key={idx} label={e} value={e} />
-                ))}
-              </Picker>
+            <Text style={styles.label}>Time</Text>
+            <View style={styles.displayBox}>
+              <Text style={styles.displayText}>{transactionData.time || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</Text>
             </View>
+          </View>
+        </View>
+
+        {/* Branch - READ ONLY */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Branch</Text>
+          <View style={[styles.input, styles.readOnlyInput]}>
+            <Text style={styles.readOnlyText}>
+              {transactionData.branch || branch || 'Loading...'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Location - READ ONLY */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Location</Text>
+          <View style={[styles.input, styles.readOnlyInput]}>
+            <Text style={styles.readOnlyText}>
+              {transactionData.location || 'Loading...'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Username/Executive - READ ONLY */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Username</Text>
+          <View style={[styles.input, styles.readOnlyInput]}>
+            <Text style={styles.readOnlyText}>
+              {transactionData.username || executive || 'Loading...'}
+            </Text>
           </View>
         </View>
       </AccordionSection>
 
-      <AccordionSection title="VOUCHER" defaultExpanded={true}>
+      <AccordionSection title="VOUCHER" defaultExpanded={false}>
+        {/* Voucher Series, No, Datetime */}
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>VSeries</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={vSeries}
-                onValueChange={setVSeries}
-                style={styles.picker}
-              >
-                <Picker.Item label="VSeries" value="VSeries" />
-              </Picker>
+            <Text style={styles.label}>Voucher Series</Text>
+            <View style={styles.displayBox}>
+              <Text style={styles.displayText}>{voucherData.voucherSeries || voucherSeries || 'Loading...'}</Text>
             </View>
           </View>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>VoucherSeries</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={voucherSeries}
-                onValueChange={setVoucherSeries}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select" value="" />
-              </Picker>
+            <Text style={styles.label}>Voucher No</Text>
+            <View style={styles.displayBox}>
+              <Text style={styles.displayText}>{voucherData.voucherNo || voucherNo || 'Loading...'}</Text>
             </View>
           </View>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>VoucherNo</Text>
-            <TextInput
-              style={styles.input}
-              value={voucherNo}
-              onChangeText={setVoucherNo}
-            />
+        </View>
+
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Voucher Datetime</Text>
+          <View style={styles.displayBox}>
+            <Text style={styles.displayText}>{voucherData.voucherDatetime || `${transactionData.date || date} ${transactionData.time || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`}</Text>
           </View>
         </View>
       </AccordionSection>
@@ -776,6 +904,21 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     padding: 12,
     backgroundColor: '#f9f9f9',
+  },
+  displayText: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+  },
+  readOnlyInput: {
+    backgroundColor: '#f5f5f5',
+    borderColor: '#bbb',
+    justifyContent: 'center',
+  },
+  readOnlyText: {
+    fontSize: 14,
+    color: '#555',
+    fontStyle: 'italic',
   },
   balanceText: {
     fontSize: 16,
