@@ -11,7 +11,7 @@ const getExecutiveData = async (req, res) => {
     console.log(`🔍 getExecutiveData called for username: ${username}`);
     console.log(`   Query params:`, req.query);
     console.log(`   Screen parameter received: "${screen}"`);
-    console.log(`   Screen type check - isSalesReturns: ${screen === 'SalesReturns'}, isRentalService: ${screen === 'RentalService'}`);
+    console.log(`   Screen type check - isSalesReturns: ${screen === 'SalesReturns'}, isRentalService: ${screen === 'RentalService'}, isRentalMonthlyBill: ${screen === 'RentalMonthlyBill'}`);
 
     if (!username) {
       return res.status(400).json({
@@ -48,15 +48,17 @@ const getExecutiveData = async (req, res) => {
     // For EmployeeSaleInvoice: RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName} (e.g., RS25-26PAT-Mo)
     // For SalesReturns: SRS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName} (e.g., SRS-25PAT-JD)
     // For RentalService: RS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName} (e.g., RS-25PAT-Mo)
+    // For RentalMonthlyBill: RMB-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName} (e.g., RMB-25NAM-JD)
     // Default to 'RS' if screen not specified (backward compatibility)
     // Make comparison case-insensitive to handle variations
     const screenLower = (screen || '').toLowerCase();
     const isSalesReturns = screenLower === 'salesreturns';
     const isRentalService = screenLower === 'rentalservice';
-    const basePrefix = isSalesReturns ? 'SRS' : 'RS';
+    const isRentalMonthlyBill = screenLower === 'rentalmonthlybill';
+    const basePrefix = isSalesReturns ? 'SRS' : (isRentalMonthlyBill ? 'RMB' : 'RS');
     
     console.log(`   Screen comparison - Original: "${screen}", Lowercase: "${screenLower}"`);
-    console.log(`   isSalesReturns: ${isSalesReturns}, isRentalService: ${isRentalService}`);
+    console.log(`   isSalesReturns: ${isSalesReturns}, isRentalService: ${isRentalService}, isRentalMonthlyBill: ${isRentalMonthlyBill}`);
     
     // Get last 2 digits of current year and next year
     const currentYear = new Date().getFullYear();
@@ -73,7 +75,7 @@ const getExecutiveData = async (req, res) => {
     
     // Construct voucher series based on screen type
     let voucherSeries;
-    console.log(`   Building voucher series - isSalesReturns: ${isSalesReturns}, isRentalService: ${isRentalService}`);
+    console.log(`   Building voucher series - isSalesReturns: ${isSalesReturns}, isRentalService: ${isRentalService}, isRentalMonthlyBill: ${isRentalMonthlyBill}`);
     console.log(`   Branch: ${branchName}, BranchShortName: ${branchShortName}, ShortName: ${shortName}`);
     
     if (isSalesReturns) {
@@ -93,6 +95,19 @@ const getExecutiveData = async (req, res) => {
       // Rental Service format: RS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
       // Example: RS-25PAT-Mo
       console.log(`   ✅ Using RentalService format`);
+      if (branchShortName && shortName) {
+        voucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}-${shortName}`;
+      } else if (branchShortName) {
+        voucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}`;
+      } else if (shortName) {
+        voucherSeries = `${basePrefix}-${currentYearSuffix}-${shortName}`;
+      } else {
+        voucherSeries = `${basePrefix}-${currentYearSuffix}`;
+      }
+    } else if (isRentalMonthlyBill) {
+      // Rental Monthly Bill format: RMB-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
+      // Example: RMB-25NAM-JD
+      console.log(`   ✅ Using RentalMonthlyBill format`);
       if (branchShortName && shortName) {
         voucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}-${shortName}`;
       } else if (branchShortName) {

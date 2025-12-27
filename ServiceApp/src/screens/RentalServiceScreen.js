@@ -851,22 +851,52 @@ const RentalServiceScreen = () => {
     await handleSave();
   };
 
-  // Handle exit with warning if previewed but not saved
+  // Handle exit with save reminder
   const handleExit = () => {
-    if (hasPreviewed && !isInvoiceSaved) {
+    // Check if there are unsaved changes
+    const hasUnsavedChanges = items.length > 0 && !isInvoiceSaved;
+    
+    if (hasUnsavedChanges || hasPreviewed) {
       Alert.alert(
         'Unsaved Changes',
-        'You have previewed but not saved. Do you want to save before exiting?',
+        hasPreviewed 
+          ? 'You have previewed the invoice. Please save the invoice before exiting to ensure it is saved to the database.'
+          : 'You have unsaved changes. Are you sure you want to exit without saving?',
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Exit Without Saving', onPress: () => navigation.goBack() },
-          { text: 'Save & Exit', onPress: async () => {
-            await handleSaveCombined();
-            navigation.goBack();
-          }},
+          { 
+            text: 'Save & Exit', 
+            onPress: async () => {
+              try {
+                await handleSaveCombined();
+                // Reset flags after successful save
+                setIsInvoiceSaved(true);
+                setHasPreviewed(false);
+                // Wait a moment for save to complete, then exit
+                setTimeout(() => {
+                  navigation.goBack();
+                }, 500);
+              } catch (error) {
+                // If save fails, don't exit
+                console.error('Save failed on exit:', error);
+              }
+            },
+            style: 'default'
+          },
+          { 
+            text: 'Exit Without Saving', 
+            onPress: () => {
+              setIsInvoiceSaved(false);
+              setSavedInvoiceID(null); // Reset invoice ID
+              setHasPreviewed(false);
+              navigation.goBack();
+            },
+            style: 'destructive'
+          },
+          { text: 'Cancel', style: 'cancel' }
         ]
       );
     } else {
+      // No unsaved changes, allow normal exit
       navigation.goBack();
     }
   };
@@ -1584,7 +1614,7 @@ const RentalServiceScreen = () => {
       />
       <AddAdjustmentModal
         isVisible={showAddAdjustmentModal}
-        onAdd={handleAddAdjustment}
+        onAddAdjustment={handleAddAdjustment}
         onClose={() => setShowAddAdjustmentModal(false)}
       />
       <PDFPreviewModal

@@ -1,33 +1,443 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import React, { useCallback, useState, useEffect } from 'react';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Modal } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import SmartSuiteFormScreen from '../components/SmartSuiteFormScreen';
 import AccordionSection from '../components/AccordionSection';
 import ItemTable from '../components/ItemTable';
-import { branches, employeeUsernames, adjustmentAccounts, machineTypes } from '../data/mockData';
-import { previewInvoicePDF, sharePDFViaWhatsApp, generateInvoicePDF } from '../utils/pdfUtils';
+import QRScannerModal from '../components/QRScannerModal';
+import AddAdjustmentModal from '../components/AddAdjustmentModal';
+import PDFPreviewModal from '../components/PDFPreviewModal';
+import { branches, employeeUsernames, adjustmentAccounts, machineTypes, accountsList, adjustmentsList } from '../data/mockData';
+import { sharePDFViaWhatsApp, sharePDFViaSMS, generateInvoicePDF } from '../utils/pdfUtils';
+import { API_ENDPOINTS, apiCall } from '../config/api';
+import { useAuth } from '../context/AuthContext';
+import { getBranchShortName } from '../utils/branchMapping';
 import useScreenDraft from '../hooks/useScreenDraft';
 import withScreenPermission from '../components/withScreenPermission';
 
 const RentalMonthlyBillScreen = () => {
-  const [branch, setBranch] = useState('');
-  const [executive, setExecutive] = useState('');
-  const [voucherSeries, setVoucherSeries] = useState('');
-  const [voucherNo, setVoucherNo] = useState('');
-  const [date, setDate] = useState('26-11-2025');
-  const [customerName, setCustomerName] = useState('');
-  const [salesAccount, setSalesAccount] = useState('');
-  const [customerId, setCustomerId] = useState('');
-  const [mobileNo, setMobileNo] = useState('');
-  const [customerType, setCustomerType] = useState('0');
-  const [whatsappNo, setWhatsappNo] = useState('');
-  const [machineType, setMachineType] = useState('');
-  const [machinePurchasedDate, setMachinePurchasedDate] = useState('26-11-2025');
-  const [contractExpiredOn, setContractExpiredOn] = useState('26-11-2025');
+  const { currentUser } = useAuth();
+  const navigation = useNavigation();
+
+  // Transaction state
+  const [transactionData, setTransactionData] = useState({
+    date: '',
+    time: '',
+    branch: '',
+    location: '',
+    username: '',
+  });
+
+  // Voucher state
+  const [voucherData, setVoucherData] = useState({
+    voucherSeries: '',
+    voucherNo: '',
+    voucherDatetime: '',
+  });
+
+  // Check if user is supervisor - supervisors get blank, editable fields
+  const isSupervisor = currentUser?.role === 'supervisor';
+
+  // Customer state - use blank values for supervisors
+  const blankCustomer = {
+    date: '',
+    billerName: '',
+    party: '',
+    employeeName: '',
+    customerId: '',
+    customerName: '',
+    mobileNo: '',
+    customerType: '',
+    whatsappNo: '',
+    machineType: '',
+    remarks: '',
+    gstBill: false,
+  };
+  const [customerData, setCustomerData] = useState(
+    isSupervisor ? blankCustomer : {
+      date: '',
+      billerName: '',
+      party: '',
+      employeeName: '',
+      customerId: '',
+      customerName: '',
+      mobileNo: '',
+      customerType: '',
+      whatsappNo: '',
+      machineType: '',
+      remarks: '',
+      gstBill: false,
+    }
+  );
+  const [gstBill, setGstBill] = useState(isSupervisor ? false : false);
+
+  // Auto-populate executive data on mount and when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const loadExecutiveData = async () => {
+        // Skip loading executive data for supervisors - they get blank fields
+        if (isSupervisor) {
+          console.log('👤 Supervisor logged in - skipping executive data load, using blank fields');
+          // Initialize with completely blank values for supervisor (no prefilled data)
+          setTransactionData({
+            date: '',
+            time: '',
+            branch: '',
+            location: '',
+            username: '',
+          });
+          
+          setVoucherData({
+            voucherSeries: '',
+            voucherNo: '',
+            voucherDatetime: '',
+          });
+          
+          setCustomerData(blankCustomer);
+          
+          return;
+        }
+        
+        if (currentUser?.username) {
+          try {
+            // Clear voucher data first to avoid showing stale data
+            setVoucherData({
+              voucherSeries: '',
+              voucherNo: '',
+              voucherDatetime: '',
+            });
+            
+            console.log(`🔍 Fetching executive data for RentalMonthlyBill - username: ${currentUser.username}`);
+
+            // Pass screen=RentalMonthlyBill to get correct voucher format (RMB-25NAM-JD)
+            const apiEndpoint = API_ENDPOINTS.GET_EXECUTIVE_DATA(currentUser.username, 'RentalMonthlyBill');
+            console.log(`   API Endpoint URL: ${apiEndpoint}`);
+            console.log(`   Screen parameter should be: "RentalMonthlyBill"`);
+            
+            const result = await apiCall(apiEndpoint);
+
+            console.log(`📥 Executive data response:`, result);
+            console.log(`   Voucher series in response: ${result.data?.voucherDetails?.voucherSeries}`);
+
+            if (result.success && result.data) {
+              const execData = result.data;
+
+              // Populate transaction details
+              setTransactionData({
+                date: execData.transactionDetails?.date || '',
+                time: execData.transactionDetails?.time || '',
+                branch: execData.transactionDetails?.branch || '',
+                location: execData.transactionDetails?.location || '',
+                username: currentUser.username,
+              });
+
+              // Populate customer data with employee info
+              setCustomerData(prev => ({
+                ...prev,
+                date: execData.transactionDetails?.date || prev.date,
+                billerName: execData.header?.billerName || prev.billerName,
+                employeeName: execData.header?.employeeName || currentUser.username,
+                party: execData.header?.party || currentUser.username,
+              }));
+
+              // Populate voucher details - backend should return RMB-25NAM-JD format for RentalMonthlyBill
+              const voucherSeries = execData.voucherDetails?.voucherSeries || 'RMB';
+              const voucherNo = execData.voucherDetails?.voucherNo || '';
+              const voucherDatetime = execData.voucherDetails?.voucherDatetime || '';
+
+              console.log(`📋 Voucher series received from API: "${voucherSeries}"`);
+              console.log(`   Expected format: RMB-{Year}{Branch}-{Employee} (e.g., RMB-25NAM-JD)`);
+              console.log(`   Received format: ${voucherSeries}`);
+
+              if (!voucherSeries || !voucherNo || !voucherDatetime) {
+                console.warn('⚠️ Incomplete voucher data from API:', execData.voucherDetails);
+                const now = new Date();
+                const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                const datetimeStr = `${dateStr} ${timeStr}`;
+
+                setVoucherData({
+                  voucherSeries: 'RMB',
+                  voucherNo: `TEMP-${Date.now()}`,
+                  voucherDatetime: datetimeStr,
+                });
+              } else {
+                console.log(`✅ Setting voucher data: series="${voucherSeries}", no="${voucherNo}", datetime="${voucherDatetime}"`);
+                
+                // Validate the format - should be RMB-{Year}{Branch}-{Employee} for RentalMonthlyBill
+                if (!voucherSeries.startsWith('RMB-')) {
+                  console.error(`❌ ERROR: Voucher series format is incorrect!`);
+                  console.error(`   Expected: RMB-{Year}{Branch}-{Employee} (e.g., RMB-25NAM-JD)`);
+                  console.error(`   Received: ${voucherSeries}`);
+                  console.error(`   This indicates the backend is not detecting RentalMonthlyBill screen correctly.`);
+                }
+                
+                setVoucherData({
+                  voucherSeries: voucherSeries,
+                  voucherNo: voucherNo,
+                  voucherDatetime: voucherDatetime,
+                });
+                console.log(`   Voucher data set successfully`);
+              }
+            }
+          } catch (error) {
+            console.error('Error loading executive data:', error);
+            // Use fallback values if API fails
+            if (currentUser?.username) {
+              const now = new Date();
+              const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+              const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+              const datetimeStr = `${dateStr} ${timeStr}`;
+
+              setTransactionData({
+                date: dateStr,
+                time: timeStr,
+                branch: 'Head Office',
+                location: 'Default Location',
+                username: currentUser.username,
+              });
+
+              setCustomerData(prev => ({
+                ...prev,
+                date: dateStr,
+                employeeName: currentUser.username,
+                party: currentUser.username,
+              }));
+
+              setVoucherData({
+                voucherSeries: 'RMB',
+                voucherNo: `TEMP-${Date.now()}`,
+                voucherDatetime: datetimeStr,
+              });
+            }
+          }
+        }
+      };
+
+      loadExecutiveData();
+    }, [currentUser?.username, isSupervisor])
+  );
+
+  const [salesAccount, setSalesAccount] = useState('Sales'); // Default to Sales account
+  const [machinePurchasedDate, setMachinePurchasedDate] = useState('');
+  const [contractExpiredOn, setContractExpiredOn] = useState('');
   const [remainingDays, setRemainingDays] = useState('0');
   const [remainingCopies, setRemainingCopies] = useState('0');
-  const [remarks, setRemarks] = useState('');
-  const [gstBill, setGstBill] = useState(false);
+  
+  // Loading states
+  const [isLoadingCustomer, setIsLoadingCustomer] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [showMobileSearchModal, setShowMobileSearchModal] = useState(false);
+  const [showAddAdjustmentModal, setShowAddAdjustmentModal] = useState(false);
+  const [showPDFPreview, setShowPDFPreview] = useState(false);
+  const [hasPreviewed, setHasPreviewed] = useState(false);
+  const [isInvoiceSaved, setIsInvoiceSaved] = useState(false);
+  const [savedInvoiceID, setSavedInvoiceID] = useState(null);
+  const [isSavingInvoice, setIsSavingInvoice] = useState(false);
+  
+  // Calculate remaining days automatically when dates change
+  useEffect(() => {
+    if (machinePurchasedDate && contractExpiredOn) {
+      try {
+        // Parse dates in DD-MM-YYYY format
+        const parseDate = (dateStr) => {
+          const parts = dateStr.split('-');
+          if (parts.length === 3) {
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
+            const year = parseInt(parts[2], 10);
+            return new Date(year, month, day);
+          }
+          return null;
+        };
+        
+        const purchasedDate = parseDate(machinePurchasedDate);
+        const expiredDate = parseDate(contractExpiredOn);
+        
+        if (purchasedDate && expiredDate && !isNaN(purchasedDate.getTime()) && !isNaN(expiredDate.getTime())) {
+          const diffTime = expiredDate.getTime() - purchasedDate.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          setRemainingDays(diffDays >= 0 ? String(diffDays) : '0');
+        } else {
+          setRemainingDays('0');
+        }
+      } catch (error) {
+        console.error('Error calculating remaining days:', error);
+        setRemainingDays('0');
+      }
+    } else {
+      setRemainingDays('0');
+    }
+  }, [machinePurchasedDate, contractExpiredOn]);
+  
+  const handleInputChange = (field, value) => {
+    setCustomerData({
+      ...customerData,
+      [field]: value,
+    });
+  };
+  
+  // Handle QR code scanned
+  const handleScannedQr = async (data) => {
+    console.log('QR Data received:', data);
+    setIsLoadingCustomer(true);
+    setShowScanner(false);
+    
+    try {
+      const trimmedData = data.trim();
+      let customerFound = false;
+      
+      try {
+        const encodedCustomerId = encodeURIComponent(trimmedData);
+        const result = await apiCall(API_ENDPOINTS.CUSTOMER_BY_ID(encodedCustomerId));
+        
+        if (result.success && result.data) {
+          const customer = result.data;
+          setCustomerData(prev => ({
+            ...prev,
+            customerId: customer.CustomerID,
+            customerName: customer.CustomerName,
+            mobileNo: customer.MobileNo,
+            whatsappNo: customer.WhatsAppNo || customer.MobileNo,
+            customerType: customer.CustomerType,
+            employeeName: prev.employeeName,
+            party: prev.party || prev.employeeName,
+          }));
+          
+          Alert.alert(
+            'Customer Details Loaded! ✓',
+            `Customer ID: ${customer.CustomerID}\nName: ${customer.CustomerName}\nMobile: ${customer.MobileNo}\nType: ${customer.CustomerType}`,
+            [{ text: 'OK' }]
+          );
+          customerFound = true;
+        }
+      } catch (error) {
+        console.log('CustomerID lookup failed:', error.message);
+        if (error.message.includes('Cannot connect to server')) {
+          throw error;
+        }
+      }
+      
+      if (!customerFound) {
+        const parts = trimmedData.split(',');
+        let mobileNo = parts.length >= 2 ? parts[1]?.trim() : trimmedData;
+        mobileNo = mobileNo.replace(/\D/g, '');
+        
+        if (mobileNo && mobileNo.length >= 10) {
+          try {
+            const result = await apiCall(API_ENDPOINTS.CUSTOMER_BY_MOBILE(mobileNo));
+            if (result.success && result.data) {
+              const customer = result.data;
+              setCustomerData(prev => ({
+                ...prev,
+                customerId: customer.CustomerID,
+                customerName: customer.CustomerName,
+                mobileNo: customer.MobileNo,
+                whatsappNo: customer.WhatsAppNo || customer.MobileNo,
+                customerType: customer.CustomerType,
+                employeeName: prev.employeeName,
+                party: prev.party || prev.employeeName,
+              }));
+              Alert.alert(
+                'Customer Details Loaded! ✓',
+                `Customer ID: ${customer.CustomerID}\nName: ${customer.CustomerName}\nMobile: ${customer.MobileNo}\nType: ${customer.CustomerType}`,
+                [{ text: 'OK' }]
+              );
+              customerFound = true;
+            }
+          } catch (error) {
+            console.error('Mobile number lookup failed:', error.message);
+            if (error.message.includes('Cannot connect to server')) {
+              throw error;
+            }
+          }
+        }
+      }
+      
+      if (!customerFound) {
+        Alert.alert(
+          'Customer Not Found',
+          `Could not find customer with:\nQR Code: ${trimmedData}\n\nWould you like to search by mobile number?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Search by Mobile', onPress: () => setShowMobileSearchModal(true) }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Error parsing QR data:', error);
+      if (error.message.includes('Cannot connect to server')) {
+        Alert.alert(
+          'Connection Error',
+          error.message + '\n\nPlease check:\n1. Backend server is running\n2. API_BASE_URL in api.js is correct\n3. Phone and computer on same Wi-Fi',
+          [
+            { text: 'OK', style: 'default' },
+            { text: 'Search by Mobile', onPress: () => setShowMobileSearchModal(true) }
+          ]
+        );
+      } else {
+        Alert.alert(
+          'QR Scan Error',
+          `Error: ${error.message}\n\nWould you like to search by mobile number?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Search by Mobile', onPress: () => setShowMobileSearchModal(true) }
+          ]
+        );
+      }
+    } finally {
+      setIsLoadingCustomer(false);
+    }
+  };
+
+  // Handle mobile number search
+  const handleSearchByMobile = async (mobileNumber) => {
+    if (!mobileNumber || mobileNumber.trim().length < 10) {
+      throw new Error('Please enter a valid 10-digit mobile or WhatsApp number');
+    }
+
+    const cleanMobile = mobileNumber.replace(/\D/g, '');
+    if (cleanMobile.length < 10) {
+      throw new Error('Please enter a valid 10-digit mobile or WhatsApp number');
+    }
+
+    setIsLoadingCustomer(true);
+    
+    try {
+      const result = await apiCall(API_ENDPOINTS.CUSTOMER_BY_MOBILE(cleanMobile));
+      
+      if (result.success && result.data) {
+        const customer = result.data;
+        setCustomerData(prev => ({
+          ...prev,
+          customerId: customer.CustomerID,
+          customerName: customer.CustomerName,
+          mobileNo: customer.MobileNo,
+          whatsappNo: customer.WhatsAppNo || customer.MobileNo,
+          customerType: customer.CustomerType,
+          employeeName: prev.employeeName,
+          party: prev.party || prev.employeeName,
+        }));
+
+        setShowMobileSearchModal(false);
+
+        Alert.alert(
+          'Customer Found! ✓',
+          `Customer ID: ${customer.CustomerID}\nName: ${customer.CustomerName}\nMobile: ${customer.MobileNo}\nType: ${customer.CustomerType}`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        throw new Error('Customer not found in database');
+      }
+    } catch (error) {
+      console.error('Error fetching customer:', error);
+      throw error;
+    } finally {
+      setIsLoadingCustomer(false);
+    }
+  };
 
   // Readings state
   const [readings, setReadings] = useState({
@@ -47,353 +457,774 @@ const RentalMonthlyBillScreen = () => {
     testedCopies: '0',
   });
 
-  const [adjustments, setAdjustments] = useState([
-    {
-      sno: '1',
-      account: '',
-      add: '',
-      less: '',
-      discount: '',
-      adjAmount: '',
-      comments1: '',
-      comments2: '',
-      addLess: '',
-      totalAdj: '',
-    },
-  ]);
+  // Adjustments state
+  const [adjustments, setAdjustments] = useState([]);
 
-  const handleAddAdjustment = () => {
-    setAdjustments([...adjustments, {
-      sno: String(adjustments.length + 1),
-      account: '',
-      add: '',
-      less: '',
-      discount: '',
-      adjAmount: '',
-      comments1: '',
-      comments2: '',
-      addLess: '',
-      totalAdj: '',
-    }]);
-  };
+  // Collections state
+  const [collectedCash, setCollectedCash] = useState('');
+  const [collectedCard, setCollectedCard] = useState('');
+  const [collectedUpi, setCollectedUpi] = useState('');
 
-  const handleDeleteAdjustment = (index) => {
-    const newItems = adjustments.filter((_, i) => i !== index);
-    setAdjustments(newItems.map((item, i) => ({ ...item, sno: String(i + 1) })));
-  };
+  // Summary state
+  const [summary, setSummary] = useState({
+    totalFreeCopies: 0,
+    chargeableCopiesAmt: 0,
+    totalMonthlyCharges: 0,
+    totalChargeableCopies: 0,
+    chargeableCopies: 0,
+    totalAdd: 0,
+    totalLess: 0,
+    totalGross: 0,
+    totalValue: 0,
+    ledgerBalance: 0,
+  });
 
-  const handleAdjustmentCellChange = (rowIndex, columnKey, value) => {
-    const newItems = [...adjustments];
-    newItems[rowIndex][columnKey] = value;
-    setAdjustments(newItems);
+  // Calculate summary whenever readings or adjustments change
+  const calculateSummary = useCallback(() => {
+    const totalFreeCopies = parseFloat(readings.freeCopies) || 0;
+    const chargeableCopies = parseFloat(readings.chargeableCopies) || 0;
+    const totalMonthlyCharges = parseFloat(readings.monthlyCharges) || 0;
+    const contractCharges = parseFloat(readings.contractCharges) || 0;
+    
+    // Calculate chargeable copies amount (simplified calculation)
+    // TODO: This might need actual rate calculation based on business logic
+    const chargeableCopiesAmt = chargeableCopies * 0;
+    
+    const totalAdd = adjustments.reduce((sum, adj) => sum + (parseFloat(adj.addAmount) || 0), 0);
+    const totalLess = adjustments.reduce((sum, adj) => sum + (parseFloat(adj.lessAmount) || 0), 0);
+    
+    const totalGross = totalMonthlyCharges + contractCharges;
+    const totalValue = totalGross + totalAdd - totalLess;
+    const ledgerBalance = 0;
+
+    setSummary({
+      totalFreeCopies,
+      chargeableCopiesAmt,
+      totalMonthlyCharges,
+      totalChargeableCopies: chargeableCopies,
+      chargeableCopies,
+      totalAdd,
+      totalLess,
+      totalGross,
+      totalValue,
+      ledgerBalance,
+    });
+  }, [readings, adjustments]);
+
+  useEffect(() => {
+    calculateSummary();
+  }, [calculateSummary]);
+
+  // Handle add adjustment from modal
+  const handleAddAdjustment = (newAdjustment) => {
+    const adjustmentWithId = {
+      ...newAdjustment,
+      id: newAdjustment.id || Date.now() + Math.random(),
+    };
+    setAdjustments([...adjustments, adjustmentWithId]);
+    setShowAddAdjustmentModal(false);
+    const amountType = newAdjustment.addAmount > 0 ? 'Add' : 'Less';
+    const amount = newAdjustment.addAmount > 0 ? newAdjustment.addAmount : newAdjustment.lessAmount;
+    Alert.alert(
+      'Adjustment Added Successfully! ✓',
+      `${newAdjustment.accountName}\n${amountType}: ₹${amount.toFixed(2)}`,
+      [{ text: 'OK' }]
+    );
   };
 
   const adjustmentColumns = [
-    { key: 'sno', label: 'Sno', width: 60, editable: false },
-    { key: 'account', label: 'Account', width: 150, type: 'dropdown', options: adjustmentAccounts },
-    { key: 'add', label: 'Add', width: 100, keyboardType: 'numeric' },
-    { key: 'less', label: 'Less', width: 100, keyboardType: 'numeric' },
-    { key: 'discount', label: 'Discount', width: 100, keyboardType: 'numeric' },
-    { key: 'adjAmount', label: 'AdjAmount', width: 100, keyboardType: 'numeric' },
-    { key: 'comments1', label: 'Comments1', width: 120 },
-    { key: 'comments2', label: 'Comments2', width: 120 },
-    { key: 'addLess', label: 'Add/Less', width: 100, type: 'dropdown', options: ['Add', 'Less'] },
-    { key: 'totalAdj', label: 'TotalAdj', width: 100, keyboardType: 'numeric' },
+    { key: 'sno', label: 'S.No', width: 60, editable: false },
+    { key: 'accountName', label: 'Account', width: 200, type: 'dropdown', options: adjustmentsList.map(a => ({ label: a.name, value: a.name })) },
+    { key: 'addAmount', label: 'Add', width: 120, keyboardType: 'numeric' },
+    { key: 'lessAmount', label: 'Less', width: 120, keyboardType: 'numeric' },
+    { key: 'comments', label: 'Comments', width: 150 },
   ];
 
-  const summaryFields = [
-    { label: 'Total Free Copies', value: '0' },
-    { label: 'Chargeable Copies Amt', value: '0' },
-    { label: 'Total Monthly Charges', value: '0' },
-    { label: 'Total Chargeable Copies', value: '0' },
-    { label: 'Chargeable Copies', value: '0' },
-    { label: 'TotalAdd', value: '0' },
-    { label: 'TotalLess', value: '0' },
-    { label: 'Total Gross', value: '0' },
-    { label: 'Total Value', value: '0' },
-    { label: 'Ledger Balance', value: '0' },
-  ];
-
-  const collectionsFields = [
-    { label: 'Collections', value: '0' },
-    { label: 'Cash', value: '0' },
-    { label: 'UPI', value: '0' },
-    { label: 'Card', value: '0' },
-    { label: 'Balance', value: '0' },
-  ];
+  // Summary fields for display - computed from summary state
+  const summaryFields = useCallback(() => [
+    { label: 'Total Free Copies', value: summary.totalFreeCopies.toFixed(0), editable: false },
+    { label: 'Chargeable Copies Amt', value: summary.chargeableCopiesAmt.toFixed(2), editable: false },
+    { label: 'Total Monthly Charges', value: summary.totalMonthlyCharges.toFixed(2), editable: false },
+    { label: 'Total Chargeable Copies', value: summary.totalChargeableCopies.toFixed(0), editable: false },
+    { label: 'Chargeable Copies', value: summary.chargeableCopies.toFixed(0), editable: false },
+    { label: 'TotalAdd', value: summary.totalAdd.toFixed(2), editable: false },
+    { label: 'TotalLess', value: summary.totalLess.toFixed(2), editable: false },
+    { label: 'Total Gross', value: summary.totalGross.toFixed(2), editable: false },
+    { label: 'Total Value', value: summary.totalValue.toFixed(2), editable: false },
+    { label: 'Ledger Balance', value: summary.ledgerBalance.toFixed(2), editable: false },
+  ], [summary]);
 
   const getMonthlyBillData = useCallback(() => {
-    const summarySnapshot = summaryFields.reduce(
-      (acc, field) => ({ ...acc, [field.label]: field.value }),
-      {}
-    );
-
     return {
       title: 'Rental Monthly Bill',
-      voucherDetails: { voucherSeries, voucherNo, voucherDatetime: date },
-      transactionDetails: { date, branch, username: executive },
+      voucherDetails: voucherData,
+      transactionDetails: transactionData,
       customerData: {
-        customerName,
-        customerId,
-        mobileNo,
-        whatsappNo,
-        customerType,
+        ...customerData,
         salesAccount,
-      },
-      metadata: {
-        machineType,
+        machineType: customerData.machineType,
         machinePurchasedDate,
         contractExpiredOn,
         remainingDays,
         remainingCopies,
-        remarks,
-        gstBill,
+        gstBill: gstBill || customerData.gstBill || false,
       },
       readings,
       adjustments,
-      summary: summarySnapshot,
+      summary: summary,
+      collections: {
+        cash: parseFloat(collectedCash) || 0,
+        card: parseFloat(collectedCard) || 0,
+        upi: parseFloat(collectedUpi) || 0,
+        balance: summary.totalValue - (parseFloat(collectedCash) || 0) - (parseFloat(collectedCard) || 0) - (parseFloat(collectedUpi) || 0),
+      },
     };
   }, [
-    voucherSeries,
-    voucherNo,
-    date,
-    branch,
-    executive,
-    customerName,
-    customerId,
-    mobileNo,
-    whatsappNo,
-    customerType,
+    voucherData,
+    transactionData,
+    customerData,
     salesAccount,
-    machineType,
     machinePurchasedDate,
     contractExpiredOn,
     remainingDays,
     remainingCopies,
-    remarks,
     gstBill,
     readings,
     adjustments,
+    summary,
+    collectedCash,
+    collectedCard,
+    collectedUpi,
   ]);
 
   const { handleSave, isSaving } = useScreenDraft('RentalMonthlyBill', getMonthlyBillData, {
     successMessage: 'Rental monthly bill draft saved.',
   });
 
+  // Save invoice to backend API
+  const handleSaveInvoice = async () => {
+    if (!customerData.customerName || customerData.customerName.trim() === '') {
+      Alert.alert('Missing Customer', 'Please select a customer before saving.', [{ text: 'OK' }]);
+      return;
+    }
+
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const datetimeStr = `${dateStr} ${timeStr}`;
+
+    let finalVoucherData = { ...voucherData };
+    if (!finalVoucherData.voucherSeries || !finalVoucherData.voucherNo || !finalVoucherData.voucherDatetime) {
+      finalVoucherData = {
+        voucherSeries: finalVoucherData.voucherSeries || 'RMB',
+        voucherNo: finalVoucherData.voucherNo || `TEMP-${Date.now()}`,
+        voucherDatetime: finalVoucherData.voucherDatetime || datetimeStr,
+      };
+      setVoucherData(finalVoucherData);
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    setIsSavingInvoice(true);
+    
+    try {
+      const invoiceData = getMonthlyBillData();
+      const voucherSeries = invoiceData.voucherDetails.voucherSeries;
+      const voucherNo = invoiceData.voucherDetails.voucherNo;
+      const voucherDatetime = invoiceData.voucherDetails.voucherDatetime;
+      
+      if (!voucherSeries || !voucherNo || !voucherDatetime) {
+        throw new Error('Voucher information is missing. Please refresh the screen and try again.');
+      }
+      
+      // Use the full voucher series format (e.g., RMB-25NAM-JD) from voucherData
+      const fullVoucherSeries = voucherSeries;
+      
+      const apiData = {
+        invoiceID: savedInvoiceID,
+        voucherSeries: fullVoucherSeries,
+        voucherNo: voucherNo,
+        voucherDatetime: voucherDatetime,
+        transactionDetails: {
+          date: invoiceData.transactionDetails.date,
+          time: invoiceData.transactionDetails.time,
+          branch: invoiceData.transactionDetails.branch,
+          location: invoiceData.transactionDetails.location,
+          username: invoiceData.transactionDetails.username,
+        },
+        header: {
+          date: invoiceData.customerData.date,
+          billerName: invoiceData.customerData.billerName,
+          employeeName: invoiceData.customerData.employeeName,
+          customerId: invoiceData.customerData.customerId,
+          customerName: invoiceData.customerData.customerName,
+          machineType: invoiceData.customerData.machineType,
+          machinePurchasedDate: invoiceData.customerData.machinePurchasedDate,
+          contractExpiredOn: invoiceData.customerData.contractExpiredOn,
+          remainingDays: invoiceData.customerData.remainingDays,
+          remainingCopies: invoiceData.customerData.remainingCopies,
+          salesAccount: invoiceData.customerData.salesAccount,
+          remarks: invoiceData.customerData.remarks,
+          gstBill: invoiceData.customerData.gstBill || false,
+        },
+        readings: invoiceData.readings,
+        collections: invoiceData.collections,
+        adjustments: invoiceData.adjustments.map((adj) => ({
+          accountId: adj.accountId || null,
+          accountName: adj.accountName || '',
+          accountType: adj.accountType || 'add',
+          addAmount: adj.addAmount || 0,
+          lessAmount: adj.lessAmount || 0,
+          comments: adj.comments || '',
+        })),
+        summary: {
+          ...invoiceData.summary,
+          totalBillValue: invoiceData.summary.totalValue, // Map totalValue to totalBillValue for backend
+        },
+      };
+
+      const result = await apiCall(API_ENDPOINTS.CREATE_INVOICE, {
+        method: 'POST',
+        body: JSON.stringify(apiData),
+      });
+
+      if (result.success) {
+        setIsInvoiceSaved(true);
+        const newInvoiceID = result.data.invoiceID;
+        setSavedInvoiceID(newInvoiceID);
+        setHasPreviewed(false);
+        
+        if (result.data.voucherSeries && result.data.voucherNo) {
+          setVoucherData({
+            voucherSeries: result.data.voucherSeries,
+            voucherNo: result.data.voucherNo,
+            voucherDatetime: result.data.voucherDatetime || voucherData.voucherDatetime,
+          });
+        }
+        
+        const action = savedInvoiceID ? 'updated' : 'saved';
+        Alert.alert(
+          'Success! ✓',
+          `Invoice ${action} successfully!\n\nVoucher: ${result.data.voucherSeries}-${result.data.voucherNo}`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error saving invoice:', error);
+      let errorMessage = error.message || 'Unknown error occurred';
+      if (error.message.includes('502') || error.message.includes('503')) {
+        errorMessage = 'Cannot connect to backend server. Please check your connection.';
+      }
+      Alert.alert('Save Failed', errorMessage, [{ text: 'OK' }]);
+    } finally {
+      setIsSavingInvoice(false);
+    }
+  };
+
+  // Combined save handler (local + API)
+  const handleSaveCombined = async () => {
+    await handleSaveInvoice();
+    await handleSave();
+  };
+
   const handlePreviewInvoice = async () => {
-    if (!customerName || !customerId) {
+    if (!customerData.customerName || !customerData.customerId) {
       Alert.alert('Missing Data', 'Please fill in customer details to preview the bill.', [{ text: 'OK' }]);
       return;
     }
     try {
       const data = getMonthlyBillData();
-      await previewInvoicePDF(data);
+      setHasPreviewed(true);
+      setShowPDFPreview(true);
     } catch (error) {
       console.error('Error previewing bill:', error);
+      Alert.alert('Error', `Failed to preview: ${error.message}`);
     }
   };
 
   const handleSendWhatsApp = async () => {
-    if (!customerName || !customerId) {
+    if (!customerData.customerName || !customerData.customerId) {
       Alert.alert('Missing Data', 'Please fill in customer details before sending the bill.', [{ text: 'OK' }]);
+      return;
+    }
+    if (!customerData.whatsappNo) {
+      Alert.alert('WhatsApp Number Required', 'The customer does not have a WhatsApp number. Please add a customer with a WhatsApp number to send via WhatsApp.', [{ text: 'OK' }]);
       return;
     }
     try {
       const data = getMonthlyBillData();
       const { uri } = await generateInvoicePDF(data);
-      await sharePDFViaWhatsApp(uri, whatsappNo || mobileNo);
+      await sharePDFViaWhatsApp(uri, customerData.whatsappNo || customerData.mobileNo);
     } catch (error) {
       console.error('Error sending WhatsApp:', error);
+      Alert.alert('Error', `Failed to send WhatsApp: ${error.message}`);
+    }
+  };
+
+  const handleSendSMS = async () => {
+    if (!customerData.customerName || !customerData.customerId) {
+      Alert.alert('Missing Data', 'Please fill in customer details before sending SMS.', [{ text: 'OK' }]);
+      return;
+    }
+    if (!customerData.mobileNo) {
+      Alert.alert('Mobile Number Required', 'The customer does not have a mobile number. Please add a customer with a mobile number to send SMS.', [{ text: 'OK' }]);
+      return;
+    }
+    try {
+      const data = getMonthlyBillData();
+      const { uri } = await generateInvoicePDF(data);
+      await sharePDFViaSMS(uri, customerData.mobileNo || customerData.whatsappNo);
+    } catch (error) {
+      console.error('Error sending SMS:', error);
+      Alert.alert('Error', `Failed to send SMS: ${error.message}`);
+    }
+  };
+
+  // Handle exit with save reminder
+  const handleExit = () => {
+    // Check if there are unsaved changes
+    const hasUnsavedChanges = (customerData.customerName && customerData.customerName.trim() !== '') && !isInvoiceSaved;
+    
+    if (hasUnsavedChanges || hasPreviewed) {
+      Alert.alert(
+        'Unsaved Changes',
+        hasPreviewed 
+          ? 'You have previewed the invoice. Please save the invoice before exiting to ensure it is saved to the database.'
+          : 'You have unsaved changes. Are you sure you want to exit without saving?',
+        [
+          { 
+            text: 'Save & Exit', 
+            onPress: async () => {
+              try {
+                await handleSaveCombined();
+                // Reset flags after successful save
+                setIsInvoiceSaved(true);
+                setHasPreviewed(false);
+                // Wait a moment for save to complete, then exit
+                setTimeout(() => {
+                  navigation.goBack();
+                }, 500);
+              } catch (error) {
+                // If save fails, don't exit
+                console.error('Save failed on exit:', error);
+              }
+            },
+            style: 'default'
+          },
+          { 
+            text: 'Exit Without Saving', 
+            onPress: () => {
+              setIsInvoiceSaved(false);
+              setSavedInvoiceID(null); // Reset invoice ID
+              setHasPreviewed(false);
+              navigation.goBack();
+            },
+            style: 'destructive'
+          },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    } else {
+      // No unsaved changes, allow normal exit
+      navigation.goBack();
     }
   };
 
   return (
-    <SmartSuiteFormScreen
+      <SmartSuiteFormScreen
       title="Rental Monthly Bill"
-      summaryFields={summaryFields}
+      summaryFields={summaryFields()}
       onPreview={handlePreviewInvoice}
       onWhatsApp={handleSendWhatsApp}
-      actionBarActions={{ onSave: handleSave }}
+      onSMS={handleSendSMS}
+      actionBarActions={{ 
+        onSave: handleSave,
+        onClose: handleExit
+      }}
       isSaving={isSaving}
     >
       <AccordionSection title="TRANSACTION DETAILS" defaultExpanded={true}>
+        {/* Date and Time */}
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Branch</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={branch}
-                onValueChange={setBranch}
-                style={styles.picker}
-              >
-                <Picker.Item label="Branch" value="" />
-                {branches.map((b, idx) => (
-                  <Picker.Item key={idx} label={b} value={b} />
-                ))}
-              </Picker>
+            <Text style={styles.label}>Date</Text>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={transactionData?.date || ''}
+                onChangeText={(value) => setTransactionData({ ...transactionData, date: value })}
+                placeholder="Enter date"
+              />
+            ) : (
+              <View style={styles.displayBox}>
+                <Text style={styles.displayText}>{transactionData?.date || 'Loading...'}</Text>
             </View>
+            )}
           </View>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Executive</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={executive}
-                onValueChange={setExecutive}
-                style={styles.picker}
-              >
-                <Picker.Item label="Executive" value="" />
-                {employeeUsernames.map((e, idx) => (
-                  <Picker.Item key={idx} label={e} value={e} />
-                ))}
-              </Picker>
+            <Text style={styles.label}>Time</Text>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={transactionData?.time || ''}
+                onChangeText={(value) => setTransactionData({ ...transactionData, time: value })}
+                placeholder="Enter time"
+              />
+            ) : (
+              <View style={styles.displayBox}>
+                <Text style={styles.displayText}>{transactionData?.time || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</Text>
             </View>
+            )}
           </View>
+        </View>
+
+        {/* Branch */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Branch</Text>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={transactionData?.branch || ''}
+              onChangeText={(value) => setTransactionData({ ...transactionData, branch: value })}
+              placeholder="Enter branch"
+            />
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {transactionData?.branch || 'Loading...'}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Location */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Location</Text>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={transactionData?.location || ''}
+              onChangeText={(value) => setTransactionData({ ...transactionData, location: value })}
+              placeholder="Enter location"
+            />
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {transactionData?.location || 'Loading...'}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Username/Executive */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Username</Text>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={transactionData?.username || ''}
+              onChangeText={(value) => setTransactionData({ ...transactionData, username: value })}
+              placeholder="Enter username"
+            />
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {transactionData?.username || 'Loading...'}
+              </Text>
+            </View>
+          )}
         </View>
       </AccordionSection>
 
-      <AccordionSection title="VOUCHER" defaultExpanded={true}>
+      <AccordionSection title="VOUCHER" defaultExpanded={false}>
+        {/* Voucher Series, No, Datetime */}
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>VoucherSeries</Text>
+            <Text style={styles.label}>Voucher Series</Text>
+            {isSupervisor ? (
             <TextInput
               style={styles.input}
-              value={voucherSeries}
-              onChangeText={setVoucherSeries}
+                value={voucherData.voucherSeries}
+                onChangeText={(value) => setVoucherData({ ...voucherData, voucherSeries: value })}
+                placeholder="Enter voucher series"
             />
+            ) : (
+              <View style={styles.displayBox}>
+                <Text style={styles.displayText}>{voucherData.voucherSeries || 'Loading...'}</Text>
+            </View>
+            )}
           </View>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>VoucherNo</Text>
+            <Text style={styles.label}>Voucher No</Text>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={voucherData.voucherNo}
+                onChangeText={(value) => setVoucherData({ ...voucherData, voucherNo: value })}
+                placeholder="Enter voucher number"
+              />
+            ) : (
+              <View style={styles.displayBox}>
+                <Text style={styles.displayText}>{voucherData.voucherNo || 'Loading...'}</Text>
+            </View>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Voucher Datetime</Text>
+          {isSupervisor ? (
             <TextInput
               style={styles.input}
-              value={voucherNo}
-              onChangeText={setVoucherNo}
+              value={voucherData.voucherDatetime}
+              onChangeText={(value) => setVoucherData({ ...voucherData, voucherDatetime: value })}
+              placeholder="Enter voucher datetime"
             />
+          ) : (
+            <View style={styles.displayBox}>
+              <Text style={styles.displayText}>{voucherData.voucherDatetime || `${transactionData?.date || ''} ${transactionData?.time || ''}`}</Text>
           </View>
+          )}
         </View>
       </AccordionSection>
 
       <AccordionSection title="HEADER" defaultExpanded={true}>
+        {/* Date and Biller Name */}
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Date</Text>
+            {isSupervisor ? (
             <TextInput
               style={styles.input}
-              value={date}
-              onChangeText={setDate}
+                value={customerData.date}
+                onChangeText={(value) => handleInputChange('date', value)}
+                placeholder="Enter date"
             />
+            ) : (
+              <View style={[styles.input, styles.readOnlyInput]}>
+                <Text style={styles.readOnlyText}>
+                  {customerData.date || 'Loading...'}
+                </Text>
           </View>
+            )}
         </View>
-        <View style={styles.fullWidthField}>
-          <Text style={styles.label}>
-            * Customer Name
-          </Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={customerName}
-              onValueChange={setCustomerName}
-              style={styles.picker}
-            >
-              <Picker.Item label="Select Customer" value="" />
-            </Picker>
-          </View>
-        </View>
-        <View style={styles.fullWidthField}>
-          <Text style={styles.label}>
-            * Sales Account
-          </Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={salesAccount}
-              onValueChange={setSalesAccount}
-              style={styles.picker}
-            >
-              <Picker.Item label="Select Sales Account" value="" />
-            </Picker>
-          </View>
-        </View>
-        <View style={styles.row}>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Customer ID</Text>
+            <Text style={styles.label}>Biller Name</Text>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={customerData.billerName}
+                onChangeText={(value) => handleInputChange('billerName', value)}
+                placeholder="Enter biller name"
+              />
+            ) : (
+              <View style={[styles.input, styles.readOnlyInput]}>
+                <Text style={styles.readOnlyText}>
+                  {customerData.billerName || 'Loading...'}
+          </Text>
+          </View>
+            )}
+        </View>
+        </View>
+
+        {/* Employee Name */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Employee Name</Text>
+          {isSupervisor ? (
             <TextInput
               style={styles.input}
-              value={customerId}
-              onChangeText={setCustomerId}
+              value={customerData.employeeName || customerData.party}
+              onChangeText={(value) => {
+                handleInputChange('employeeName', value);
+                handleInputChange('party', value);
+              }}
+              placeholder="Enter employee name"
             />
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {customerData.employeeName || customerData.party || 'Loading...'}
+          </Text>
           </View>
+          )}
+        </View>
+
+        {/* Customer ID with QR Scanner */}
+        <View style={styles.fullWidthField}>
+            <Text style={styles.label}>Customer ID</Text>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={customerData.customerId || ''}
+              onChangeText={(value) => handleInputChange('customerId', value)}
+              placeholder="Enter customer ID"
+            />
+          ) : (
+            <View style={styles.inputWithIcon}>
+              <View style={[styles.input, styles.readOnlyInput, { flex: 1, marginRight: 8 }]}>
+                {isLoadingCustomer ? (
+                  <ActivityIndicator size="small" color="#2196F3" />
+                ) : (
+                <Text style={styles.readOnlyText}>
+                  {customerData.customerId || 'Scan QR Code to load customer'}
+                </Text>
+                )}
+          </View>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => setShowScanner(true)}
+                disabled={isLoadingCustomer}
+              >
+                <MaterialIcons name="qr-code-scanner" size={24} color="#30302d" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.iconButton, { marginLeft: 4, backgroundColor: '#30302d' }]}
+                onPress={() => setShowMobileSearchModal(true)}
+                disabled={isLoadingCustomer}
+              >
+                <MaterialIcons name="search" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          )}
+          {!isSupervisor && (
+            <Text style={styles.helperText}>
+              {isLoadingCustomer ? 'Loading customer...' : 'Scan QR or use search icon to search by mobile number'}
+            </Text>
+          )}
+        </View>
+
+        {/* Customer Name */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Customer Name</Text>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={customerData.customerName || ''}
+              onChangeText={(value) => handleInputChange('customerName', value)}
+              placeholder="Enter customer name"
+            />
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {customerData.customerName || 'Will be filled from QR code'}
+              </Text>
+          </View>
+          )}
+        </View>
+
+        {/* Mobile No and WhatsApp No */}
+        <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Mobile No</Text>
+            {isSupervisor ? (
             <TextInput
               style={styles.input}
-              value={mobileNo}
-              onChangeText={setMobileNo}
-              keyboardType="phone-pad"
-            />
-          </View>
-        </View>
-        <View style={styles.row}>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Customer Type</Text>
-            <TextInput
-              style={styles.input}
-              value={customerType}
-              onChangeText={setCustomerType}
-            />
+                value={customerData.mobileNo || ''}
+                onChangeText={(value) => handleInputChange('mobileNo', value)}
+                placeholder="Enter mobile no"
+                keyboardType="phone-pad"
+              />
+            ) : (
+              <View style={[styles.input, styles.readOnlyInput]}>
+                <Text style={styles.readOnlyText}>
+                  {customerData.mobileNo || 'From QR'}
+                </Text>
+              </View>
+            )}
           </View>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>WhatsApp No</Text>
+            {isSupervisor ? (
             <TextInput
               style={styles.input}
-              value={whatsappNo}
-              onChangeText={setWhatsappNo}
+                value={customerData.whatsappNo || ''}
+                onChangeText={(value) => handleInputChange('whatsappNo', value)}
+                placeholder="Enter WhatsApp no"
               keyboardType="phone-pad"
             />
+            ) : (
+              <View style={[styles.input, styles.readOnlyInput]}>
+                <Text style={styles.readOnlyText}>
+                  {customerData.whatsappNo || 'From QR'}
+                </Text>
+          </View>
+            )}
+        </View>
+            </View>
+
+        {/* Customer Type */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Customer Type</Text>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={customerData.customerType || ''}
+              onChangeText={(value) => handleInputChange('customerType', value)}
+              placeholder="Enter customer type"
+            />
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {customerData.customerType || 'From QR code'}
+              </Text>
+          </View>
+          )}
+        </View>
+
+        {/* Sales Account */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>
+            Sales Account <Text style={styles.required}>*</Text>
+          </Text>
+          <View style={[styles.input, styles.readOnlyInput]}>
+            <Text style={styles.readOnlyText}>
+              {salesAccount || 'Sales'}
+            </Text>
           </View>
         </View>
+
+        {/* Machine Type - TextInput for both supervisor and executive */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Machine Type</Text>
+          <TextInput
+            style={styles.input}
+            value={customerData.machineType || ''}
+            onChangeText={(value) => handleInputChange('machineType', value)}
+            placeholder="Enter machine type"
+          />
+        </View>
+
+        {/* Machine Purchased Date */}
         <View style={styles.row}>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Machine Type</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={machineType}
-                onValueChange={setMachineType}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select Machine Type" value="" />
-                {machineTypes.map((m, idx) => (
-                  <Picker.Item key={idx} label={m} value={m} />
-                ))}
-              </Picker>
-            </View>
-          </View>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Machine Purchased Date</Text>
             <TextInput
               style={styles.input}
               value={machinePurchasedDate}
               onChangeText={setMachinePurchasedDate}
+              placeholder="DD-MM-YYYY"
             />
           </View>
-        </View>
-        <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Contract Expired On</Text>
             <TextInput
               style={styles.input}
               value={contractExpiredOn}
               onChangeText={setContractExpiredOn}
-            />
-          </View>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Remaining Days</Text>
-            <TextInput
-              style={styles.input}
-              value={remainingDays}
-              onChangeText={setRemainingDays}
-              keyboardType="numeric"
+              placeholder="DD-MM-YYYY"
             />
           </View>
         </View>
+
+        {/* Remaining Days (calculated automatically) and Remaining Copies */}
         <View style={styles.row}>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Remaining Days</Text>
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {remainingDays || '0'} days
+              </Text>
+            </View>
+          </View>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Remaining Copies</Text>
             <TextInput
@@ -401,23 +1232,33 @@ const RentalMonthlyBillScreen = () => {
               value={remainingCopies}
               onChangeText={setRemainingCopies}
               keyboardType="numeric"
+              placeholder="Enter remaining copies"
             />
           </View>
         </View>
+
+        {/* Remarks */}
         <View style={styles.fullWidthField}>
           <Text style={styles.label}>Remarks</Text>
           <TextInput
             style={styles.input}
-            value={remarks}
-            onChangeText={setRemarks}
+            value={customerData.remarks || ''}
+            onChangeText={(value) => handleInputChange('remarks', value)}
+            placeholder="Enter remarks"
             multiline
             numberOfLines={3}
           />
         </View>
+
+        {/* GST Bill Checkbox */}
         <View style={styles.checkboxContainer}>
           <TouchableOpacity
             style={styles.checkbox}
-            onPress={() => setGstBill(!gstBill)}
+            onPress={() => {
+              const newGstBill = !gstBill;
+              setGstBill(newGstBill);
+              handleInputChange('gstBill', newGstBill);
+            }}
           >
             <Text style={styles.checkboxIcon}>{gstBill ? '☑' : '☐'}</Text>
             <Text style={styles.checkboxLabel}>GST Bill</Text>
@@ -427,6 +1268,7 @@ const RentalMonthlyBillScreen = () => {
 
       <AccordionSection title="READINGS" defaultExpanded={true}>
         <View style={styles.readingsGrid}>
+          {/* Row 1: Current Reading, Previous Reading */}
           <View style={styles.readingRow}>
             <View style={styles.readingField}>
               <Text style={styles.label}>Current Reading</Text>
@@ -435,6 +1277,7 @@ const RentalMonthlyBillScreen = () => {
                 value={readings.currentReading}
                 onChangeText={(text) => setReadings({ ...readings, currentReading: text })}
                 keyboardType="numeric"
+                placeholder="0"
               />
             </View>
             <View style={styles.readingField}>
@@ -444,9 +1287,11 @@ const RentalMonthlyBillScreen = () => {
                 value={readings.previousReading}
                 onChangeText={(text) => setReadings({ ...readings, previousReading: text })}
                 keyboardType="numeric"
+                placeholder="0"
               />
             </View>
           </View>
+          {/* Row 2: A4, TotalA4 */}
           <View style={styles.readingRow}>
             <View style={styles.readingField}>
               <Text style={styles.label}>A4</Text>
@@ -455,6 +1300,7 @@ const RentalMonthlyBillScreen = () => {
                 value={readings.a4}
                 onChangeText={(text) => setReadings({ ...readings, a4: text })}
                 keyboardType="numeric"
+                placeholder="0"
               />
             </View>
             <View style={styles.readingField}>
@@ -464,9 +1310,34 @@ const RentalMonthlyBillScreen = () => {
                 value={readings.totalA4}
                 onChangeText={(text) => setReadings({ ...readings, totalA4: text })}
                 keyboardType="numeric"
+                placeholder="0"
               />
             </View>
           </View>
+          {/* Row 3: A3, TotalA3 */}
+          <View style={styles.readingRow}>
+            <View style={styles.readingField}>
+              <Text style={styles.label}>A3</Text>
+              <TextInput
+                style={styles.readingInput}
+                value={readings.a3}
+                onChangeText={(text) => setReadings({ ...readings, a3: text })}
+                keyboardType="numeric"
+                placeholder="0"
+              />
+            </View>
+            <View style={styles.readingField}>
+              <Text style={styles.label}>TotalA3</Text>
+              <TextInput
+                style={styles.readingInput}
+                value={readings.totalA3}
+                onChangeText={(text) => setReadings({ ...readings, totalA3: text })}
+                keyboardType="numeric"
+                placeholder="0"
+              />
+            </View>
+          </View>
+          {/* Row 4: CA4, CA3 */}
           <View style={styles.readingRow}>
             <View style={styles.readingField}>
               <Text style={styles.label}>CA4</Text>
@@ -475,26 +1346,7 @@ const RentalMonthlyBillScreen = () => {
                 value={readings.ca4}
                 onChangeText={(text) => setReadings({ ...readings, ca4: text })}
                 keyboardType="numeric"
-              />
-            </View>
-            <View style={styles.readingField}>
-              <Text style={styles.label}>A3</Text>
-              <TextInput
-                style={styles.readingInput}
-                value={readings.a3}
-                onChangeText={(text) => setReadings({ ...readings, a3: text })}
-                keyboardType="numeric"
-              />
-            </View>
-          </View>
-          <View style={styles.readingRow}>
-            <View style={styles.readingField}>
-              <Text style={styles.label}>TotalA3</Text>
-              <TextInput
-                style={styles.readingInput}
-                value={readings.totalA3}
-                onChangeText={(text) => setReadings({ ...readings, totalA3: text })}
-                keyboardType="numeric"
+                placeholder="0"
               />
             </View>
             <View style={styles.readingField}>
@@ -504,9 +1356,24 @@ const RentalMonthlyBillScreen = () => {
                 value={readings.ca3}
                 onChangeText={(text) => setReadings({ ...readings, ca3: text })}
                 keyboardType="numeric"
+                placeholder="0"
               />
             </View>
           </View>
+          {/* Row 5: Months */}
+          <View style={styles.readingRow}>
+            <View style={styles.readingField}>
+              <Text style={styles.label}>Months</Text>
+              <TextInput
+                style={styles.readingInput}
+                value={readings.months}
+                onChangeText={(text) => setReadings({ ...readings, months: text })}
+                keyboardType="numeric"
+                placeholder="0"
+              />
+            </View>
+          </View>
+          {/* Row 6: Monthly Charges, Contract Charges */}
           <View style={styles.readingRow}>
             <View style={styles.readingField}>
               <Text style={styles.label}>Monthly Charges</Text>
@@ -515,39 +1382,9 @@ const RentalMonthlyBillScreen = () => {
                 value={readings.monthlyCharges}
                 onChangeText={(text) => setReadings({ ...readings, monthlyCharges: text })}
                 keyboardType="numeric"
+                placeholder="0"
               />
             </View>
-            <View style={styles.readingField}>
-              <Text style={styles.label}>Months</Text>
-              <TextInput
-                style={styles.readingInput}
-                value={readings.months}
-                onChangeText={(text) => setReadings({ ...readings, months: text })}
-                keyboardType="numeric"
-              />
-            </View>
-          </View>
-          <View style={styles.readingRow}>
-            <View style={styles.readingField}>
-              <Text style={styles.label}>Free Copies</Text>
-              <TextInput
-                style={styles.readingInput}
-                value={readings.freeCopies}
-                onChangeText={(text) => setReadings({ ...readings, freeCopies: text })}
-                keyboardType="numeric"
-              />
-            </View>
-            <View style={styles.readingField}>
-              <Text style={styles.label}>Chargeable Copies</Text>
-              <TextInput
-                style={styles.readingInput}
-                value={readings.chargeableCopies}
-                onChangeText={(text) => setReadings({ ...readings, chargeableCopies: text })}
-                keyboardType="numeric"
-              />
-            </View>
-          </View>
-          <View style={styles.readingRow}>
             <View style={styles.readingField}>
               <Text style={styles.label}>Contract Charges</Text>
               <TextInput
@@ -555,49 +1392,360 @@ const RentalMonthlyBillScreen = () => {
                 value={readings.contractCharges}
                 onChangeText={(text) => setReadings({ ...readings, contractCharges: text })}
                 keyboardType="numeric"
+                placeholder="0"
               />
             </View>
-            <View style={styles.readingField}>
+          </View>
+          {/* Row 7: Chargeable Copies, Tested Copies, Free Copies (3 columns) */}
+          <View style={styles.readingRow}>
+            <View style={[styles.readingFieldThreeCol, styles.readingFieldWide]}>
+              <Text style={styles.label}>Chargeable Copies</Text>
+              <TextInput
+                style={styles.readingInput}
+                value={readings.chargeableCopies}
+                onChangeText={(text) => setReadings({ ...readings, chargeableCopies: text })}
+                keyboardType="numeric"
+                placeholder="0"
+              />
+            </View>
+            <View style={styles.readingFieldThreeCol}>
               <Text style={styles.label}>Tested Copies</Text>
               <TextInput
                 style={styles.readingInput}
                 value={readings.testedCopies}
                 onChangeText={(text) => setReadings({ ...readings, testedCopies: text })}
                 keyboardType="numeric"
+                placeholder="0"
+              />
+            </View>
+            <View style={styles.readingFieldThreeCol}>
+              <Text style={styles.label}>Free Copies</Text>
+              <TextInput
+                style={styles.readingInput}
+                value={readings.freeCopies}
+                onChangeText={(text) => setReadings({ ...readings, freeCopies: text })}
+                keyboardType="numeric"
+                placeholder="0"
               />
             </View>
           </View>
         </View>
       </AccordionSection>
 
-      <AccordionSection title="ADJUSTMENTS BODY" defaultExpanded={true}>
+      <AccordionSection title="ADJUSTMENTS" defaultExpanded={false}>
         <ItemTable
           columns={adjustmentColumns}
-          data={adjustments}
-          onAddRow={handleAddAdjustment}
-          onDeleteRow={handleDeleteAdjustment}
-          onCellChange={handleAdjustmentCellChange}
+          data={adjustments.map((adj, index) => ({
+            ...adj,
+            sno: String(index + 1),
+          }))}
+          onAddRow={() => setShowAddAdjustmentModal(true)}
+          onDeleteRow={(rowIndex) => {
+            const adjustment = adjustments[rowIndex];
+            if (adjustment) {
+              Alert.alert(
+                'Delete Adjustment',
+                'Are you sure you want to delete this adjustment?',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: () => {
+                      setAdjustments(adjustments.filter((adj) => adj.id !== adjustment.id));
+                    },
+                  },
+                ]
+              );
+            }
+          }}
+          onCellChange={(rowIndex, field, value) => {
+            const updatedAdjustments = adjustments.map((adj, index) => {
+              if (index !== rowIndex) return adj;
+              
+              let parsedValue = value;
+              if (field === 'addAmount' || field === 'lessAmount') {
+                parsedValue = parseFloat(value) || 0;
+              } else if (field === 'accountName') {
+                // When account changes, update accountId and accountType
+                const account = adjustmentsList.find(a => a.name === value);
+                if (account) {
+                  return {
+                    ...adj,
+                    accountName: value,
+                    accountId: account.id,
+                    accountType: account.type,
+                    // Clear opposite amount based on account type
+                    ...(account.type === 'add' ? { lessAmount: 0 } : { addAmount: 0 }),
+                  };
+                }
+              }
+              
+              return { ...adj, [field]: parsedValue };
+            });
+            
+            setAdjustments(updatedAdjustments);
+          }}
         />
       </AccordionSection>
 
       <AccordionSection title="COLLECTIONS" defaultExpanded={true}>
-        <View style={styles.collectionsGrid}>
-          {collectionsFields.map((field, index) => (
-            <View key={index} style={styles.collectionField}>
-              <Text style={styles.label}>{field.label}</Text>
-              <TextInput
-                style={styles.collectionInput}
-                value={field.value}
-                keyboardType="numeric"
-              />
+        <View style={styles.row}>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Cash</Text>
+            <TextInput
+              style={styles.input}
+              value={collectedCash}
+              onChangeText={setCollectedCash}
+              placeholder="Enter cash amount"
+              keyboardType="numeric"
+            />
+          </View>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Card</Text>
+            <TextInput
+              style={styles.input}
+              value={collectedCard}
+              onChangeText={setCollectedCard}
+              placeholder="Enter card amount"
+              keyboardType="numeric"
+            />
+          </View>
+        </View>
+        <View style={styles.row}>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>UPI</Text>
+            <TextInput
+              style={styles.input}
+              value={collectedUpi}
+              onChangeText={setCollectedUpi}
+              placeholder="Enter UPI amount"
+              keyboardType="numeric"
+            />
+          </View>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Balance</Text>
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.balanceText}>
+                ₹{(
+                  summary.totalValue -
+                  (parseFloat(collectedCash) || 0) -
+                  (parseFloat(collectedCard) || 0) -
+                  (parseFloat(collectedUpi) || 0)
+                ).toFixed(2)}
+              </Text>
             </View>
-          ))}
+          </View>
         </View>
       </AccordionSection>
 
+      {/* Modals */}
+      <QRScannerModal
+        isVisible={showScanner}
+        onScan={handleScannedQr}
+        onClose={() => setShowScanner(false)}
+      />
+      <AddAdjustmentModal
+        isVisible={showAddAdjustmentModal}
+        onAddAdjustment={handleAddAdjustment}
+        onClose={() => setShowAddAdjustmentModal(false)}
+      />
+      <PDFPreviewModal
+        isVisible={showPDFPreview}
+        invoiceData={getMonthlyBillData()}
+        onClose={() => setShowPDFPreview(false)}
+      />
+      <MobileSearchModal
+        isVisible={showMobileSearchModal}
+        onSearch={handleSearchByMobile}
+        onClose={() => setShowMobileSearchModal(false)}
+      />
     </SmartSuiteFormScreen>
   );
 };
+
+// Mobile Search Modal Component (Inline)
+const MobileSearchModal = ({ isVisible, onSearch, onClose }) => {
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSearch = async () => {
+    if (!mobileNumber || mobileNumber.trim().length < 10) {
+      setError('Please enter a valid 10-digit mobile or WhatsApp number');
+      return;
+    }
+
+    setIsSearching(true);
+    setError('');
+    
+    try {
+      await onSearch(mobileNumber);
+      // Only clear if search was successful (modal will close)
+      setMobileNumber('');
+    } catch (error) {
+      // Error is handled in parent component, but show it here too
+      setError(error.message || 'Failed to search customer');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  return (
+    <Modal visible={isVisible} transparent={true} animationType="slide" onRequestClose={onClose}>
+      <View style={mobileSearchStyles.modalOverlay}>
+        <View style={mobileSearchStyles.modalContainer}>
+          <Text style={mobileSearchStyles.modalTitle}>Search Customer by Mobile/WhatsApp Number</Text>
+          <Text style={mobileSearchStyles.modalSubtitle}>
+            Enter mobile or WhatsApp number to fetch customer details from database
+          </Text>
+
+          <TextInput
+            style={[mobileSearchStyles.input, error && mobileSearchStyles.inputError]}
+            value={mobileNumber}
+            onChangeText={(text) => {
+              setMobileNumber(text);
+              setError(''); // Clear error when user types
+            }}
+            placeholder="Enter mobile or WhatsApp number"
+            keyboardType="phone-pad"
+            maxLength={10}
+            autoFocus
+            editable={!isSearching}
+          />
+
+          {error ? (
+            <Text style={mobileSearchStyles.errorText}>{error}</Text>
+          ) : null}
+
+          <View style={mobileSearchStyles.buttonRow}>
+            <TouchableOpacity
+              style={[mobileSearchStyles.button, mobileSearchStyles.cancelButton]}
+              onPress={() => {
+                setMobileNumber('');
+                setError('');
+                onClose();
+              }}
+              disabled={isSearching}
+            >
+              <Text style={mobileSearchStyles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                mobileSearchStyles.button, 
+                mobileSearchStyles.searchButton,
+                isSearching && mobileSearchStyles.searchButtonDisabled
+              ]}
+              onPress={handleSearch}
+              disabled={isSearching}
+            >
+              {isSearching ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={mobileSearchStyles.searchButtonText}>🔍 Search</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <Text style={mobileSearchStyles.note}>
+            💡 Searches both Mobile Number and WhatsApp Number
+          </Text>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+const mobileSearchStyles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    width: '85%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 10,
+    backgroundColor: '#f9f9f9',
+  },
+  inputError: {
+    borderColor: '#d32f2f',
+    borderWidth: 2,
+  },
+  errorText: {
+    color: '#d32f2f',
+    fontSize: 12,
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  button: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#f0f0f0',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  searchButton: {
+    backgroundColor: '#2196F3',
+  },
+  searchButtonDisabled: {
+    backgroundColor: '#90CAF9',
+    opacity: 0.7,
+  },
+  searchButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  note: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 12,
+    fontStyle: 'italic',
+  },
+});
 
 const styles = StyleSheet.create({
   row: {
@@ -620,6 +1768,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#333',
     marginBottom: 6,
+  },
+  required: {
+    color: '#f44336',
   },
   input: {
     borderWidth: 1,
@@ -659,11 +1810,21 @@ const styles = StyleSheet.create({
   readingRow: {
     flexDirection: 'row',
     gap: 12,
-    flexWrap: 'wrap',
+    marginBottom: 12,
+    alignItems: 'flex-start',
+    width: '100%',
   },
   readingField: {
     flex: 1,
-    minWidth: '45%',
+    minWidth: 0,
+    maxWidth: '48%',
+  },
+  readingFieldThreeCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  readingFieldWide: {
+    flex: 1.5,
   },
   readingInput: {
     borderWidth: 1,
@@ -673,22 +1834,50 @@ const styles = StyleSheet.create({
     fontSize: 14,
     backgroundColor: '#fff',
   },
-  collectionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+  balanceText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#4CAF50',
   },
-  collectionField: {
-    flex: 1,
-    minWidth: '45%',
-  },
-  collectionInput: {
+  displayBox: {
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 6,
-    padding: 10,
+    padding: 12,
+    backgroundColor: '#f9f9f9',
+  },
+  displayText: {
     fontSize: 14,
-    backgroundColor: '#fff',
+    color: '#333',
+    fontWeight: '500',
+  },
+  readOnlyInput: {
+    backgroundColor: '#f5f5f5',
+    borderColor: '#bbb',
+    justifyContent: 'center',
+  },
+  readOnlyText: {
+    fontSize: 14,
+    color: '#555',
+    fontStyle: 'italic',
+  },
+  inputWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconButton: {
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  helperText: {
+    fontSize: 11,
+    color: '#2196F3',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
 });
 
