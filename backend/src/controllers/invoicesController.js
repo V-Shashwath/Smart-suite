@@ -198,12 +198,29 @@ const createInvoice = async (req, res) => {
             const shortName = employee.ShortName || '';
             
             // Construct voucher series based on prefix
-            // For 'RS' (EmployeeSaleInvoice): RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
-            // Example: RS25-26PAT-Mo
             // For 'SRS' (SalesReturns): SRS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
             // Example: SRS-25PAT-JD
+            // For 'RS' with dash format (RentalService): RS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
+            // Example: RS-25PAT-Mo
+            // For 'RS' without dash (EmployeeSaleInvoice): RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
+            // Example: RS25-26PAT-Mo
+            
+            // Check if the voucherSeries from frontend already has the RentalService format (RS-...)
+            const isRentalServiceFormat = voucherSeries && voucherSeries.trim().match(/^RS-\d{2}/);
+            
             if (basePrefix === 'SRS') {
               // Sales Returns format: SRS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
+              if (branchShortName && shortName) {
+                finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}-${shortName}`;
+              } else if (branchShortName) {
+                finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}`;
+              } else if (shortName) {
+                finalVoucherSeries = `${basePrefix}-${currentYearSuffix}-${shortName}`;
+              } else {
+                finalVoucherSeries = `${basePrefix}-${currentYearSuffix}`;
+              }
+            } else if (isRentalServiceFormat || (basePrefix === 'RS' && voucherSeries && voucherSeries.includes('RentalService'))) {
+              // Rental Service format: RS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
               if (branchShortName && shortName) {
                 finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}-${shortName}`;
               } else if (branchShortName) {
@@ -272,12 +289,29 @@ const createInvoice = async (req, res) => {
           const shortName = employee.ShortName || '';
           
           // Construct voucher series based on prefix
-          // For 'RS' (EmployeeSaleInvoice): RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
-          // Example: RS25-26PAT-Mo
           // For 'SRS' (SalesReturns): SRS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
           // Example: SRS-25PAT-JD
+          // For 'RS' with dash format (RentalService): RS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
+          // Example: RS-25PAT-Mo
+          // For 'RS' without dash (EmployeeSaleInvoice): RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
+          // Example: RS25-26PAT-Mo
+          
+          // Check if the voucherSeries from frontend already has the RentalService format (RS-...)
+          const isRentalServiceFormat = voucherSeries && voucherSeries.trim().match(/^RS-\d{2}/);
+          
           if (basePrefix === 'SRS') {
             // Sales Returns format: SRS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
+            if (branchShortName && shortName) {
+              finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}-${shortName}`;
+            } else if (branchShortName) {
+              finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}`;
+            } else if (shortName) {
+              finalVoucherSeries = `${basePrefix}-${currentYearSuffix}-${shortName}`;
+            } else {
+              finalVoucherSeries = `${basePrefix}-${currentYearSuffix}`;
+            }
+          } else if (isRentalServiceFormat || (basePrefix === 'RS' && voucherSeries && voucherSeries.includes('RentalService'))) {
+            // Rental Service format: RS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
             if (branchShortName && shortName) {
               finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}-${shortName}`;
             } else if (branchShortName) {

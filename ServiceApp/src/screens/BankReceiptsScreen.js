@@ -95,12 +95,47 @@ const BankReceiptsScreen = () => {
   // Instrument type options - lowercase as per requirement
   const instrumentTypeOptions = ['upi', 'card', 'cheque', 'dd', 'neft', 'rtgs'];
 
+  // Check if user is supervisor - supervisors get blank, editable fields
+  const isSupervisor = currentUser?.role === 'supervisor';
+
   // Auto-populate executive data on mount
   // Auto-populate executive data on mount and when screen comes into focus
   // This ensures we always have the latest LastVoucherNumber when navigating between screens
   useFocusEffect(
     useCallback(() => {
       const loadExecutiveData = async () => {
+        // Skip loading executive data for supervisors - they get blank fields
+        if (isSupervisor) {
+          console.log('👤 Supervisor logged in - skipping executive data load, using blank fields');
+          // Initialize with completely blank values for supervisor (no prefilled data)
+          setTransactionData({
+            date: '',
+            time: '',
+            branch: '',
+            employeeName: '',
+            username: '',
+          });
+          
+          setVoucherData({
+            voucherSeries: '',
+            voucherNo: '',
+            voucherDatetime: '',
+          });
+          
+          setHeaderData({
+            date: '',
+            bankAccount: '',
+          });
+          
+          setCustomerData({
+            customerId: '',
+            customerName: '',
+            mobileNo: '',
+            whatsappNo: '',
+          });
+          return;
+        }
+        
         if (currentUser?.username) {
           setIsLoadingExecutiveData(true);
           try {
@@ -203,7 +238,7 @@ const BankReceiptsScreen = () => {
       };
       
       loadExecutiveData();
-    }, [currentUser?.username])
+    }, [currentUser?.username, isSupervisor])
   );
 
   const handleAddRow = () => {
@@ -487,7 +522,7 @@ const BankReceiptsScreen = () => {
 
   const bodyColumns = [
     { key: 'sno', label: 'S.No', width: 70, editable: false },
-    { key: 'account', label: 'Account*', width: 200, required: true, editable: false },
+    { key: 'account', label: 'Account*', width: 200, required: true, editable: isSupervisor },
     { key: 'instrumentType', label: 'Instrument Type', width: 130, type: 'dropdown', options: instrumentTypeOptions },
     { key: 'instrumentNo', label: 'Instrument No', width: 130 },
     { key: 'instrumentDate', label: 'Instrument Date', width: 130, placeholder: 'DD-MM-YYYY' },
@@ -712,29 +747,56 @@ const BankReceiptsScreen = () => {
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Voucher Series</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>
-                {isLoadingExecutiveData ? 'Loading...' : voucherData.voucherSeries || 'Loading...'}
-              </Text>
-            </View>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={voucherData.voucherSeries}
+                onChangeText={(value) => setVoucherData({ ...voucherData, voucherSeries: value })}
+                placeholder="Enter voucher series"
+              />
+            ) : (
+              <View style={styles.displayBox}>
+                <Text style={styles.displayText}>
+                  {isLoadingExecutiveData ? 'Loading...' : voucherData.voucherSeries || 'Loading...'}
+                </Text>
+              </View>
+            )}
           </View>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Voucher No</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>
-                {isLoadingExecutiveData ? 'Loading...' : voucherData.voucherNo || 'Loading...'}
-              </Text>
-            </View>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={voucherData.voucherNo}
+                onChangeText={(value) => setVoucherData({ ...voucherData, voucherNo: value })}
+                placeholder="Enter voucher number"
+              />
+            ) : (
+              <View style={styles.displayBox}>
+                <Text style={styles.displayText}>
+                  {isLoadingExecutiveData ? 'Loading...' : voucherData.voucherNo || 'Loading...'}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
         <View style={styles.fullWidthField}>
           <Text style={styles.label}>Voucher Datetime</Text>
-          <View style={styles.displayBox}>
-            <Text style={styles.displayText}>
-              {isLoadingExecutiveData ? 'Loading...' : voucherData.voucherDatetime || 'Loading...'}
-            </Text>
-          </View>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={voucherData.voucherDatetime}
+              onChangeText={(value) => setVoucherData({ ...voucherData, voucherDatetime: value })}
+              placeholder="Enter voucher datetime"
+            />
+          ) : (
+            <View style={styles.displayBox}>
+              <Text style={styles.displayText}>
+                {isLoadingExecutiveData ? 'Loading...' : voucherData.voucherDatetime || 'Loading...'}
+              </Text>
+            </View>
+          )}
         </View>
       </AccordionSection>
 
@@ -743,38 +805,74 @@ const BankReceiptsScreen = () => {
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Date</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>
-                {isLoadingExecutiveData ? 'Loading...' : transactionData.date || 'Loading...'}
-              </Text>
-            </View>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={transactionData.date}
+                onChangeText={(value) => setTransactionData({ ...transactionData, date: value })}
+                placeholder="Enter date"
+              />
+            ) : (
+              <View style={styles.displayBox}>
+                <Text style={styles.displayText}>
+                  {isLoadingExecutiveData ? 'Loading...' : transactionData.date || 'Loading...'}
+                </Text>
+              </View>
+            )}
           </View>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Time</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>
-                {isLoadingExecutiveData ? 'Loading...' : transactionData.time || 'Loading...'}
-              </Text>
-            </View>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={transactionData.time}
+                onChangeText={(value) => setTransactionData({ ...transactionData, time: value })}
+                placeholder="Enter time"
+              />
+            ) : (
+              <View style={styles.displayBox}>
+                <Text style={styles.displayText}>
+                  {isLoadingExecutiveData ? 'Loading...' : transactionData.time || 'Loading...'}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
         <View style={styles.fullWidthField}>
           <Text style={styles.label}>Branch</Text>
-          <View style={[styles.input, styles.readOnlyInput]}>
-            <Text style={styles.readOnlyText}>
-              {isLoadingExecutiveData ? 'Loading...' : transactionData.branch || 'Loading...'}
-            </Text>
-          </View>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={transactionData.branch}
+              onChangeText={(value) => setTransactionData({ ...transactionData, branch: value })}
+              placeholder="Enter branch"
+            />
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {isLoadingExecutiveData ? 'Loading...' : transactionData.branch || 'Loading...'}
+              </Text>
             </View>
+          )}
+        </View>
 
         <View style={styles.fullWidthField}>
           <Text style={styles.label}>Employee Name</Text>
-          <View style={[styles.input, styles.readOnlyInput]}>
-            <Text style={styles.readOnlyText}>
-              {isLoadingExecutiveData ? 'Loading...' : transactionData.employeeName || 'Loading...'}
-            </Text>
-          </View>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={transactionData.employeeName}
+              onChangeText={(value) => setTransactionData({ ...transactionData, employeeName: value })}
+              placeholder="Enter employee name"
+            />
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {isLoadingExecutiveData ? 'Loading...' : transactionData.employeeName || 'Loading...'}
+              </Text>
+            </View>
+          )}
         </View>
       </AccordionSection>
 
@@ -783,21 +881,39 @@ const BankReceiptsScreen = () => {
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Date</Text>
-            <View style={[styles.input, styles.readOnlyInput]}>
-              <Text style={styles.readOnlyText}>
-                {isLoadingExecutiveData ? 'Loading...' : headerData.date || 'Loading...'}
-              </Text>
-            </View>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={headerData.date}
+                onChangeText={(value) => setHeaderData({ ...headerData, date: value })}
+                placeholder="Enter date"
+              />
+            ) : (
+              <View style={[styles.input, styles.readOnlyInput]}>
+                <Text style={styles.readOnlyText}>
+                  {isLoadingExecutiveData ? 'Loading...' : headerData.date || 'Loading...'}
+                </Text>
+              </View>
+            )}
           </View>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>
               Bank Account <Text style={styles.required}>*</Text>
             </Text>
-            <View style={[styles.input, styles.readOnlyInput]}>
-              <Text style={styles.readOnlyText}>
-                {headerData.bankAccount || 'Bank'}
-              </Text>
-            </View>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={headerData.bankAccount}
+                onChangeText={(value) => setHeaderData({ ...headerData, bankAccount: value })}
+                placeholder="Enter bank account"
+              />
+            ) : (
+              <View style={[styles.input, styles.readOnlyInput]}>
+                <Text style={styles.readOnlyText}>
+                  {headerData.bankAccount || 'Bank'}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
         <View style={styles.fullWidthField}>

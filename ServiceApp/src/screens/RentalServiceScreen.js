@@ -1,18 +1,26 @@
 import React, { useCallback, useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Modal } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import SmartSuiteFormScreen from '../components/SmartSuiteFormScreen';
 import AccordionSection from '../components/AccordionSection';
 import ItemTable from '../components/ItemTable';
-import { branches, employeeUsernames, productOptions, adjustmentAccounts, machineTypes } from '../data/mockData';
-import { previewInvoicePDF, sharePDFViaWhatsApp, generateInvoicePDF } from '../utils/pdfUtils';
+import QRScannerModal from '../components/QRScannerModal';
+import BarcodeScannerModal from '../components/BarcodeScannerModal';
+import AddAdjustmentModal from '../components/AddAdjustmentModal';
+import PDFPreviewModal from '../components/PDFPreviewModal';
+import SerialNoSelectionModal from '../components/SerialNoSelectionModal';
+import { branches, employeeUsernames, productOptions, adjustmentAccounts, machineTypes, adjustmentsList, initialCustomer } from '../data/mockData';
+import { sharePDFViaWhatsApp, sharePDFViaSMS, generateInvoicePDF } from '../utils/pdfUtils';
 import { API_ENDPOINTS, apiCall } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import useScreenDraft from '../hooks/useScreenDraft';
 import withScreenPermission from '../components/withScreenPermission';
+import { getBranchShortName } from '../utils/branchMapping';
 
 const RentalServiceScreen = () => {
   const { currentUser } = useAuth();
+  const navigation = useNavigation();
 
   // Transaction state
   const [transactionData, setTransactionData] = useState({
@@ -30,49 +38,119 @@ const RentalServiceScreen = () => {
     voucherDatetime: '',
   });
 
-  const [branch, setBranch] = useState('');
-  const [executive, setExecutive] = useState('');
-  const [vSeries, setVSeries] = useState('VSeries');
-  const [voucherSeries, setVoucherSeries] = useState('');
-  const [voucherNo, setVoucherNo] = useState('');
-  const [date, setDate] = useState('26-11-2025');
-  const [customerName, setCustomerName] = useState('');
-  const [salesAccount, setSalesAccount] = useState('');
-  const [customerId, setCustomerId] = useState('');
-  const [mobileNo, setMobileNo] = useState('');
-  const [customerType, setCustomerType] = useState('');
-  const [whatsappNo, setWhatsappNo] = useState('');
-  const [remarks, setRemarks] = useState('');
-  const [machineType, setMachineType] = useState('');
-  const [gstBill, setGstBill] = useState(false);
+  // Check if user is supervisor - supervisors get blank, editable fields
+  const isSupervisor = currentUser?.role === 'supervisor';
 
-  // Readings state
-  const [readings, setReadings] = useState({
-    in: '0',
-    out: '0',
-    testedCopies: '0',
-    ia4: '0',
-    a4: '0',
-    a4Copies: '0',
-    ia3: '0',
-    a3: '0',
-    a3Copies: '0',
-  });
+  // Customer state - use blank values for supervisors
+  const blankCustomer = {
+    date: '',
+    billerName: '',
+    party: '',
+    employeeName: '',
+    customerId: '',
+    mobileNo: '',
+    customerType: '',
+    whatsappNo: '',
+    readingA4: '',
+    readingA3: '',
+    machineType: '',
+    remarks: '',
+    gstBill: false,
+  };
+  const [customerData, setCustomerData] = useState(
+    isSupervisor ? blankCustomer : initialCustomer
+  );
+  const [gstBill, setGstBill] = useState(isSupervisor ? false : (initialCustomer.gstBill || false));
+  const [hasPreviewed, setHasPreviewed] = useState(false);
+  const [isInvoiceSaved, setIsInvoiceSaved] = useState(false);
+  const [savedInvoiceID, setSavedInvoiceID] = useState(null);
+  const [isSavingInvoice, setIsSavingInvoice] = useState(false);
+
+  // Readings state - use blank values for supervisors
+  const [readings, setReadings] = useState(
+    isSupervisor
+      ? { in: '', out: '', testedCopies: '', ia4: '', a4: '', a4Copies: '', ia3: '', a3: '', a3Copies: '' }
+      : { in: '0', out: '0', testedCopies: '0', ia4: '0', a4: '0', a4Copies: '0', ia3: '0', a3: '0', a3Copies: '0' }
+  );
 
   // Barcode state
   const [barcode, setBarcode] = useState('0');
 
-  // Auto-populate executive data on mount
-  useEffect(() => {
-    const loadExecutiveData = async () => {
-      if (currentUser?.username) {
-        try {
-          console.log(`🔍 Fetching executive data for username: ${currentUser.username}`);
+  // Auto-populate executive data on mount and when screen comes into focus
+  // This ensures we always have the latest LastVoucherNumber and correct voucher format when navigating between screens
+  useFocusEffect(
+    useCallback(() => {
+      const loadExecutiveData = async () => {
+        // Skip loading executive data for supervisors - they get blank fields
+        if (isSupervisor) {
+          console.log('👤 Supervisor logged in - skipping executive data load, using blank fields');
+          // Initialize with completely blank values for supervisor (no prefilled data)
+          setTransactionData({
+            date: '',
+            time: '',
+            branch: '',
+            location: '',
+            username: '',
+          });
+          
+          setVoucherData({
+            voucherSeries: '',
+            voucherNo: '',
+            voucherDatetime: '',
+          });
+          
+          setCustomerData({
+            date: '',
+            billerName: '',
+            party: '',
+            employeeName: '',
+            customerId: '',
+            mobileNo: '',
+            customerType: '',
+            whatsappNo: '',
+            readingA4: '',
+            readingA3: '',
+            machineType: '',
+            remarks: '',
+            gstBill: false,
+          });
+          
+          setReadings({
+            in: '',
+            out: '',
+            testedCopies: '',
+            ia4: '',
+            a4: '',
+            a4Copies: '',
+            ia3: '',
+            a3: '',
+            a3Copies: '',
+          });
+          
+          setGstBill(false);
+          return;
+        }
+        
+        if (currentUser?.username) {
+          try {
+            // Clear voucher data first to avoid showing stale data
+            setVoucherData({
+              voucherSeries: '',
+              voucherNo: '',
+              voucherDatetime: '',
+            });
+            
+            console.log(`🔍 Fetching executive data for RentalService - username: ${currentUser.username}`);
 
-          // Pass screen=RentalService to get correct voucher format
-          const result = await apiCall(`${API_ENDPOINTS.GET_EXECUTIVE_DATA(currentUser.username)}?screen=RentalService`);
+            // Pass screen=RentalService to get correct voucher format (RS-25PAT-Mo)
+            const apiEndpoint = API_ENDPOINTS.GET_EXECUTIVE_DATA(currentUser.username, 'RentalService');
+            console.log(`   API Endpoint URL: ${apiEndpoint}`);
+            console.log(`   Screen parameter should be: "RentalService"`);
+            
+            const result = await apiCall(apiEndpoint);
 
-          console.log(`📥 Executive data response:`, result);
+            console.log(`📥 Executive data response:`, result);
+            console.log(`   Voucher series in response: ${result.data?.voucherDetails?.voucherSeries}`);
 
           if (result.success && result.data) {
             const execData = result.data;
@@ -86,27 +164,23 @@ const RentalServiceScreen = () => {
               username: currentUser.username,
             });
 
-            // Set individual states for compatibility
-            setBranch(execData.transactionDetails?.branch || '');
-            setExecutive(currentUser.username);
-            setDate(execData.transactionDetails?.date || '');
+            // Populate customer data with employee info
+            setCustomerData(prev => ({
+              ...prev,
+              date: execData.transactionDetails?.date || prev.date,
+              billerName: execData.header?.billerName || prev.billerName,
+              employeeName: execData.header?.employeeName || currentUser.username,
+              party: execData.header?.party || currentUser.username,
+            }));
 
-            // Populate voucher details with RS prefix for Rental Service
-            // Format should be RS-25PAT-Mo (not RS25-26PAT-Mo)
-            let voucherSeries = execData.voucherDetails?.voucherSeries || 'RS';
-
-            // If backend returns RS25-26PAT-Mo format, convert to RS-25PAT-Mo
-            if (voucherSeries.match(/^RS\d{2}-\d{2}/)) {
-              // Backend returned RS25-26PAT-Mo, convert to RS-25PAT-Mo
-              // Extract parts: RS25-26PAT-Mo -> RS, 25, PAT-Mo
-              const match = voucherSeries.match(/^RS(\d{2})-\d{2}(.*)$/);
-              if (match) {
-                voucherSeries = `RS-${match[1]}${match[2]}`; // RS-25PAT-Mo
-              }
-            }
-
+            // Populate voucher details - backend should return RS-25PAT-Mo format for RentalService
+            const voucherSeries = execData.voucherDetails?.voucherSeries || 'RS';
             const voucherNo = execData.voucherDetails?.voucherNo || '';
             const voucherDatetime = execData.voucherDetails?.voucherDatetime || '';
+
+            console.log(`📋 Voucher series received from API: "${voucherSeries}"`);
+            console.log(`   Expected format: RS-{Year}{Branch}-{Employee} (e.g., RS-25PAT-Mo)`);
+            console.log(`   Received format: ${voucherSeries}`);
 
             if (!voucherSeries || !voucherNo || !voucherDatetime) {
               console.warn('⚠️ Incomplete voucher data from API:', execData.voucherDetails);
@@ -120,16 +194,23 @@ const RentalServiceScreen = () => {
                 voucherNo: `TEMP-${Date.now()}`,
                 voucherDatetime: datetimeStr,
               });
-              setVoucherSeries('RS');
-              setVoucherNo(`TEMP-${Date.now()}`);
             } else {
+              console.log(`✅ Setting voucher data: series="${voucherSeries}", no="${voucherNo}", datetime="${voucherDatetime}"`);
+              
+              // Validate the format - should be RS-{Year}{Branch}-{Employee} for RentalService
+              if (!voucherSeries.startsWith('RS-')) {
+                console.error(`❌ ERROR: Voucher series format is incorrect!`);
+                console.error(`   Expected: RS-{Year}{Branch}-{Employee} (e.g., RS-25PAT-Mo)`);
+                console.error(`   Received: ${voucherSeries}`);
+                console.error(`   This indicates the backend is not detecting RentalService screen correctly.`);
+              }
+              
               setVoucherData({
                 voucherSeries: voucherSeries,
                 voucherNo: voucherNo,
                 voucherDatetime: voucherDatetime,
               });
-              setVoucherSeries(voucherSeries);
-              setVoucherNo(voucherNo);
+              console.log(`   Voucher data set successfully`);
             }
           }
         } catch (error) {
@@ -149,253 +230,697 @@ const RentalServiceScreen = () => {
               username: currentUser.username,
             });
 
-            setDate(dateStr);
-            setBranch('Head Office');
-            setExecutive(currentUser.username);
+            setCustomerData(prev => ({
+              ...prev,
+              date: dateStr,
+              employeeName: currentUser.username,
+              party: currentUser.username,
+            }));
 
             setVoucherData({
               voucherSeries: 'RS',
               voucherNo: `TEMP-${Date.now()}`,
               voucherDatetime: datetimeStr,
             });
-
-            setVoucherSeries('RS');
-            setVoucherNo(`TEMP-${Date.now()}`);
           }
         }
       }
-    };
+      };
 
-    loadExecutiveData();
-  }, [currentUser?.username]);
+      loadExecutiveData();
+    }, [currentUser?.username, isSupervisor])
+  );
 
-  const [itemBody, setItemBody] = useState([
-    {
-      sno: '1',
-      barcode: '',
-      product: '',
-      quantity: '',
-      productSerialNo: '',
-      rate: '',
-      gross: '',
-      comments1: '',
-      comments2: '',
-      freeQty: '',
-      stkQty: '',
-    },
-  ]);
+  // Summary state
+  const [summary, setSummary] = useState({
+    itemCount: 0,
+    totalQty: 0,
+    totalGross: 0,
+    totalDiscount: 0,
+    totalAdd: 0,
+    totalLess: 0,
+    totalBillValue: 0,
+    ledgerBalance: 0,
+  });
 
-  const [adjustments, setAdjustments] = useState([
-    {
-      sno: '1',
-      account: '',
-      add: '',
-      less: '',
-      adjAmount: '',
-      comments1: '',
-      comments2: '',
-      addLess: '',
-      totalAdj: '',
-    },
-  ]);
-
-  const handleAddItem = () => {
-    setItemBody([...itemBody, {
-      sno: String(itemBody.length + 1),
-      barcode: '',
-      product: '',
-      quantity: '',
-      productSerialNo: '',
-      rate: '',
-      gross: '',
-      comments1: '',
-      comments2: '',
-      freeQty: '',
-      stkQty: '',
-    }]);
-  };
-
-  const handleDeleteItem = (index) => {
-    const newItems = itemBody.filter((_, i) => i !== index);
-    setItemBody(newItems.map((item, i) => ({ ...item, sno: String(i + 1) })));
-  };
-
-  const handleItemCellChange = (rowIndex, columnKey, value) => {
-    const newItems = [...itemBody];
-    newItems[rowIndex][columnKey] = value;
-    setItemBody(newItems);
-  };
-
-  const handleAddAdjustment = () => {
-    setAdjustments([...adjustments, {
-      sno: String(adjustments.length + 1),
-      account: '',
-      add: '',
-      less: '',
-      adjAmount: '',
-      comments1: '',
-      comments2: '',
-      addLess: '',
-      totalAdj: '',
-    }]);
-  };
-
-  const handleDeleteAdjustment = (index) => {
-    const newItems = adjustments.filter((_, i) => i !== index);
-    setAdjustments(newItems.map((item, i) => ({ ...item, sno: String(i + 1) })));
-  };
-
-  const handleAdjustmentCellChange = (rowIndex, columnKey, value) => {
-    const newItems = [...adjustments];
-    newItems[rowIndex][columnKey] = value;
-    setAdjustments(newItems);
-  };
-
-  const itemColumns = [
-    { key: 'barcode', label: 'Barcode', width: 120 },
-    { key: 'product', label: 'Product*', width: 150, type: 'dropdown', options: productOptions, required: true },
-    { key: 'quantity', label: 'Quantity', width: 100, keyboardType: 'numeric' },
-    { key: 'productSerialNo', label: 'ProductSerialNo', width: 130 },
-    { key: 'rate', label: 'Rate', width: 100, keyboardType: 'numeric' },
-    { key: 'gross', label: 'Gross', width: 100, keyboardType: 'numeric' },
-    { key: 'comments1', label: 'Comments1', width: 120 },
-    { key: 'comments2', label: 'Comments2', width: 120 },
-    { key: 'freeQty', label: 'FreeQty', width: 100, keyboardType: 'numeric' },
-    { key: 'stkQty', label: 'StkQty', width: 100, keyboardType: 'numeric' },
-  ];
-
-  const adjustmentColumns = [
-    { key: 'sno', label: 'Sno', width: 60, editable: false },
-    { key: 'account', label: 'Account', width: 150, type: 'dropdown', options: adjustmentAccounts },
-    { key: 'add', label: 'Add', width: 100, keyboardType: 'numeric' },
-    { key: 'less', label: 'Less', width: 100, keyboardType: 'numeric' },
-    { key: 'adjAmount', label: 'AdjAmount', width: 100, keyboardType: 'numeric' },
-    { key: 'comments1', label: 'Comments1', width: 120 },
-    { key: 'comments2', label: 'Comments2', width: 120 },
-    { key: 'addLess', label: 'Add/Less', width: 100, type: 'dropdown', options: ['Add', 'Less'] },
-    { key: 'totalAdj', label: 'TotalAdj', width: 100, keyboardType: 'numeric' },
-  ];
-
-  const summaryFields = [
-    { label: 'Total Tested Copies', value: '0' },
-    { label: 'TotalQty', value: '0' },
-    { label: 'TotalGrossMinusDiscount', value: '0' },
-    { label: 'TotalAdd', value: '0' },
-    { label: 'TotalLess', value: '0' },
-    { label: 'TotalGross', value: '0' },
-    { label: 'TotalValue', value: '0' },
-    { label: 'Ledger Balance', value: '0' },
-  ];
-
-  const [collectionTotal, setCollectionTotal] = useState('');
+  // Collections state
   const [collectedCash, setCollectedCash] = useState('');
   const [collectedCard, setCollectedCard] = useState('');
   const [collectedUpi, setCollectedUpi] = useState('');
 
-  const getNumeric = (val) => parseFloat(val) || 0;
-  const getTotalValue = () => parseFloat(summaryFields.find((field) => field.label === 'TotalValue')?.value) || 0;
-  const calculatedBalance = () => {
-    const total = getTotalValue();
-    const balance = total - getNumeric(collectionTotal) - getNumeric(collectedCash) - getNumeric(collectedCard) - getNumeric(collectedUpi);
-    return balance.toFixed(2);
+  // Modals state
+  const [showScanner, setShowScanner] = useState(false);
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [showAddAdjustmentModal, setShowAddAdjustmentModal] = useState(false);
+  const [showPDFPreview, setShowPDFPreview] = useState(false);
+  const [showMobileSearchModal, setShowMobileSearchModal] = useState(false);
+  const [showSerialNoModal, setShowSerialNoModal] = useState(false);
+  const [issuedProductsData, setIssuedProductsData] = useState(null);
+  const [pendingProductData, setPendingProductData] = useState(null);
+  
+  // Loading states
+  const [isLoadingCustomer, setIsLoadingCustomer] = useState(false);
+
+  // Items state
+  const [items, setItems] = useState([]);
+
+  // Normalize items helper function
+  const normalizeItems = (list) =>
+    list.map((item, index) => {
+      const quantity = parseFloat(item.quantity) || 0;
+      const rate = parseFloat(item.rate) || 0;
+      const net = quantity * rate;
+      return {
+        ...item,
+        quantity,
+        rate,
+        net,
+        barcode: item.barcode || '',
+        sno: String(index + 1),
+      };
+    });
+
+  // Commit items helper function
+  const commitItems = (list) => {
+    setItems(normalizeItems(list));
   };
 
-  const getRentalServiceData = useCallback(() => {
-    const summarySnapshot = summaryFields.reduce(
-      (acc, field) => ({ ...acc, [field.label]: field.value }),
-      {}
+  // Adjustments state
+  const [adjustments, setAdjustments] = useState([]);
+
+  // Calculate summary whenever items or adjustments change
+  useEffect(() => {
+    calculateSummary();
+  }, [items, adjustments]);
+
+  const calculateSummary = () => {
+    const itemCount = items.length;
+    const totalQty = items.reduce((sum, item) => sum + (parseInt(item.quantity) || 0) + (parseInt(item.freeQty) || 0), 0);
+    const itemsGross = items.reduce((sum, item) => sum + (parseFloat(item.net) || 0), 0);
+
+    const totalAdd = adjustments.reduce((sum, adj) => sum + (parseFloat(adj.addAmount) || 0), 0);
+    const totalLess = adjustments.reduce((sum, adj) => sum + (parseFloat(adj.lessAmount) || 0), 0);
+
+    const totalGross = itemsGross;
+    const totalDiscount = 0;
+    const totalBillValue = totalGross + totalAdd - totalLess;
+    const ledgerBalance = 0;
+
+    setSummary({
+      itemCount,
+      totalQty,
+      totalGross,
+      totalDiscount,
+      totalAdd,
+      totalLess,
+      totalBillValue,
+      ledgerBalance,
+    });
+  };
+
+  const handleInputChange = (field, value) => {
+    setCustomerData({
+      ...customerData,
+      [field]: value,
+    });
+  };
+
+  // Handle QR code scanned
+  const handleScannedQr = async (data) => {
+    console.log('QR Data received:', data);
+    setIsLoadingCustomer(true);
+    setShowScanner(false);
+    
+    try {
+      const trimmedData = data.trim();
+      let customerFound = false;
+      
+      try {
+        const encodedCustomerId = encodeURIComponent(trimmedData);
+        const result = await apiCall(API_ENDPOINTS.CUSTOMER_BY_ID(encodedCustomerId));
+        
+        if (result.success && result.data) {
+          const customer = result.data;
+          setCustomerData(prev => ({
+            ...prev,
+            customerId: customer.CustomerID,
+            customerName: customer.CustomerName,
+            mobileNo: customer.MobileNo,
+            whatsappNo: customer.WhatsAppNo || customer.MobileNo,
+            customerType: customer.CustomerType,
+            employeeName: prev.employeeName,
+            party: prev.party || prev.employeeName,
+          }));
+          
+          Alert.alert(
+            'Customer Details Loaded! ✓',
+            `Customer ID: ${customer.CustomerID}\nName: ${customer.CustomerName}\nMobile: ${customer.MobileNo}\nType: ${customer.CustomerType}`,
+            [{ text: 'OK' }]
+          );
+          customerFound = true;
+        }
+      } catch (error) {
+        console.log('CustomerID lookup failed:', error.message);
+        if (error.message.includes('Cannot connect to server')) {
+          throw error;
+        }
+      }
+      
+      if (!customerFound) {
+        const parts = trimmedData.split(',');
+        let mobileNo = parts.length >= 2 ? parts[1]?.trim() : trimmedData;
+        mobileNo = mobileNo.replace(/\D/g, '');
+        
+        if (mobileNo && mobileNo.length >= 10) {
+          try {
+            const result = await apiCall(API_ENDPOINTS.CUSTOMER_BY_MOBILE(mobileNo));
+            if (result.success && result.data) {
+              const customer = result.data;
+              setCustomerData(prev => ({
+                ...prev,
+                customerId: customer.CustomerID,
+                customerName: customer.CustomerName,
+                mobileNo: customer.MobileNo,
+                whatsappNo: customer.WhatsAppNo || customer.MobileNo,
+                customerType: customer.CustomerType,
+                employeeName: prev.employeeName,
+                party: prev.party || prev.employeeName,
+              }));
+              Alert.alert(
+                'Customer Details Loaded! ✓',
+                `Customer ID: ${customer.CustomerID}\nName: ${customer.CustomerName}\nMobile: ${customer.MobileNo}\nType: ${customer.CustomerType}`,
+                [{ text: 'OK' }]
+              );
+              customerFound = true;
+            }
+          } catch (error) {
+            console.error('Mobile number lookup failed:', error.message);
+            if (error.message.includes('Cannot connect to server')) {
+              throw error;
+            }
+          }
+        }
+      }
+      
+      if (!customerFound) {
+        Alert.alert(
+          'Customer Not Found',
+          `Could not find customer with:\nQR Code: ${trimmedData}\n\nWould you like to search by mobile number?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Search by Mobile', onPress: () => setShowMobileSearchModal(true) }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Error parsing QR data:', error);
+      if (error.message.includes('Cannot connect to server')) {
+        Alert.alert(
+          'Connection Error',
+          error.message + '\n\nPlease check:\n1. Backend server is running\n2. API_BASE_URL in api.js is correct\n3. Phone and computer on same Wi-Fi',
+          [
+            { text: 'OK', style: 'default' },
+            { text: 'Search by Mobile', onPress: () => setShowMobileSearchModal(true) }
+          ]
+        );
+      } else {
+        Alert.alert(
+          'QR Scan Error',
+          `Error: ${error.message}\n\nWould you like to search by mobile number?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Search by Mobile', onPress: () => setShowMobileSearchModal(true) }
+          ]
+        );
+      }
+    } finally {
+      setIsLoadingCustomer(false);
+    }
+  };
+
+  // Handle mobile number search
+  const handleSearchByMobile = async (mobileNumber) => {
+    if (!mobileNumber || mobileNumber.trim().length < 10) {
+      throw new Error('Please enter a valid 10-digit mobile or WhatsApp number');
+    }
+
+    const cleanMobile = mobileNumber.replace(/\D/g, '');
+    if (cleanMobile.length < 10) {
+      throw new Error('Please enter a valid 10-digit mobile or WhatsApp number');
+    }
+
+    setIsLoadingCustomer(true);
+    
+    try {
+      const result = await apiCall(API_ENDPOINTS.CUSTOMER_BY_MOBILE(cleanMobile));
+      
+      if (result.success && result.data) {
+        const customer = result.data;
+        setCustomerData(prev => ({
+          ...prev,
+          customerId: customer.CustomerID,
+          customerName: customer.CustomerName,
+          mobileNo: customer.MobileNo,
+          whatsappNo: customer.WhatsAppNo || customer.MobileNo,
+          customerType: customer.CustomerType,
+          employeeName: prev.employeeName,
+          party: prev.party || prev.employeeName,
+        }));
+
+        setShowMobileSearchModal(false);
+
+        Alert.alert(
+          'Customer Found! ✓',
+          `Customer ID: ${customer.CustomerID}\nName: ${customer.CustomerName}\nMobile: ${customer.MobileNo}\nType: ${customer.CustomerType}`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        throw new Error('Customer not found in database');
+      }
+    } catch (error) {
+      console.error('Error fetching customer:', error);
+      throw error;
+    } finally {
+      setIsLoadingCustomer(false);
+    }
+  };
+
+  // Handle scanned barcode from camera
+  const handleScannedBarcode = (scannedData) => {
+    console.log('Barcode scanned from camera:', scannedData);
+    setShowBarcodeScanner(false);
+    setBarcode(scannedData);
+    setTimeout(async () => {
+      await processBarcode(scannedData);
+    }, 100);
+  };
+
+  // Barcode processing logic - Fetches product from API
+  const processBarcode = async (barcodeData) => {
+    if (!barcodeData || !barcodeData.trim()) {
+      Alert.alert('Error', 'Invalid barcode data', [{ text: 'OK' }]);
+      return;
+    }
+
+    const trimmedBarcode = barcodeData.trim();
+    console.log(`Processing barcode: ${trimmedBarcode}`);
+
+    try {
+      const result = await apiCall(API_ENDPOINTS.GET_PRODUCT_BY_BARCODE(trimmedBarcode));
+      
+      if (!result.success || !result.data) {
+        throw new Error('Product not found');
+      }
+    
+      const product = {
+        id: result.data.productId,
+        name: result.data.productName,
+        rate: result.data.rate,
+        hasUniqueSerialNo: result.data.hasUniqueSerialNo || false,
+      };
+
+      if (product.hasUniqueSerialNo) {
+        const employeeName = customerData.employeeName || transactionData?.username || '';
+        
+        if (employeeName) {
+          try {
+            const issuedResult = await apiCall(
+              API_ENDPOINTS.GET_ISSUED_PRODUCTS_BY_BARCODE(trimmedBarcode, employeeName)
+            );
+            
+            if (issuedResult.success && issuedResult.data?.issuedProducts) {
+              const products = issuedResult.data.issuedProducts || [];
+              setPendingProductData({ product, barcode: trimmedBarcode, result });
+              setIssuedProductsData(products);
+              setTimeout(() => setShowSerialNoModal(true), 100);
+              setTimeout(() => setBarcode(''), 500);
+              return;
+            }
+          } catch (error) {
+            console.log('Could not fetch issued products, proceeding with normal flow:', error.message);
+          }
+        }
+        
+        const serialNo = result.data.productSerialNo || trimmedBarcode;
+        const newItem = {
+          id: Date.now(),
+          productId: product.id,
+          productName: product.name,
+          barcode: trimmedBarcode,
+          quantity: 1,
+          rate: product.rate || 0,
+          net: product.rate || 0,
+          comments1: '',
+          freeQty: 0,
+          productSerialNo: serialNo,
+        };
+        
+        commitItems([...items, newItem]);
+        
+        Alert.alert(
+          'New Item Added! ✓',
+          `${product.name}\nSerial No: ${serialNo}\nRate: ₹${(product.rate || 0).toFixed(2)}`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        const existingProductIndex = items.findIndex(
+          (item) => item.productId === product.id && 
+                    (item.productSerialNo === null || item.productSerialNo === undefined || item.productSerialNo === '')
+        );
+
+        if (existingProductIndex !== -1) {
+          const updatedItems = [...items];
+          const existingItem = { ...updatedItems[existingProductIndex] };
+          existingItem.quantity += 1;
+          existingItem.productSerialNo = null;
+          existingItem.net = existingItem.quantity * existingItem.rate;
+          updatedItems[existingProductIndex] = existingItem;
+          commitItems(updatedItems);
+          
+          Alert.alert(
+            'Quantity Updated! ✓',
+            `${product.name}\nBarcode: ${trimmedBarcode}\nNew Qty: ${existingItem.quantity}`,
+            [{ text: 'OK' }]
+          );
+        } else {
+          const newItem = {
+            id: Date.now(),
+            productId: product.id,
+            productName: product.name,
+            barcode: trimmedBarcode,
+            quantity: 1,
+            rate: product.rate || 0,
+            net: product.rate || 0,
+            comments1: '',
+            freeQty: 0,
+            productSerialNo: null,
+          };
+          
+          commitItems([...items, newItem]);
+          
+          Alert.alert(
+            'New Item Added! ✓',
+            `${product.name}\nBarcode: ${trimmedBarcode}\nRate: ₹${(product.rate || 0).toFixed(2)}`,
+            [{ text: 'OK' }]
+          );
+        }
+      }
+
+      setTimeout(() => setBarcode(''), 500);
+    } catch (error) {
+      console.error('Error fetching product by barcode:', error);
+      Alert.alert(
+        'Product Not Found',
+        `No product found with barcode: ${trimmedBarcode}\n\nError: ${error.message}`,
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  // Barcode Get Handler
+  const handleBarcodeGet = async () => {
+    if (!barcode.trim()) {
+      Alert.alert('Error', 'Please enter or scan a barcode', [{ text: 'OK' }]);
+      return;
+    }
+    await processBarcode(barcode);
+  };
+
+  // Handle add adjustment from modal
+  const handleAddAdjustment = (newAdjustment) => {
+    setAdjustments([...adjustments, newAdjustment]);
+    setShowAddAdjustmentModal(false);
+    const amountType = newAdjustment.addAmount > 0 ? 'Add' : 'Less';
+    const amount = newAdjustment.addAmount > 0 ? newAdjustment.addAmount : newAdjustment.lessAmount;
+    Alert.alert(
+      'Adjustment Added Successfully! ✓',
+      `${newAdjustment.accountName}\n${amountType}: ₹${amount.toFixed(2)}`,
+      [{ text: 'OK' }]
     );
+  };
 
-    return {
-      title: 'Rental Service',
-      voucherDetails: { voucherSeries, voucherNo, voucherDatetime: date },
-      transactionDetails: { date, branch, username: executive },
-      customerData: {
-        customerName,
-        customerId,
-        mobileNo,
-        whatsappNo,
-        customerType,
-        salesAccount,
-      },
-      readings,
-      items: itemBody,
-      adjustments,
-      summary: summarySnapshot,
-      collections: {
-        collections: getNumeric(collectionTotal),
-        cash: getNumeric(collectedCash),
-        card: getNumeric(collectedCard),
-        upi: getNumeric(collectedUpi),
-        balance: parseFloat(calculatedBalance()),
-      },
-    };
-  }, [
-    voucherSeries,
-    voucherNo,
-    date,
-    branch,
-    executive,
-    customerName,
-    customerId,
-    mobileNo,
-    whatsappNo,
-    customerType,
-    salesAccount,
-    readings,
-    itemBody,
-    adjustments,
-    collectionTotal,
-    collectedCash,
-    collectedCard,
-    collectedUpi,
-    calculatedBalance,
-  ]);
+  const itemColumns = [
+    { key: 'sno', label: 'S.No', width: 60, editable: false },
+    { key: 'barcode', label: 'Barcode', width: 120 },
+    { key: 'productName', label: 'Product/Description', width: 200 },
+    { key: 'productSerialNo', label: 'ProductSerialNo', width: 130 },
+    { key: 'quantity', label: 'Qty', width: 80, keyboardType: 'numeric' },
+    { key: 'freeQty', label: 'FreeQty', width: 100, keyboardType: 'numeric' },
+    { key: 'rate', label: 'Rate', width: 100, keyboardType: 'numeric' },
+    { key: 'net', label: 'Net amount', width: 120, keyboardType: 'numeric', editable: false },
+    { key: 'comments1', label: 'Comments1', width: 120 },
+  ];
 
+  const adjustmentColumns = [
+    { key: 'sno', label: 'S.No', width: 60, editable: false },
+    { key: 'accountName', label: 'Account', width: 200, type: 'dropdown', options: adjustmentsList.map(a => ({ label: a.name, value: a.name })) },
+    { key: 'addAmount', label: 'Add', width: 120, keyboardType: 'numeric' },
+    { key: 'lessAmount', label: 'Less', width: 120, keyboardType: 'numeric' },
+    { key: 'comments', label: 'Comments', width: 150 },
+  ];
+
+  const summaryFields = [
+    { label: 'Item Count', value: summary.itemCount, editable: false },
+    { label: 'Total Quantity', value: summary.totalQty, editable: false },
+    { label: 'Total Gross', value: summary.totalGross.toFixed(2), editable: false },
+    { label: 'Total Discount', value: summary.totalDiscount.toFixed(2), editable: false },
+    { label: 'Total Add', value: summary.totalAdd.toFixed(2), editable: false },
+    { label: 'Total Less', value: summary.totalLess.toFixed(2), editable: false },
+    { label: 'Bill Value', value: summary.totalBillValue.toFixed(2), editable: false },
+    { label: 'Ledger Balance', value: summary.ledgerBalance.toFixed(2), editable: false },
+  ];
+
+  const getRentalServiceData = useCallback(() => ({
+    title: 'Rental Service',
+    transactionDetails: transactionData,
+    voucherDetails: voucherData,
+    customerData: customerData,
+    readings: readings,
+    items: items,
+    adjustments: adjustments,
+    summary: summary,
+    collections: {
+      cash: parseFloat(collectedCash) || 0,
+      card: parseFloat(collectedCard) || 0,
+      upi: parseFloat(collectedUpi) || 0,
+      balance:
+        summary.totalBillValue -
+        (parseFloat(collectedCash) || 0) -
+        (parseFloat(collectedCard) || 0) -
+        (parseFloat(collectedUpi) || 0),
+    },
+  }), [transactionData, voucherData, customerData, readings, items, adjustments, summary, collectedCash, collectedCard, collectedUpi]);
+
+  // Keep local draft save for offline support
   const { handleSave, isSaving } = useScreenDraft('RentalService', getRentalServiceData, {
-    successMessage: 'Rental service draft saved.',
+    successMessage: 'Rental service draft saved locally.',
   });
 
+  // Save invoice to backend API
+  const handleSaveInvoice = async () => {
+    if (items.length === 0) {
+      Alert.alert('No Items', 'Please add at least one item before saving.', [{ text: 'OK' }]);
+      return;
+    }
+
+    if (!customerData.customerName || customerData.customerName.trim() === '') {
+      Alert.alert('Missing Customer', 'Please select a customer before saving.', [{ text: 'OK' }]);
+      return;
+    }
+
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const datetimeStr = `${dateStr} ${timeStr}`;
+
+    let finalVoucherData = { ...voucherData };
+    if (!finalVoucherData.voucherSeries || !finalVoucherData.voucherNo || !finalVoucherData.voucherDatetime) {
+      finalVoucherData = {
+        voucherSeries: finalVoucherData.voucherSeries || 'RS',
+        voucherNo: finalVoucherData.voucherNo || `TEMP-${Date.now()}`,
+        voucherDatetime: finalVoucherData.voucherDatetime || datetimeStr,
+      };
+      setVoucherData(finalVoucherData);
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    setIsSavingInvoice(true);
+    
+    try {
+      const invoiceData = getRentalServiceData();
+      const voucherSeries = invoiceData.voucherDetails.voucherSeries;
+      const voucherNo = invoiceData.voucherDetails.voucherNo;
+      const voucherDatetime = invoiceData.voucherDetails.voucherDatetime;
+      
+      if (!voucherSeries || !voucherNo || !voucherDatetime) {
+        throw new Error('Voucher information is missing. Please refresh the screen and try again.');
+      }
+      
+      // Use the full voucher series format (e.g., RS-25PAT-Mo) from voucherData
+      // This ensures the backend can detect it's RentalService format
+      const fullVoucherSeries = voucherSeries;
+      
+      const apiData = {
+        invoiceID: savedInvoiceID,
+        voucherSeries: fullVoucherSeries,
+        voucherNo: voucherNo,
+        voucherDatetime: voucherDatetime,
+        transactionDetails: {
+          date: invoiceData.transactionDetails.date,
+          time: invoiceData.transactionDetails.time,
+          branch: invoiceData.transactionDetails.branch,
+          location: invoiceData.transactionDetails.location,
+          username: invoiceData.transactionDetails.username,
+        },
+        header: {
+          date: invoiceData.customerData.date,
+          billerName: invoiceData.customerData.billerName,
+          employeeName: invoiceData.customerData.employeeName,
+          customerId: invoiceData.customerData.customerId,
+          customerName: invoiceData.customerData.customerName,
+          machineType: invoiceData.customerData.machineType,
+          remarks: invoiceData.customerData.remarks,
+          gstBill: gstBill || false,
+        },
+        readings: invoiceData.readings,
+        collections: invoiceData.collections,
+        items: invoiceData.items.map((item, index) => ({
+          sno: index + 1,
+          productId: item.productId || null,
+          productName: item.productName || '',
+          barcode: item.barcode || '',
+          productSerialNo: item.productSerialNo === null ? null : (item.productSerialNo || ''),
+          quantity: item.quantity || 0,
+          freeQty: item.freeQty || 0,
+          rate: item.rate || 0,
+          net: item.net || 0,
+          comments1: item.comments1 || '',
+        })),
+        adjustments: invoiceData.adjustments.map((adj) => ({
+          accountId: adj.accountId || null,
+          accountName: adj.accountName || '',
+          accountType: adj.accountType || 'add',
+          addAmount: adj.addAmount || 0,
+          lessAmount: adj.lessAmount || 0,
+          comments: adj.comments || '',
+        })),
+        summary: invoiceData.summary,
+      };
+
+      const result = await apiCall(API_ENDPOINTS.CREATE_INVOICE, {
+        method: 'POST',
+        body: JSON.stringify(apiData),
+      });
+
+      if (result.success) {
+        setIsInvoiceSaved(true);
+        const newInvoiceID = result.data.invoiceID;
+        setSavedInvoiceID(newInvoiceID);
+        setHasPreviewed(false);
+        
+        if (result.data.voucherSeries && result.data.voucherNo) {
+          setVoucherData({
+            voucherSeries: result.data.voucherSeries,
+            voucherNo: result.data.voucherNo,
+            voucherDatetime: result.data.voucherDatetime || voucherData.voucherDatetime,
+          });
+        }
+        
+        const action = savedInvoiceID ? 'updated' : 'saved';
+        Alert.alert(
+          'Success! ✓',
+          `Invoice ${action} successfully!\n\nVoucher: ${result.data.voucherSeries}-${result.data.voucherNo}`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error saving invoice:', error);
+      let errorMessage = error.message || 'Unknown error occurred';
+      if (error.message.includes('502') || error.message.includes('503')) {
+        errorMessage = 'Cannot connect to backend server. Please check your connection.';
+      }
+      Alert.alert('Save Failed', errorMessage, [{ text: 'OK' }]);
+    } finally {
+      setIsSavingInvoice(false);
+    }
+  };
+
+  // Combined save handler (local + API)
+  const handleSaveCombined = async () => {
+    await handleSaveInvoice();
+    await handleSave();
+  };
+
+  // Handle exit with warning if previewed but not saved
+  const handleExit = () => {
+    if (hasPreviewed && !isInvoiceSaved) {
+      Alert.alert(
+        'Unsaved Changes',
+        'You have previewed but not saved. Do you want to save before exiting?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Exit Without Saving', onPress: () => navigation.goBack() },
+          { text: 'Save & Exit', onPress: async () => {
+            await handleSaveCombined();
+            navigation.goBack();
+          }},
+        ]
+      );
+    } else {
+      navigation.goBack();
+    }
+  };
+
   const handlePreviewInvoice = async () => {
-    if (itemBody.length === 0 || !itemBody[0].product) {
+    if (items.length === 0) {
       Alert.alert('No Items', 'Please add at least one item to preview the service.', [{ text: 'OK' }]);
       return;
     }
     try {
       const data = getRentalServiceData();
-      await previewInvoicePDF({
-        ...data,
-        items: data.items.map(item => ({
-          productName: item.product,
-          quantity: item.quantity || 0,
-          rate: item.rate || 0,
-          net: item.gross || 0,
-        })),
-      });
+      setHasPreviewed(true);
+      setShowPDFPreview(true);
     } catch (error) {
       console.error('Error previewing service:', error);
+      Alert.alert('Error', `Failed to preview: ${error.message}`);
     }
   };
 
   const handleSendWhatsApp = async () => {
-    if (itemBody.length === 0 || !itemBody[0].product) {
+    if (items.length === 0) {
       Alert.alert('No Items', 'Please add at least one item before sending the service.', [{ text: 'OK' }]);
+      return;
+    }
+    if (!customerData.customerName || customerData.customerName.trim() === '') {
+      Alert.alert('No Customer', 'Please select a customer before sending.', [{ text: 'OK' }]);
       return;
     }
     try {
       const data = getRentalServiceData();
-      const { uri } = await generateInvoicePDF({
-        ...data,
-        items: data.items.map(item => ({
-          productName: item.product,
-          quantity: item.quantity || 0,
-          rate: item.rate || 0,
-          net: item.gross || 0,
-        })),
-      });
-      await sharePDFViaWhatsApp(uri, whatsappNo || mobileNo);
+      const { uri } = await generateInvoicePDF(data);
+      await sharePDFViaWhatsApp(uri, customerData.whatsappNo || customerData.mobileNo);
     } catch (error) {
       console.error('Error sending WhatsApp:', error);
+      Alert.alert('Error', `Failed to send WhatsApp: ${error.message}`);
+    }
+  };
+
+  const handleSendSMS = async () => {
+    if (items.length === 0) {
+      Alert.alert('No Items', 'Please add at least one item before sending SMS.', [{ text: 'OK' }]);
+      return;
+    }
+    if (!customerData.customerName || customerData.customerName.trim() === '') {
+      Alert.alert('No Customer', 'Please select a customer before sending SMS.', [{ text: 'OK' }]);
+      return;
+    }
+    try {
+      const data = getRentalServiceData();
+      const { uri } = await generateInvoicePDF(data);
+      await sharePDFViaSMS(uri, customerData.mobileNo || customerData.whatsappNo);
+    } catch (error) {
+      console.error('Error sending SMS:', error);
+      Alert.alert('Error', `Failed to send SMS: ${error.message}`);
     }
   };
 
@@ -405,54 +930,103 @@ const RentalServiceScreen = () => {
       summaryFields={summaryFields}
       onPreview={handlePreviewInvoice}
       onWhatsApp={handleSendWhatsApp}
-      actionBarActions={{ onSave: handleSave }}
-      isSaving={isSaving}
+      onSMS={handleSendSMS}
+      actionBarActions={{ 
+        onSave: handleSaveCombined,
+        onClose: handleExit
+      }}
+      isSaving={isSaving || isSavingInvoice}
     >
       <AccordionSection title="TRANSACTION DETAILS" defaultExpanded={true}>
         {/* Date and Time */}
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Date</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{transactionData.date || date}</Text>
-            </View>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={transactionData?.date || ''}
+                onChangeText={(value) => setTransactionData({ ...transactionData, date: value })}
+                placeholder="Enter date"
+              />
+            ) : (
+              <View style={styles.displayBox}>
+                <Text style={styles.displayText}>{transactionData?.date || 'Loading...'}</Text>
+              </View>
+            )}
           </View>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Time</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{transactionData.time || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</Text>
-            </View>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={transactionData?.time || ''}
+                onChangeText={(value) => setTransactionData({ ...transactionData, time: value })}
+                placeholder="Enter time"
+              />
+            ) : (
+              <View style={styles.displayBox}>
+                <Text style={styles.displayText}>{transactionData?.time || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</Text>
+              </View>
+            )}
           </View>
         </View>
 
-        {/* Branch - READ ONLY */}
+        {/* Branch */}
         <View style={styles.fullWidthField}>
           <Text style={styles.label}>Branch</Text>
-          <View style={[styles.input, styles.readOnlyInput]}>
-            <Text style={styles.readOnlyText}>
-              {transactionData.branch || branch || 'Loading...'}
-            </Text>
-          </View>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={transactionData?.branch || ''}
+              onChangeText={(value) => setTransactionData({ ...transactionData, branch: value })}
+              placeholder="Enter branch"
+            />
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {transactionData?.branch || 'Loading...'}
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* Location - READ ONLY */}
+        {/* Location */}
         <View style={styles.fullWidthField}>
           <Text style={styles.label}>Location</Text>
-          <View style={[styles.input, styles.readOnlyInput]}>
-            <Text style={styles.readOnlyText}>
-              {transactionData.location || 'Loading...'}
-            </Text>
-          </View>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={transactionData?.location || ''}
+              onChangeText={(value) => setTransactionData({ ...transactionData, location: value })}
+              placeholder="Enter location"
+            />
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {transactionData?.location || 'Loading...'}
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* Username/Executive - READ ONLY */}
+        {/* Username/Executive */}
         <View style={styles.fullWidthField}>
           <Text style={styles.label}>Username</Text>
-          <View style={[styles.input, styles.readOnlyInput]}>
-            <Text style={styles.readOnlyText}>
-              {transactionData.username || executive || 'Loading...'}
-            </Text>
-          </View>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={transactionData?.username || ''}
+              onChangeText={(value) => setTransactionData({ ...transactionData, username: value })}
+              placeholder="Enter username"
+            />
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {transactionData?.username || 'Loading...'}
+              </Text>
+            </View>
+          )}
         </View>
       </AccordionSection>
 
@@ -461,132 +1035,261 @@ const RentalServiceScreen = () => {
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Voucher Series</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{voucherData.voucherSeries || voucherSeries || 'Loading...'}</Text>
-            </View>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={voucherData.voucherSeries}
+                onChangeText={(value) => setVoucherData({ ...voucherData, voucherSeries: value })}
+                placeholder="Enter voucher series"
+              />
+            ) : (
+              <View style={styles.displayBox}>
+                <Text style={styles.displayText}>{voucherData.voucherSeries || 'Loading...'}</Text>
+              </View>
+            )}
           </View>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Voucher No</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{voucherData.voucherNo || voucherNo || 'Loading...'}</Text>
-            </View>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={voucherData.voucherNo}
+                onChangeText={(value) => setVoucherData({ ...voucherData, voucherNo: value })}
+                placeholder="Enter voucher number"
+              />
+            ) : (
+              <View style={styles.displayBox}>
+                <Text style={styles.displayText}>{voucherData.voucherNo || 'Loading...'}</Text>
+              </View>
+            )}
           </View>
         </View>
 
         <View style={styles.fullWidthField}>
           <Text style={styles.label}>Voucher Datetime</Text>
-          <View style={styles.displayBox}>
-            <Text style={styles.displayText}>{voucherData.voucherDatetime || `${transactionData.date || date} ${transactionData.time || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`}</Text>
-          </View>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={voucherData.voucherDatetime}
+              onChangeText={(value) => setVoucherData({ ...voucherData, voucherDatetime: value })}
+              placeholder="Enter voucher datetime"
+            />
+          ) : (
+            <View style={styles.displayBox}>
+              <Text style={styles.displayText}>{voucherData.voucherDatetime || `${transactionData?.date || ''} ${transactionData?.time || ''}`}</Text>
+            </View>
+          )}
         </View>
       </AccordionSection>
 
       <AccordionSection title="HEADER" defaultExpanded={true}>
+        {/* Date and Biller Name */}
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Date</Text>
-            <TextInput
-              style={styles.input}
-              value={date}
-              onChangeText={setDate}
-            />
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={customerData.date}
+                onChangeText={(value) => handleInputChange('date', value)}
+                placeholder="Enter date"
+              />
+            ) : (
+              <View style={[styles.input, styles.readOnlyInput]}>
+                <Text style={styles.readOnlyText}>
+                  {customerData.date || 'Loading...'}
+                </Text>
+              </View>
+            )}
           </View>
-          <TouchableOpacity style={styles.escButton}>
-            <Text style={styles.escButtonText}>ESC</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.fullWidthField}>
-          <Text style={styles.label}>
-            * Customer Name
-          </Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={customerName}
-              onValueChange={setCustomerName}
-              style={styles.picker}
-            >
-              <Picker.Item label="Select Customer" value="" />
-            </Picker>
-          </View>
-        </View>
-        <View style={styles.fullWidthField}>
-          <Text style={styles.label}>
-            * Sales Account
-          </Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={salesAccount}
-              onValueChange={setSalesAccount}
-              style={styles.picker}
-            >
-              <Picker.Item label="Select Sales Account" value="" />
-            </Picker>
-          </View>
-        </View>
-        <View style={styles.row}>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Customer ID</Text>
+            <Text style={styles.label}>Biller Name</Text>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={customerData.billerName}
+                onChangeText={(value) => handleInputChange('billerName', value)}
+                placeholder="Enter biller name"
+              />
+            ) : (
+              <View style={[styles.input, styles.readOnlyInput]}>
+                <Text style={styles.readOnlyText}>
+                  {customerData.billerName || 'Loading...'}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Employee Name */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Employee Name</Text>
+          {isSupervisor ? (
             <TextInput
               style={styles.input}
-              value={customerId}
-              onChangeText={setCustomerId}
+              value={customerData.employeeName || customerData.party}
+              onChangeText={(value) => {
+                handleInputChange('employeeName', value);
+                handleInputChange('party', value);
+              }}
+              placeholder="Enter employee name"
             />
-          </View>
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {customerData.employeeName || customerData.party || 'Loading...'}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Customer ID with QR Scanner */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Customer ID</Text>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={customerData.customerId || ''}
+              onChangeText={(value) => handleInputChange('customerId', value)}
+              placeholder="Enter customer ID"
+            />
+          ) : (
+            <View style={styles.inputWithIcon}>
+              <View style={[styles.input, styles.readOnlyInput, { flex: 1, marginRight: 8 }]}>
+                {isLoadingCustomer ? (
+                  <ActivityIndicator size="small" color="#2196F3" />
+                ) : (
+                <Text style={styles.readOnlyText}>
+                  {customerData.customerId || 'Scan QR Code to load customer'}
+                </Text>
+                )}
+              </View>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => setShowScanner(true)}
+                disabled={isLoadingCustomer}
+              >
+                <MaterialIcons name="qr-code-scanner" size={24} color="#30302d" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.iconButton, { marginLeft: 4, backgroundColor: '#30302d' }]}
+                onPress={() => setShowMobileSearchModal(true)}
+                disabled={isLoadingCustomer}
+              >
+                <MaterialIcons name="search" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          )}
+          {!isSupervisor && (
+            <Text style={styles.helperText}>
+              {isLoadingCustomer ? 'Loading customer...' : 'Scan QR or use search icon to search by mobile number'}
+            </Text>
+          )}
+        </View>
+
+        {/* Customer Name */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Customer Name</Text>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={customerData.customerName || ''}
+              onChangeText={(value) => handleInputChange('customerName', value)}
+              placeholder="Enter customer name"
+            />
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {customerData.customerName || 'Will be filled from QR code'}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Mobile No and WhatsApp No */}
+        <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Mobile No</Text>
-            <TextInput
-              style={styles.input}
-              value={mobileNo}
-              onChangeText={setMobileNo}
-              keyboardType="phone-pad"
-            />
-          </View>
-        </View>
-        <View style={styles.row}>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Customer Type</Text>
-            <TextInput
-              style={styles.input}
-              value={customerType}
-              onChangeText={setCustomerType}
-            />
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={customerData.mobileNo || ''}
+                onChangeText={(value) => handleInputChange('mobileNo', value)}
+                placeholder="Enter mobile no"
+                keyboardType="phone-pad"
+              />
+            ) : (
+              <View style={[styles.input, styles.readOnlyInput]}>
+                <Text style={styles.readOnlyText}>
+                  {customerData.mobileNo || 'From QR'}
+                </Text>
+              </View>
+            )}
           </View>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>WhatsApp No</Text>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={customerData.whatsappNo || ''}
+                onChangeText={(value) => handleInputChange('whatsappNo', value)}
+                placeholder="Enter WhatsApp no"
+                keyboardType="phone-pad"
+              />
+            ) : (
+              <View style={[styles.input, styles.readOnlyInput]}>
+                <Text style={styles.readOnlyText}>
+                  {customerData.whatsappNo || 'From QR'}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Customer Type */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Customer Type</Text>
+          {isSupervisor ? (
             <TextInput
               style={styles.input}
-              value={whatsappNo}
-              onChangeText={setWhatsappNo}
-              keyboardType="phone-pad"
+              value={customerData.customerType || ''}
+              onChangeText={(value) => handleInputChange('customerType', value)}
+              placeholder="Enter customer type"
             />
-          </View>
-        </View>
-        <View style={styles.row}>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Machine Type</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={machineType}
-                onValueChange={setMachineType}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select Machine Type" value="" />
-                {machineTypes.map((m, idx) => (
-                  <Picker.Item key={idx} label={m} value={m} />
-                ))}
-              </Picker>
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {customerData.customerType || 'From QR code'}
+              </Text>
             </View>
-          </View>
+          )}
         </View>
+
+        {/* Machine Type - TextInput for both supervisor and executive */}
+        <View style={styles.fullWidthField}>
+          <Text style={styles.label}>Machine Type</Text>
+          <TextInput
+            style={styles.input}
+            value={customerData.machineType || ''}
+            onChangeText={(value) => handleInputChange('machineType', value)}
+            placeholder="Enter machine type"
+          />
+        </View>
+
+        {/* Remarks */}
         <View style={styles.fullWidthField}>
           <Text style={styles.label}>Remarks</Text>
           <TextInput
             style={styles.input}
-            value={remarks}
-            onChangeText={setRemarks}
+            value={customerData.remarks || ''}
+            onChangeText={(value) => handleInputChange('remarks', value)}
+            placeholder="Enter remarks"
             multiline
+            numberOfLines={3}
           />
         </View>
+
+        {/* GST Bill Checkbox */}
         <View style={styles.checkboxContainer}>
           <TouchableOpacity
             style={styles.checkbox}
@@ -608,6 +1311,7 @@ const RentalServiceScreen = () => {
                 value={readings.in}
                 onChangeText={(text) => setReadings({ ...readings, in: text })}
                 keyboardType="numeric"
+                placeholder="0"
               />
             </View>
             <View style={styles.readingField}>
@@ -617,10 +1321,9 @@ const RentalServiceScreen = () => {
                 value={readings.out}
                 onChangeText={(text) => setReadings({ ...readings, out: text })}
                 keyboardType="numeric"
+                placeholder="0"
               />
             </View>
-          </View>
-          <View style={styles.readingRow}>
             <View style={styles.readingField}>
               <Text style={styles.label}>Tested Copies</Text>
               <TextInput
@@ -628,6 +1331,7 @@ const RentalServiceScreen = () => {
                 value={readings.testedCopies}
                 onChangeText={(text) => setReadings({ ...readings, testedCopies: text })}
                 keyboardType="numeric"
+                placeholder="0"
               />
             </View>
           </View>
@@ -639,6 +1343,7 @@ const RentalServiceScreen = () => {
                 value={readings.ia4}
                 onChangeText={(text) => setReadings({ ...readings, ia4: text })}
                 keyboardType="numeric"
+                placeholder="0"
               />
             </View>
             <View style={styles.readingField}>
@@ -648,10 +1353,9 @@ const RentalServiceScreen = () => {
                 value={readings.a4}
                 onChangeText={(text) => setReadings({ ...readings, a4: text })}
                 keyboardType="numeric"
+                placeholder="0"
               />
             </View>
-          </View>
-          <View style={styles.readingRow}>
             <View style={styles.readingField}>
               <Text style={styles.label}>A4 Copies</Text>
               <TextInput
@@ -659,6 +1363,7 @@ const RentalServiceScreen = () => {
                 value={readings.a4Copies}
                 onChangeText={(text) => setReadings({ ...readings, a4Copies: text })}
                 keyboardType="numeric"
+                placeholder="0"
               />
             </View>
           </View>
@@ -670,6 +1375,7 @@ const RentalServiceScreen = () => {
                 value={readings.ia3}
                 onChangeText={(text) => setReadings({ ...readings, ia3: text })}
                 keyboardType="numeric"
+                placeholder="0"
               />
             </View>
             <View style={styles.readingField}>
@@ -679,10 +1385,9 @@ const RentalServiceScreen = () => {
                 value={readings.a3}
                 onChangeText={(text) => setReadings({ ...readings, a3: text })}
                 keyboardType="numeric"
+                placeholder="0"
               />
             </View>
-          </View>
-          <View style={styles.readingRow}>
             <View style={styles.readingField}>
               <Text style={styles.label}>A3 Copies</Text>
               <TextInput
@@ -690,99 +1395,265 @@ const RentalServiceScreen = () => {
                 value={readings.a3Copies}
                 onChangeText={(text) => setReadings({ ...readings, a3Copies: text })}
                 keyboardType="numeric"
+                placeholder="0"
               />
             </View>
           </View>
         </View>
       </AccordionSection>
 
-      <AccordionSection title="BARCODE" defaultExpanded={true}>
-        <View style={styles.row}>
-          <View style={styles.fieldContainer}>
+      <AccordionSection title="ITEM BODY" defaultExpanded={true}>
+        {/* Barcode Input (Integrated into ITEM BODY) */}
+        <View style={styles.barcodeSection}>
+          <Text style={styles.label}>Barcode</Text>
+          <View style={styles.barcodeInputRow}>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { flex: 1, marginRight: 8 }]}
               value={barcode}
               onChangeText={setBarcode}
-              keyboardType="numeric"
+              placeholder="Enter or scan barcode"
             />
+            <TouchableOpacity
+              style={styles.scanBarcodeButton}
+              onPress={() => setShowBarcodeScanner(true)}
+            >
+              <MaterialIcons name="qr-code-scanner" size={24} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.getButton}
+              onPress={handleBarcodeGet}
+            >
+              <Text style={styles.getButtonText}>Get</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.barcodeButton}>
-            <Text style={styles.barcodeButtonText}>Barcodes</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.getButton}>
-            <Text style={styles.getButtonText}>Get</Text>
-          </TouchableOpacity>
+          <Text style={styles.helperText}>
+            Scan barcode with camera or enter manually, then click "Get" to add/update item.
+          </Text>
         </View>
-      </AccordionSection>
 
-      <AccordionSection title="ITEM BODY" defaultExpanded={true}>
         <ItemTable
           columns={itemColumns}
-          data={itemBody}
-          onAddRow={handleAddItem}
-          onDeleteRow={handleDeleteItem}
-          onCellChange={handleItemCellChange}
+          data={items}
+          onDeleteRow={(index) => {
+            const updatedItems = items.filter((_, i) => i !== index);
+            commitItems(updatedItems.map((item, i) => ({ ...item, sno: String(i + 1) })));
+          }}
+          onCellChange={(rowIndex, columnKey, value) => {
+            const updatedItems = items.map((item, index) => {
+              if (index !== rowIndex) return item;
+              const updated = { ...item, [columnKey]: value };
+              // Recalculate net if quantity or rate changes
+              if (columnKey === 'quantity' || columnKey === 'rate') {
+                const qty = parseFloat(updated.quantity) || 0;
+                const rate = parseFloat(updated.rate) || 0;
+                updated.net = qty * rate;
+              }
+              return updated;
+            });
+            commitItems(updatedItems);
+          }}
         />
+
+        {items.length === 0 && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>No items added yet</Text>
+            <Text style={styles.emptyStateSubtext}>
+              Scan a barcode to add items
+            </Text>
+          </View>
+        )}
       </AccordionSection>
 
-      <AccordionSection title="ADJUSTMENTS BODY" defaultExpanded={true}>
+      <AccordionSection title="ADJUSTMENTS" defaultExpanded={false}>
         <ItemTable
           columns={adjustmentColumns}
-          data={adjustments}
-          onAddRow={handleAddAdjustment}
-          onDeleteRow={handleDeleteAdjustment}
-          onCellChange={handleAdjustmentCellChange}
+          data={adjustments.map((adj, index) => ({
+            ...adj,
+            sno: String(index + 1),
+          }))}
+          onAddRow={() => setShowAddAdjustmentModal(true)}
+          onDeleteRow={(rowIndex) => {
+            const adjustment = adjustments[rowIndex];
+            if (adjustment) {
+              Alert.alert(
+                'Delete Adjustment',
+                'Are you sure you want to delete this adjustment?',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: () => {
+                      setAdjustments(adjustments.filter((adj) => adj.id !== adjustment.id));
+                    },
+                  },
+                ]
+              );
+            }
+          }}
+          onCellChange={(rowIndex, field, value) => {
+            const updatedAdjustments = adjustments.map((adj, index) => {
+              if (index !== rowIndex) return adj;
+              
+              let parsedValue = value;
+              if (field === 'addAmount' || field === 'lessAmount') {
+                parsedValue = parseFloat(value) || 0;
+              } else if (field === 'accountName') {
+                // When account changes, update accountId and accountType
+                const account = adjustmentsList.find(a => a.name === value);
+                if (account) {
+                  return {
+                    ...adj,
+                    accountName: value,
+                    accountId: account.id,
+                    accountType: account.type,
+                    // Clear opposite amount based on account type
+                    ...(account.type === 'add' ? { lessAmount: 0 } : { addAmount: 0 }),
+                  };
+                }
+              }
+              
+              return { ...adj, [field]: parsedValue };
+            });
+            
+            setAdjustments(updatedAdjustments);
+          }}
         />
       </AccordionSection>
 
       <AccordionSection title="COLLECTIONS" defaultExpanded={true}>
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Collections</Text>
-            <TextInput
-              style={styles.input}
-              value={collectionTotal}
-              onChangeText={setCollectionTotal}
-              keyboardType="numeric"
-            />
-          </View>
-          <View style={styles.fieldContainer}>
             <Text style={styles.label}>Cash</Text>
             <TextInput
               style={styles.input}
               value={collectedCash}
               onChangeText={setCollectedCash}
+              placeholder="Enter cash amount"
               keyboardType="numeric"
             />
           </View>
-        </View>
-        <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Card</Text>
             <TextInput
               style={styles.input}
               value={collectedCard}
               onChangeText={setCollectedCard}
+              placeholder="Enter card amount"
               keyboardType="numeric"
             />
           </View>
+        </View>
+        <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>UPI</Text>
             <TextInput
               style={styles.input}
               value={collectedUpi}
               onChangeText={setCollectedUpi}
+              placeholder="Enter UPI amount"
               keyboardType="numeric"
             />
           </View>
-        </View>
-        <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Balance</Text>
-          <View style={styles.displayBox}>
-            <Text style={styles.balanceText}>₹{calculatedBalance()}</Text>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Balance</Text>
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.balanceText}>
+                ₹{(
+                  summary.totalBillValue -
+                  (parseFloat(collectedCash) || 0) -
+                  (parseFloat(collectedCard) || 0) -
+                  (parseFloat(collectedUpi) || 0)
+                ).toFixed(2)}
+              </Text>
+            </View>
           </View>
         </View>
       </AccordionSection>
+
+      {/* Modals */}
+      <QRScannerModal
+        isVisible={showScanner}
+        onScan={handleScannedQr}
+        onClose={() => setShowScanner(false)}
+      />
+      <BarcodeScannerModal
+        isVisible={showBarcodeScanner}
+        onScan={handleScannedBarcode}
+        onClose={() => setShowBarcodeScanner(false)}
+      />
+      <AddAdjustmentModal
+        isVisible={showAddAdjustmentModal}
+        onAdd={handleAddAdjustment}
+        onClose={() => setShowAddAdjustmentModal(false)}
+      />
+      <PDFPreviewModal
+        isVisible={showPDFPreview}
+        invoiceData={getRentalServiceData()}
+        onClose={() => setShowPDFPreview(false)}
+      />
+      <MobileSearchModal
+        isVisible={showMobileSearchModal}
+        onSearch={handleSearchByMobile}
+        onClose={() => setShowMobileSearchModal(false)}
+      />
+      <SerialNoSelectionModal
+        isVisible={showSerialNoModal}
+        onClose={() => {
+          setShowSerialNoModal(false);
+          setIssuedProductsData(null);
+          setPendingProductData(null);
+        }}
+        productName={pendingProductData?.product?.name || ''}
+        issuedProducts={issuedProductsData || []}
+        existingItems={items}
+        onConfirm={(newSerialNos, removeSerialNos = []) => {
+          if (!pendingProductData) return;
+          
+          const { product, barcode } = pendingProductData;
+          
+          const itemsToAdd = newSerialNos.map((serialNo) => {
+            const issuedProduct = issuedProductsData.find(
+              ip => ip.productSerialNo === serialNo
+            );
+            
+            return {
+              id: Date.now() + Math.random(),
+              productId: product.id,
+              productName: product.name,
+              barcode: barcode || '',
+              quantity: issuedProduct?.quantity || 1,
+              rate: product.rate || 0,
+              net: 0,
+              comments1: '',
+              freeQty: 0,
+              productSerialNo: serialNo,
+            };
+          });
+          
+          const updatedItems = items.filter(item => {
+            if (!item.productSerialNo) return true;
+            return !removeSerialNos.includes(item.productSerialNo.trim());
+          });
+          
+          commitItems([...updatedItems, ...itemsToAdd]);
+          
+          let message = '';
+          if (itemsToAdd.length > 0 && removeSerialNos.length > 0) {
+            message = `${itemsToAdd.length} item(s) added and ${removeSerialNos.length} item(s) removed`;
+          } else if (itemsToAdd.length > 0) {
+            message = `${itemsToAdd.length} item(s) added with selected Serial Numbers`;
+          } else if (removeSerialNos.length > 0) {
+            message = `${removeSerialNos.length} item(s) removed`;
+          }
+          
+          Alert.alert('Items Updated! ✓', message, [{ text: 'OK' }]);
+          
+          setShowSerialNoModal(false);
+          setIssuedProductsData(null);
+          setPendingProductData(null);
+        }}
+      />
     </SmartSuiteFormScreen>
   );
 };
@@ -849,10 +1720,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     flexWrap: 'wrap',
+    marginBottom: 12,
   },
   readingField: {
     flex: 1,
-    minWidth: '45%',
+    minWidth: '30%',
+    maxWidth: '32%',
   },
   readingInput: {
     borderWidth: 1,
@@ -924,6 +1797,246 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#4CAF50',
+  },
+  barcodeSection: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: '#e3f2fd',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2196F3',
+  },
+  barcodeInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  scanBarcodeButton: {
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  emptyState: {
+    padding: 20,
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 4,
+  },
+  emptyStateSubtext: {
+    fontSize: 12,
+    color: '#999',
+  },
+  inputWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconButton: {
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  helperText: {
+    fontSize: 11,
+    color: '#2196F3',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+});
+
+// Mobile Search Modal Component (Inline)
+const MobileSearchModal = ({ isVisible, onSearch, onClose }) => {
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSearch = async () => {
+    if (!mobileNumber || mobileNumber.trim().length < 10) {
+      setError('Please enter a valid 10-digit mobile or WhatsApp number');
+      return;
+    }
+
+    setIsSearching(true);
+    setError('');
+    
+    try {
+      await onSearch(mobileNumber);
+      // Only clear if search was successful (modal will close)
+      setMobileNumber('');
+    } catch (error) {
+      // Error is handled in parent component, but show it here too
+      setError(error.message || 'Failed to search customer');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  return (
+    <Modal visible={isVisible} transparent={true} animationType="slide" onRequestClose={onClose}>
+      <View style={mobileSearchStyles.modalOverlay}>
+        <View style={mobileSearchStyles.modalContainer}>
+          <Text style={mobileSearchStyles.modalTitle}>Search Customer by Mobile/WhatsApp Number</Text>
+          <Text style={mobileSearchStyles.modalSubtitle}>
+            Enter mobile or WhatsApp number to fetch customer details from database
+          </Text>
+
+          <TextInput
+            style={[mobileSearchStyles.input, error && mobileSearchStyles.inputError]}
+            value={mobileNumber}
+            onChangeText={(text) => {
+              setMobileNumber(text);
+              setError(''); // Clear error when user types
+            }}
+            placeholder="Enter mobile or WhatsApp number"
+            keyboardType="phone-pad"
+            maxLength={10}
+            autoFocus
+            editable={!isSearching}
+          />
+
+          {error ? (
+            <Text style={mobileSearchStyles.errorText}>{error}</Text>
+          ) : null}
+
+          <View style={mobileSearchStyles.buttonRow}>
+            <TouchableOpacity
+              style={[mobileSearchStyles.button, mobileSearchStyles.cancelButton]}
+              onPress={() => {
+                setMobileNumber('');
+                setError('');
+                onClose();
+              }}
+              disabled={isSearching}
+            >
+              <Text style={mobileSearchStyles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                mobileSearchStyles.button, 
+                mobileSearchStyles.searchButton,
+                isSearching && mobileSearchStyles.searchButtonDisabled
+              ]}
+              onPress={handleSearch}
+              disabled={isSearching}
+            >
+              {isSearching ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={mobileSearchStyles.searchButtonText}>🔍 Search</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <Text style={mobileSearchStyles.note}>
+            💡 Searches both Mobile Number and WhatsApp Number
+          </Text>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+const mobileSearchStyles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    width: '85%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 10,
+    backgroundColor: '#f9f9f9',
+  },
+  inputError: {
+    borderColor: '#d32f2f',
+    borderWidth: 2,
+  },
+  errorText: {
+    color: '#d32f2f',
+    fontSize: 12,
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  button: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#f0f0f0',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  searchButton: {
+    backgroundColor: '#2196F3',
+  },
+  searchButtonDisabled: {
+    backgroundColor: '#90CAF9',
+    opacity: 0.7,
+  },
+  searchButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  note: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 12,
+    fontStyle: 'italic',
   },
 });
 

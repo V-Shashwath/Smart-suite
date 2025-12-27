@@ -51,15 +51,43 @@ const SalesReturnsScreen = () => {
   const navigation = useNavigation();
   const [isLoadingExecutiveData, setIsLoadingExecutiveData] = useState(false);
   
-  // Transaction state
-  const [transactionData, setTransactionData] = useState(transactionDetails);
+  // Check if user is supervisor - supervisors get blank, editable fields
+  const isSupervisor = currentUser?.role === 'supervisor';
   
-  // Voucher state
-  const [voucherData, setVoucherData] = useState(voucherDetails);
+  // Transaction state - use blank values for supervisors
+  const [transactionData, setTransactionData] = useState(
+    isSupervisor 
+      ? { date: '', time: '', branch: '', location: '', employeeLocation: '', username: '' }
+      : transactionDetails
+  );
   
-  // Customer state
-  const [customerData, setCustomerData] = useState(initialCustomer);
-  const [gstBill, setGstBill] = useState(initialCustomer.gstBill);
+  // Voucher state - use blank values for supervisors
+  const [voucherData, setVoucherData] = useState(
+    isSupervisor
+      ? { voucherSeries: '', voucherNo: '', voucherDatetime: '' }
+      : voucherDetails
+  );
+  
+  // Customer state - use blank values for supervisors
+  const blankCustomer = {
+    date: '',
+    billerName: '',
+    party: '',
+    employeeName: '',
+    customerId: '',
+    mobileNo: '',
+    customerType: '',
+    whatsappNo: '',
+    readingA4: '',
+    readingA3: '',
+    machineType: '',
+    remarks: '',
+    gstBill: false,
+  };
+  const [customerData, setCustomerData] = useState(
+    isSupervisor ? blankCustomer : initialCustomer
+  );
+  const [gstBill, setGstBill] = useState(isSupervisor ? false : initialCustomer.gstBill);
   
   // Barcode state (integrated into ITEM BODY)
   const [barcode, setBarcode] = useState('');
@@ -128,6 +156,44 @@ const SalesReturnsScreen = () => {
   useFocusEffect(
     useCallback(() => {
       const loadExecutiveData = async () => {
+      // Skip loading executive data for supervisors - they get blank fields
+      if (isSupervisor) {
+        console.log('👤 Supervisor logged in - skipping executive data load, using blank fields');
+        // Initialize with completely blank values for supervisor (no prefilled data)
+        setTransactionData({
+          date: '',
+          time: '',
+          branch: '',
+          location: '',
+          employeeLocation: '',
+          username: '',
+        });
+        
+        setVoucherData({
+          voucherSeries: '',
+          voucherNo: '',
+          voucherDatetime: '',
+        });
+        
+        setCustomerData({
+          date: '',
+          billerName: '',
+          party: '',
+          employeeName: '',
+          customerId: '',
+          mobileNo: '',
+          customerType: '',
+          whatsappNo: '',
+          readingA4: '',
+          readingA3: '',
+          machineType: '',
+          remarks: '',
+          gstBill: false,
+        });
+        setGstBill(false);
+        return;
+      }
+      
       if (currentUser?.username) {
         setIsLoadingExecutiveData(true);
         try {
@@ -257,7 +323,7 @@ const SalesReturnsScreen = () => {
       };
       
       loadExecutiveData();
-    }, [currentUser?.username])
+    }, [currentUser?.username, isSupervisor])
   );
 
   // Calculate summary whenever items or adjustments change
@@ -1278,47 +1344,92 @@ const SalesReturnsScreen = () => {
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Date</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{transactionData.date}</Text>
-            </View>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={transactionData.date}
+                onChangeText={(value) => handleTransactionChange('date', value)}
+                placeholder="Enter date"
+              />
+            ) : (
+              <View style={styles.displayBox}>
+                <Text style={styles.displayText}>{transactionData.date}</Text>
+              </View>
+            )}
           </View>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Time</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{transactionData.time}</Text>
-            </View>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={transactionData.time}
+                onChangeText={(value) => handleTransactionChange('time', value)}
+                placeholder="Enter time"
+              />
+            ) : (
+              <View style={styles.displayBox}>
+                <Text style={styles.displayText}>{transactionData.time}</Text>
+              </View>
+            )}
           </View>
         </View>
 
-        {/* Branch - READ ONLY */}
+        {/* Branch */}
         <View style={styles.fullWidthField}>
           <Text style={styles.label}>Branch</Text>
-          <View style={[styles.input, styles.readOnlyInput]}>
-            <Text style={styles.readOnlyText}>
-              {transactionData.branch || 'Loading...'}
-            </Text>
-          </View>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={transactionData.branch}
+              onChangeText={(value) => handleTransactionChange('branch', value)}
+              placeholder="Enter branch"
+            />
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {transactionData.branch || 'Loading...'}
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* Location - READ ONLY */}
+        {/* Location */}
         <View style={styles.fullWidthField}>
           <Text style={styles.label}>Location</Text>
-          <View style={[styles.input, styles.readOnlyInput]}>
-            <Text style={styles.readOnlyText}>
-              {transactionData.location || 'Loading...'}
-            </Text>
-          </View>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={transactionData.location}
+              onChangeText={(value) => handleTransactionChange('location', value)}
+              placeholder="Enter location"
+            />
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {transactionData.location || 'Loading...'}
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* Username - READ ONLY */}
+        {/* Username */}
         {/* Employee Location is hidden from UI but kept in database */}
         <View style={styles.fullWidthField}>
           <Text style={styles.label}>Username</Text>
-          <View style={[styles.input, styles.readOnlyInput]}>
-            <Text style={styles.readOnlyText}>
-              {transactionData.username || 'Loading...'}
-            </Text>
-          </View>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={transactionData.username}
+              onChangeText={(value) => handleTransactionChange('username', value)}
+              placeholder="Enter username"
+            />
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {transactionData.username || 'Loading...'}
+              </Text>
+            </View>
+          )}
         </View>
       </AccordionSection>
 
@@ -1328,129 +1439,235 @@ const SalesReturnsScreen = () => {
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Voucher Series</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{voucherData.voucherSeries}</Text>
-            </View>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={voucherData.voucherSeries}
+                onChangeText={(value) => setVoucherData({ ...voucherData, voucherSeries: value })}
+                placeholder="Enter voucher series"
+              />
+            ) : (
+              <View style={styles.displayBox}>
+                <Text style={styles.displayText}>{voucherData.voucherSeries}</Text>
+              </View>
+            )}
           </View>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Voucher No</Text>
-            <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{voucherData.voucherNo}</Text>
-            </View>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={voucherData.voucherNo}
+                onChangeText={(value) => setVoucherData({ ...voucherData, voucherNo: value })}
+                placeholder="Enter voucher number"
+              />
+            ) : (
+              <View style={styles.displayBox}>
+                <Text style={styles.displayText}>{voucherData.voucherNo}</Text>
+              </View>
+            )}
           </View>
         </View>
 
         <View style={styles.fullWidthField}>
           <Text style={styles.label}>Voucher Datetime</Text>
-          <View style={styles.displayBox}>
-            <Text style={styles.displayText}>{voucherData.voucherDatetime}</Text>
-          </View>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={voucherData.voucherDatetime}
+              onChangeText={(value) => setVoucherData({ ...voucherData, voucherDatetime: value })}
+              placeholder="Enter voucher datetime"
+            />
+          ) : (
+            <View style={styles.displayBox}>
+              <Text style={styles.displayText}>{voucherData.voucherDatetime}</Text>
+            </View>
+          )}
         </View>
       </AccordionSection>
 
       <AccordionSection title="HEADER" defaultExpanded={true}>
         
-        {/* Date and Biller Name - READ ONLY */}
+        {/* Date and Biller Name */}
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Date</Text>
-            <View style={[styles.input, styles.readOnlyInput]}>
-              <Text style={styles.readOnlyText}>
-                {customerData.date || 'Loading...'}
-              </Text>
-            </View>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={customerData.date}
+                onChangeText={(value) => handleInputChange('date', value)}
+                placeholder="Enter date"
+              />
+            ) : (
+              <View style={[styles.input, styles.readOnlyInput]}>
+                <Text style={styles.readOnlyText}>
+                  {customerData.date || 'Loading...'}
+                </Text>
+              </View>
+            )}
           </View>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Biller Name</Text>
-            <View style={[styles.input, styles.readOnlyInput]}>
-              <Text style={styles.readOnlyText}>
-                {customerData.billerName || 'Loading...'}
-              </Text>
-            </View>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={customerData.billerName}
+                onChangeText={(value) => handleInputChange('billerName', value)}
+                placeholder="Enter biller name"
+              />
+            ) : (
+              <View style={[styles.input, styles.readOnlyInput]}>
+                <Text style={styles.readOnlyText}>
+                  {customerData.billerName || 'Loading...'}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
-        {/* Employee Name - READ ONLY */}
+        {/* Employee Name */}
         <View style={styles.fullWidthField}>
           <Text style={styles.label}>Employee Name</Text>
-          <View style={[styles.input, styles.readOnlyInput]}>
-            <Text style={styles.readOnlyText}>
-              {customerData.employeeName || customerData.party || 'Loading...'}
-            </Text>
-          </View>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={customerData.employeeName || customerData.party}
+              onChangeText={(value) => {
+                handleInputChange('employeeName', value);
+                handleInputChange('party', value);
+              }}
+              placeholder="Enter employee name"
+            />
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {customerData.employeeName || customerData.party || 'Loading...'}
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* Customer ID with QR Scanner - READ ONLY */}
+        {/* Customer ID with QR Scanner */}
         <View style={styles.fullWidthField}>
           <Text style={styles.label}>Customer ID</Text>
-          <View style={styles.inputWithIcon}>
-            <View style={[styles.input, styles.readOnlyInput, { flex: 1, marginRight: 8 }]}>
-              {isLoadingCustomer ? (
-                <ActivityIndicator size="small" color="#2196F3" />
-              ) : (
-              <Text style={styles.readOnlyText}>
-                {customerData.customerId || 'Scan QR Code to load customer'}
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={customerData.customerId}
+              onChangeText={(value) => handleInputChange('customerId', value)}
+              placeholder="Enter customer ID"
+            />
+          ) : (
+            <>
+              <View style={styles.inputWithIcon}>
+                <View style={[styles.input, styles.readOnlyInput, { flex: 1, marginRight: 8 }]}>
+                  {isLoadingCustomer ? (
+                    <ActivityIndicator size="small" color="#2196F3" />
+                  ) : (
+                  <Text style={styles.readOnlyText}>
+                    {customerData.customerId || 'Scan QR Code to load customer'}
+                  </Text>
+                  )}
+                </View>
+                <TouchableOpacity
+                  style={styles.iconButton}
+                  onPress={() => setShowScanner(true)}
+                  disabled={isLoadingCustomer}
+                >
+                  <MaterialIcons name="qr-code-scanner" size={24} color="#30302d" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.iconButton, { marginLeft: 4, backgroundColor: '#30302d' }]}
+                  onPress={() => setShowMobileSearchModal(true)}
+                  disabled={isLoadingCustomer}
+                >
+                  <MaterialIcons name="search" size={24} color="#fff" />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.helperText}>
+                {isLoadingCustomer ? 'Loading customer...' : 'Scan QR or use search icon to search by mobile number'}
               </Text>
-              )}
-            </View>
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={() => setShowScanner(true)}
-              disabled={isLoadingCustomer}
-            >
-              <MaterialIcons name="qr-code-scanner" size={24} color="#30302d" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.iconButton, { marginLeft: 4, backgroundColor: '#30302d' }]}
-              onPress={() => setShowMobileSearchModal(true)}
-              disabled={isLoadingCustomer}
-            >
-              <MaterialIcons name="search" size={24} color="#fff" />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.helperText}>
-            {isLoadingCustomer ? 'Loading customer...' : 'Scan QR or use search icon to search by mobile number'}
-          </Text>
+            </>
+          )}
         </View>
 
-        {/* Customer Name - READ ONLY (auto-filled from QR) */}
+        {/* Customer Name */}
         <View style={styles.fullWidthField}>
           <Text style={styles.label}>Customer Name</Text>
-          <View style={[styles.input, styles.readOnlyInput]}>
-            <Text style={styles.readOnlyText}>
-              {customerData.customerName || 'Will be filled from QR code'}
-            </Text>
-          </View>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={customerData.customerName}
+              onChangeText={(value) => handleInputChange('customerName', value)}
+              placeholder="Enter customer name"
+            />
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {customerData.customerName || 'Will be filled from QR code'}
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* Mobile No and WhatsApp No - READ ONLY */}
+        {/* Mobile No and WhatsApp No */}
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Mobile No</Text>
-            <View style={[styles.input, styles.readOnlyInput]}>
-              <Text style={styles.readOnlyText}>
-                {customerData.mobileNo || 'From QR'}
-              </Text>
-            </View>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={customerData.mobileNo}
+                onChangeText={(value) => handleInputChange('mobileNo', value)}
+                placeholder="Enter mobile number"
+                keyboardType="phone-pad"
+              />
+            ) : (
+              <View style={[styles.input, styles.readOnlyInput]}>
+                <Text style={styles.readOnlyText}>
+                  {customerData.mobileNo || 'From QR'}
+                </Text>
+              </View>
+            )}
           </View>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>WhatsApp No</Text>
-            <View style={[styles.input, styles.readOnlyInput]}>
-              <Text style={styles.readOnlyText}>
-                {customerData.whatsappNo || 'From QR'}
-              </Text>
-            </View>
+            {isSupervisor ? (
+              <TextInput
+                style={styles.input}
+                value={customerData.whatsappNo}
+                onChangeText={(value) => handleInputChange('whatsappNo', value)}
+                placeholder="Enter WhatsApp number"
+                keyboardType="phone-pad"
+              />
+            ) : (
+              <View style={[styles.input, styles.readOnlyInput]}>
+                <Text style={styles.readOnlyText}>
+                  {customerData.whatsappNo || 'From QR'}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
-        {/* Customer Type - READ ONLY */}
+        {/* Customer Type */}
         <View style={styles.fullWidthField}>
           <Text style={styles.label}>Customer Type</Text>
-          <View style={[styles.input, styles.readOnlyInput]}>
-            <Text style={styles.readOnlyText}>
-              {customerData.customerType || 'From QR code'}
-            </Text>
-          </View>
+          {isSupervisor ? (
+            <TextInput
+              style={styles.input}
+              value={customerData.customerType}
+              onChangeText={(value) => handleInputChange('customerType', value)}
+              placeholder="Enter customer type"
+            />
+          ) : (
+            <View style={[styles.input, styles.readOnlyInput]}>
+              <Text style={styles.readOnlyText}>
+                {customerData.customerType || 'From QR code'}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Reading A4 and A3 */}
@@ -1477,20 +1694,15 @@ const SalesReturnsScreen = () => {
           </View>
         </View>
 
-        {/* Machine Type Picker */}
+        {/* Machine Type */}
         <View style={styles.fullWidthField}>
           <Text style={styles.label}>Machine Type</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={customerData.machineType}
-              onValueChange={(value) => handleInputChange('machineType', value)}
-              style={styles.picker}
-            >
-              {machineTypes.map((type, idx) => (
-                <Picker.Item key={idx} label={type} value={type} />
-              ))}
-            </Picker>
-          </View>
+          <TextInput
+            style={styles.input}
+            value={customerData.machineType}
+            onChangeText={(value) => handleInputChange('machineType', value)}
+            placeholder="Enter machine type"
+          />
         </View>
 
         {/* Remarks */}
