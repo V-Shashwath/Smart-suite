@@ -570,7 +570,7 @@ const RentalServiceScreen = () => {
           quantity: 1,
           rate: product.rate || 0,
           net: product.rate || 0,
-          comments1: '',
+      comments1: '',
           freeQty: 0,
           productSerialNo: serialNo,
         };
@@ -952,7 +952,7 @@ const RentalServiceScreen = () => {
             ) : (
               <View style={styles.displayBox}>
                 <Text style={styles.displayText}>{transactionData?.date || 'Loading...'}</Text>
-              </View>
+            </View>
             )}
           </View>
           <View style={styles.fieldContainer}>
@@ -967,7 +967,7 @@ const RentalServiceScreen = () => {
             ) : (
               <View style={styles.displayBox}>
                 <Text style={styles.displayText}>{transactionData?.time || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</Text>
-              </View>
+            </View>
             )}
           </View>
         </View>
@@ -1045,7 +1045,7 @@ const RentalServiceScreen = () => {
             ) : (
               <View style={styles.displayBox}>
                 <Text style={styles.displayText}>{voucherData.voucherSeries || 'Loading...'}</Text>
-              </View>
+            </View>
             )}
           </View>
           <View style={styles.fieldContainer}>
@@ -1060,7 +1060,7 @@ const RentalServiceScreen = () => {
             ) : (
               <View style={styles.displayBox}>
                 <Text style={styles.displayText}>{voucherData.voucherNo || 'Loading...'}</Text>
-              </View>
+            </View>
             )}
           </View>
         </View>
@@ -1077,7 +1077,7 @@ const RentalServiceScreen = () => {
           ) : (
             <View style={styles.displayBox}>
               <Text style={styles.displayText}>{voucherData.voucherDatetime || `${transactionData?.date || ''} ${transactionData?.time || ''}`}</Text>
-            </View>
+          </View>
           )}
         </View>
       </AccordionSection>
@@ -1088,20 +1088,20 @@ const RentalServiceScreen = () => {
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Date</Text>
             {isSupervisor ? (
-              <TextInput
-                style={styles.input}
+            <TextInput
+              style={styles.input}
                 value={customerData.date}
                 onChangeText={(value) => handleInputChange('date', value)}
                 placeholder="Enter date"
-              />
+            />
             ) : (
               <View style={[styles.input, styles.readOnlyInput]}>
                 <Text style={styles.readOnlyText}>
                   {customerData.date || 'Loading...'}
                 </Text>
-              </View>
-            )}
           </View>
+            )}
+        </View>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Biller Name</Text>
             {isSupervisor ? (
@@ -1115,10 +1115,10 @@ const RentalServiceScreen = () => {
               <View style={[styles.input, styles.readOnlyInput]}>
                 <Text style={styles.readOnlyText}>
                   {customerData.billerName || 'Loading...'}
-                </Text>
-              </View>
-            )}
+          </Text>
           </View>
+            )}
+        </View>
         </View>
 
         {/* Employee Name */}
@@ -1138,14 +1138,14 @@ const RentalServiceScreen = () => {
             <View style={[styles.input, styles.readOnlyInput]}>
               <Text style={styles.readOnlyText}>
                 {customerData.employeeName || customerData.party || 'Loading...'}
-              </Text>
-            </View>
+          </Text>
+          </View>
           )}
         </View>
 
         {/* Customer ID with QR Scanner */}
         <View style={styles.fullWidthField}>
-          <Text style={styles.label}>Customer ID</Text>
+            <Text style={styles.label}>Customer ID</Text>
           {isSupervisor ? (
             <TextInput
               style={styles.input}
@@ -1163,7 +1163,7 @@ const RentalServiceScreen = () => {
                   {customerData.customerId || 'Scan QR Code to load customer'}
                 </Text>
                 )}
-              </View>
+          </View>
               <TouchableOpacity
                 style={styles.iconButton}
                 onPress={() => setShowScanner(true)}
@@ -1202,7 +1202,7 @@ const RentalServiceScreen = () => {
               <Text style={styles.readOnlyText}>
                 {customerData.customerName || 'Will be filled from QR code'}
               </Text>
-            </View>
+          </View>
           )}
         </View>
 
@@ -1211,8 +1211,8 @@ const RentalServiceScreen = () => {
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Mobile No</Text>
             {isSupervisor ? (
-              <TextInput
-                style={styles.input}
+            <TextInput
+              style={styles.input}
                 value={customerData.mobileNo || ''}
                 onChangeText={(value) => handleInputChange('mobileNo', value)}
                 placeholder="Enter mobile no"
@@ -1229,22 +1229,22 @@ const RentalServiceScreen = () => {
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>WhatsApp No</Text>
             {isSupervisor ? (
-              <TextInput
-                style={styles.input}
+            <TextInput
+              style={styles.input}
                 value={customerData.whatsappNo || ''}
                 onChangeText={(value) => handleInputChange('whatsappNo', value)}
                 placeholder="Enter WhatsApp no"
-                keyboardType="phone-pad"
-              />
+              keyboardType="phone-pad"
+            />
             ) : (
               <View style={[styles.input, styles.readOnlyInput]}>
                 <Text style={styles.readOnlyText}>
                   {customerData.whatsappNo || 'From QR'}
                 </Text>
-              </View>
-            )}
           </View>
+            )}
         </View>
+            </View>
 
         {/* Customer Type */}
         <View style={styles.fullWidthField}>
@@ -1261,7 +1261,7 @@ const RentalServiceScreen = () => {
               <Text style={styles.readOnlyText}>
                 {customerData.customerType || 'From QR code'}
               </Text>
-            </View>
+          </View>
           )}
         </View>
 
@@ -1418,14 +1418,14 @@ const RentalServiceScreen = () => {
               onPress={() => setShowBarcodeScanner(true)}
             >
               <MaterialIcons name="qr-code-scanner" size={24} color="#fff" />
-            </TouchableOpacity>
+          </TouchableOpacity>
             <TouchableOpacity
               style={styles.getButton}
               onPress={handleBarcodeGet}
             >
-              <Text style={styles.getButtonText}>Get</Text>
-            </TouchableOpacity>
-          </View>
+            <Text style={styles.getButtonText}>Get</Text>
+          </TouchableOpacity>
+        </View>
           <Text style={styles.helperText}>
             Scan barcode with camera or enter manually, then click "Get" to add/update item.
           </Text>
@@ -1556,7 +1556,7 @@ const RentalServiceScreen = () => {
             />
           </View>
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Balance</Text>
+          <Text style={styles.label}>Balance</Text>
             <View style={[styles.input, styles.readOnlyInput]}>
               <Text style={styles.balanceText}>
                 ₹{(

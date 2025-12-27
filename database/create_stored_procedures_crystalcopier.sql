@@ -208,7 +208,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
-    -- Authenticate supervisor from Supervisors table
+    -- Authenticate supervisor from Supervisors table in CrystalCopier database
     -- Only return active supervisors
     -- Trim whitespace from username and password for matching
     SELECT 
@@ -220,7 +220,7 @@ BEGIN
         Branch,
         Location,
         Status
-    FROM Supervisors
+    FROM CrystalCopier.dbo.Supervisors
     WHERE LTRIM(RTRIM(Username)) = LTRIM(RTRIM(@Username))
         AND LTRIM(RTRIM(Password)) = LTRIM(RTRIM(@Password))
         AND (Status = 'Active' OR Status IS NULL);

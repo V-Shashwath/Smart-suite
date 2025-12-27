@@ -657,14 +657,14 @@ const CashReceiptsScreen = () => {
                 <Text style={styles.displayText}>
                   {isLoadingExecutiveData ? 'Loading...' : voucherData.voucherSeries || 'Loading...'}
                 </Text>
-              </View>
+            </View>
             )}
           </View>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Voucher No</Text>
             {isSupervisor ? (
-              <TextInput
-                style={styles.input}
+            <TextInput
+              style={styles.input}
                 value={voucherData.voucherNo}
                 onChangeText={(value) => setVoucherData({ ...voucherData, voucherNo: value })}
                 placeholder="Enter voucher number"
@@ -693,7 +693,7 @@ const CashReceiptsScreen = () => {
               <Text style={styles.displayText}>
                 {isLoadingExecutiveData ? 'Loading...' : voucherData.voucherDatetime || 'Loading...'}
               </Text>
-            </View>
+          </View>
           )}
         </View>
       </AccordionSection>
@@ -715,7 +715,7 @@ const CashReceiptsScreen = () => {
                 <Text style={styles.displayText}>
                   {isLoadingExecutiveData ? 'Loading...' : transactionData.date || 'Loading...'}
                 </Text>
-              </View>
+            </View>
             )}
           </View>
           <View style={styles.fieldContainer}>
@@ -732,7 +732,7 @@ const CashReceiptsScreen = () => {
                 <Text style={styles.displayText}>
                   {isLoadingExecutiveData ? 'Loading...' : transactionData.time || 'Loading...'}
                 </Text>
-              </View>
+            </View>
             )}
           </View>
         </View>
@@ -780,8 +780,8 @@ const CashReceiptsScreen = () => {
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Date</Text>
             {isSupervisor ? (
-              <TextInput
-                style={styles.input}
+            <TextInput
+              style={styles.input}
                 value={headerData.date}
                 onChangeText={(value) => setHeaderData({ ...headerData, date: value })}
                 placeholder="Enter date"
@@ -810,7 +810,7 @@ const CashReceiptsScreen = () => {
                 <Text style={styles.readOnlyText}>
                   {headerData.cashAccount || 'Cash'}
                 </Text>
-              </View>
+            </View>
             )}
           </View>
         </View>

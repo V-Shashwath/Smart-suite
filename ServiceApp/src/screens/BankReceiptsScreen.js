@@ -759,7 +759,7 @@ const BankReceiptsScreen = () => {
                 <Text style={styles.displayText}>
                   {isLoadingExecutiveData ? 'Loading...' : voucherData.voucherSeries || 'Loading...'}
                 </Text>
-              </View>
+            </View>
             )}
           </View>
           <View style={styles.fieldContainer}>
@@ -776,7 +776,7 @@ const BankReceiptsScreen = () => {
                 <Text style={styles.displayText}>
                   {isLoadingExecutiveData ? 'Loading...' : voucherData.voucherNo || 'Loading...'}
                 </Text>
-              </View>
+            </View>
             )}
           </View>
         </View>
@@ -795,7 +795,7 @@ const BankReceiptsScreen = () => {
               <Text style={styles.displayText}>
                 {isLoadingExecutiveData ? 'Loading...' : voucherData.voucherDatetime || 'Loading...'}
               </Text>
-            </View>
+          </View>
           )}
         </View>
       </AccordionSection>
@@ -817,7 +817,7 @@ const BankReceiptsScreen = () => {
                 <Text style={styles.displayText}>
                   {isLoadingExecutiveData ? 'Loading...' : transactionData.date || 'Loading...'}
                 </Text>
-              </View>
+            </View>
             )}
           </View>
           <View style={styles.fieldContainer}>
@@ -834,7 +834,7 @@ const BankReceiptsScreen = () => {
                 <Text style={styles.displayText}>
                   {isLoadingExecutiveData ? 'Loading...' : transactionData.time || 'Loading...'}
                 </Text>
-              </View>
+            </View>
             )}
           </View>
         </View>
@@ -871,7 +871,7 @@ const BankReceiptsScreen = () => {
               <Text style={styles.readOnlyText}>
                 {isLoadingExecutiveData ? 'Loading...' : transactionData.employeeName || 'Loading...'}
               </Text>
-            </View>
+          </View>
           )}
         </View>
       </AccordionSection>
@@ -882,8 +882,8 @@ const BankReceiptsScreen = () => {
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Date</Text>
             {isSupervisor ? (
-              <TextInput
-                style={styles.input}
+            <TextInput
+              style={styles.input}
                 value={headerData.date}
                 onChangeText={(value) => setHeaderData({ ...headerData, date: value })}
                 placeholder="Enter date"
@@ -912,7 +912,7 @@ const BankReceiptsScreen = () => {
                 <Text style={styles.readOnlyText}>
                   {headerData.bankAccount || 'Bank'}
                 </Text>
-              </View>
+            </View>
             )}
           </View>
         </View>
