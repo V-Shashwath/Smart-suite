@@ -9,7 +9,6 @@ import DashboardScreen from '../screens/DashboardScreen';
 import EmployeeSaleInvoiceScreen from '../screens/EmployeeSaleInvoiceScreen';
 import CashReceiptsScreen from '../screens/CashReceiptsScreen';
 import BankReceiptsScreen from '../screens/BankReceiptsScreen';
-import EmployeeReturnScreen from '../screens/EmployeeReturnScreen';
 import SalesReturnsScreen from '../screens/SalesReturnsScreen';
 import RentalServiceScreen from '../screens/RentalServiceScreen';
 import RentalMonthlyBillScreen from '../screens/RentalMonthlyBillScreen';
@@ -57,7 +56,6 @@ function MainStack() {
           />
           <Stack.Screen name="CashReceipts" component={CashReceiptsScreen} />
           <Stack.Screen name="BankReceipts" component={BankReceiptsScreen} />
-          <Stack.Screen name="EmployeeReturn" component={EmployeeReturnScreen} />
           <Stack.Screen name="SalesReturns" component={SalesReturnsScreen} />
           <Stack.Screen name="RentalService" component={RentalServiceScreen} />
           <Stack.Screen

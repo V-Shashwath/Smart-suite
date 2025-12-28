@@ -114,12 +114,6 @@ const CustomDrawerContent = (props) => {
               >
                 <Text style={styles.subSubMenuLabel}>Employee Sale Invoice</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.subSubMenuItem}
-                onPress={() => navigateToScreen('EmployeeReturn')}
-              >
-                <Text style={styles.subSubMenuLabel}>Employee Return</Text>
-              </TouchableOpacity>
             </View>
           )}
 

@@ -21,13 +21,6 @@ export const SCREEN_REGISTRY = [
     assignable: true,
   },
   {
-    route: 'EmployeeReturn',
-    title: 'Employee Return',
-    icon: 'assignment-return',
-    category: 'jobWork',
-    assignable: true,
-  },
-  {
     route: 'SalesReturns',
     title: 'Sales Returns',
     icon: 'swap-horiz',

@@ -170,8 +170,7 @@ const MenuModalScreen = ({ navigation }) => {
               </>
             )}
 
-            {(hasAccessToScreen('EmployeeSaleInvoice') ||
-              hasAccessToScreen('EmployeeReturn')) && (
+            {hasAccessToScreen('EmployeeSaleInvoice') && (
               <>
                 <TouchableOpacity
                   style={styles.subMenuItem}
@@ -195,14 +194,6 @@ const MenuModalScreen = ({ navigation }) => {
                         onPress={() => navigateToScreen('EmployeeSaleInvoice')}
                       >
                         <Text style={styles.subSubMenuLabel}>Employee Sale Invoice</Text>
-                      </TouchableOpacity>
-                    )}
-                    {hasAccessToScreen('EmployeeReturn') && (
-                      <TouchableOpacity
-                        style={styles.subSubMenuItem}
-                        onPress={() => navigateToScreen('EmployeeReturn')}
-                      >
-                        <Text style={styles.subSubMenuLabel}>Employee Return</Text>
                       </TouchableOpacity>
                     )}
                   </View>
