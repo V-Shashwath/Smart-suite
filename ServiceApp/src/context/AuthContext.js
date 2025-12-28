@@ -447,6 +447,32 @@ export const AuthProvider = ({ children }) => {
     });
   }, []);
 
+  const refreshExecutives = useCallback(async () => {
+    if (!currentUser || currentUser.role !== 'supervisor') {
+      return;
+    }
+
+    try {
+      const executivesResponse = await apiCall(API_ENDPOINTS.GET_ALL_EXECUTIVES_WITH_SCREENS);
+      if (executivesResponse.success && executivesResponse.data) {
+        // Map backend data to frontend format
+        const backendExecutives = executivesResponse.data.map((exec) => ({
+          id: `exec-${exec.employeeId}`,
+          name: exec.employeeName || exec.username,
+          username: exec.username,
+          password: '', // Don't store password in frontend
+          databaseName: currentUser.databaseName || 'CrystalCopier',
+          assignedScreens: exec.assignedScreens || [],
+          employeeId: exec.employeeId,
+        }));
+        setExecutives(backendExecutives);
+        console.log(`✅ Refreshed ${backendExecutives.length} executives from backend`);
+      }
+    } catch (error) {
+      console.warn('⚠️ Could not refresh executives from backend:', error.message);
+    }
+  }, [currentUser]);
+
   const hasAccessToScreen = useCallback(
     (routeName) => {
       if (!currentUser) return false;
@@ -544,6 +570,7 @@ export const AuthProvider = ({ children }) => {
       addExecutive,
       updateExecutive,
       deleteExecutive,
+      refreshExecutives,
       hasAccessToScreen,
       getAccessibleScreens,
       saveFormDraft,
@@ -558,6 +585,7 @@ export const AuthProvider = ({ children }) => {
       addExecutive,
       updateExecutive,
       deleteExecutive,
+      refreshExecutives,
       hasAccessToScreen,
       getAccessibleScreens,
       saveFormDraft,

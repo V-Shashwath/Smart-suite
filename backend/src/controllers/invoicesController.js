@@ -167,25 +167,38 @@ const createInvoice = async (req, res) => {
           const voucherNoParam = voucherRequest.parameters['VoucherNo'];
           
           if (voucherNoParam && voucherNoParam.value !== null && voucherNoParam.value !== undefined) {
-            // Get the base prefix from request body (e.g., 'RS' for EmployeeSaleInvoice, 'SRS' for SalesReturns, 'RMB' for RentalMonthlyBill)
-            // IMPORTANT: Use voucherSeries from req.body, not from stored procedure
-            // Extract just the prefix if full format is sent (e.g., 'SRS' from 'SRS-25PAT-JD' or just 'SRS')
-            let basePrefix = 'RS'; // Default
-            if (voucherSeries) {
-              const upperVoucherSeries = voucherSeries.trim().toUpperCase();
-              // Check in order: SRS, RMB, RS (order matters for prefix matching)
-              if (upperVoucherSeries.startsWith('SRS')) {
-                basePrefix = 'SRS';
-              } else if (upperVoucherSeries.startsWith('RMB')) {
-                basePrefix = 'RMB';
-              } else if (upperVoucherSeries.startsWith('RS')) {
-                basePrefix = 'RS';
-              } else {
-                // If it's just a prefix like 'SRS', 'RMB', or 'RS', use it directly
-                basePrefix = upperVoucherSeries;
+            // Check if the frontend already sent a complete voucher series format
+            // If it matches the expected format (e.g., RS-25NAM-JD, RMB-25NAM-JD, SRS-25PAT-JD), use it directly
+            const trimmedVoucherSeries = voucherSeries ? voucherSeries.trim() : '';
+            const isCompleteFormat = trimmedVoucherSeries.match(/^(RS|RMB|SRS)-\d{2}[A-Z]{2,4}-[A-Z]{1,3}$/);
+            
+            if (isCompleteFormat) {
+              // Frontend already sent the complete format, use it as-is
+              finalVoucherSeries = trimmedVoucherSeries;
+              finalVoucherNo = voucherNoParam.value;
+              voucherGenerated = true;
+              console.log(`✅ Using complete voucher series from frontend: ${finalVoucherSeries}-${finalVoucherNo}`);
+            } else {
+              // Need to construct the voucher series
+              // Get the base prefix from request body (e.g., 'RS' for EmployeeSaleInvoice, 'SRS' for SalesReturns, 'RMB' for RentalMonthlyBill)
+              // IMPORTANT: Use voucherSeries from req.body, not from stored procedure
+              // Extract just the prefix if full format is sent (e.g., 'SRS' from 'SRS-25PAT-JD' or just 'SRS')
+              let basePrefix = 'RS'; // Default
+              if (voucherSeries) {
+                const upperVoucherSeries = voucherSeries.trim().toUpperCase();
+                // Check in order: SRS, RMB, RS (order matters for prefix matching)
+                if (upperVoucherSeries.startsWith('SRS')) {
+                  basePrefix = 'SRS';
+                } else if (upperVoucherSeries.startsWith('RMB')) {
+                  basePrefix = 'RMB';
+                } else if (upperVoucherSeries.startsWith('RS')) {
+                  basePrefix = 'RS';
+                } else {
+                  // If it's just a prefix like 'SRS', 'RMB', or 'RS', use it directly
+                  basePrefix = upperVoucherSeries;
+                }
               }
-            }
-            console.log(`📋 Voucher series from request: "${voucherSeries}", extracted prefix: "${basePrefix}"`);
+              console.log(`📋 Voucher series from request: "${voucherSeries}", extracted prefix: "${basePrefix}"`);
             
             // Get last 2 digits of current year and next year
             const currentYear = new Date().getFullYear();
@@ -273,6 +286,7 @@ const createInvoice = async (req, res) => {
             }
             console.log(`   📝 Prefix used: "${basePrefix}", Format: ${formatDescription}`);
             console.log(`   🔢 LastVoucherNumber updated to: ${finalVoucherNo} for employee: ${username}`);
+            }
           }
         } catch (spError) {
           console.warn('⚠️  Stored procedure failed, using manual generation:', spError.message);
@@ -280,28 +294,53 @@ const createInvoice = async (req, res) => {
         
         // Fallback: Generate voucher number manually if stored procedure didn't work
         if (!voucherGenerated) {
-          const lastNumber = employee.LastVoucherNumber || 0;
-          const nextNumber = lastNumber + 1;
+          // Check if the frontend already sent a complete voucher series format
+          const trimmedVoucherSeries = voucherSeries ? voucherSeries.trim() : '';
+          const isCompleteFormat = trimmedVoucherSeries.match(/^(RS|RMB|SRS)-\d{2}[A-Z]{2,4}-[A-Z]{1,3}$/);
           
-          // Get the base prefix from request body (e.g., 'RS' for EmployeeSaleInvoice, 'SRS' for SalesReturns, 'RMB' for RentalMonthlyBill)
-          // IMPORTANT: Use voucherSeries from req.body
-          // Extract just the prefix if full format is sent (e.g., 'SRS' from 'SRS-25PAT-JD' or just 'SRS')
-          let basePrefix = 'RS'; // Default
-          if (voucherSeries) {
-            const upperVoucherSeries = voucherSeries.trim().toUpperCase();
-            // Check in order: SRS, RMB, RS (order matters for prefix matching)
-            if (upperVoucherSeries.startsWith('SRS')) {
-              basePrefix = 'SRS';
-            } else if (upperVoucherSeries.startsWith('RMB')) {
-              basePrefix = 'RMB';
-            } else if (upperVoucherSeries.startsWith('RS')) {
-              basePrefix = 'RS';
-            } else {
-              // If it's just a prefix like 'SRS', 'RMB', or 'RS', use it directly
-              basePrefix = upperVoucherSeries;
+          if (isCompleteFormat) {
+            // Frontend already sent the complete format, use it as-is
+            finalVoucherSeries = trimmedVoucherSeries;
+            const lastNumber = employee.LastVoucherNumber || 0;
+            const nextNumber = lastNumber + 1;
+            finalVoucherNo = String(nextNumber);
+            
+            // Update LastVoucherNumber in database
+            const updateRequest = transaction.request();
+            updateRequest.input('username', sql.VarChar(100), username);
+            updateRequest.input('nextNumber', sql.Int, nextNumber);
+            await updateRequest.query(`
+              UPDATE Employees 
+              SET LastVoucherNumber = @nextNumber, ModifiedDate = GETDATE()
+              WHERE Username = @username
+            `);
+            
+            voucherGenerated = true;
+            console.log(`✅ Using complete voucher series from frontend (fallback): ${finalVoucherSeries}-${finalVoucherNo}`);
+          } else {
+            // Need to construct the voucher series
+            const lastNumber = employee.LastVoucherNumber || 0;
+            const nextNumber = lastNumber + 1;
+            
+            // Get the base prefix from request body (e.g., 'RS' for EmployeeSaleInvoice, 'SRS' for SalesReturns, 'RMB' for RentalMonthlyBill)
+            // IMPORTANT: Use voucherSeries from req.body
+            // Extract just the prefix if full format is sent (e.g., 'SRS' from 'SRS-25PAT-JD' or just 'SRS')
+            let basePrefix = 'RS'; // Default
+            if (voucherSeries) {
+              const upperVoucherSeries = voucherSeries.trim().toUpperCase();
+              // Check in order: SRS, RMB, RS (order matters for prefix matching)
+              if (upperVoucherSeries.startsWith('SRS')) {
+                basePrefix = 'SRS';
+              } else if (upperVoucherSeries.startsWith('RMB')) {
+                basePrefix = 'RMB';
+              } else if (upperVoucherSeries.startsWith('RS')) {
+                basePrefix = 'RS';
+              } else {
+                // If it's just a prefix like 'SRS', 'RMB', or 'RS', use it directly
+                basePrefix = upperVoucherSeries;
+              }
             }
-          }
-          console.log(`📋 Fallback: Voucher series from request: "${voucherSeries}", extracted prefix: "${basePrefix}"`);
+            console.log(`📋 Fallback: Voucher series from request: "${voucherSeries}", extracted prefix: "${basePrefix}"`);
           
           // Get last 2 digits of current year and next year
           const currentYear = new Date().getFullYear();
@@ -374,25 +413,40 @@ const createInvoice = async (req, res) => {
             } else {
               finalVoucherSeries = `${basePrefix}${currentYearSuffix}-${nextYearSuffix}`;
             }
+            }
+            
+            finalVoucherNo = String(nextNumber); // Just the number, no alphanumeric
+            
+            // Update LastVoucherNumber in database
+            // IMPORTANT: Use transaction.request() to ensure this update is within the transaction
+            // This ensures LastVoucherNumber is updated atomically with the invoice save
+            const updateRequest = transaction.request();
+            updateRequest.input('username', sql.VarChar(100), username);
+            updateRequest.input('nextNumber', sql.Int, nextNumber);
+            await updateRequest.query(`
+              UPDATE Employees 
+              SET LastVoucherNumber = @nextNumber, ModifiedDate = GETDATE()
+              WHERE Username = @username
+            `);
+            
+            console.log(`✅ Generated manually: ${finalVoucherSeries}-${finalVoucherNo}`);
+            console.log(`   🔢 LastVoucherNumber updated to: ${nextNumber} for employee: ${username}`);
           }
-          
-          finalVoucherNo = String(nextNumber); // Just the number, no alphanumeric
-          
-          // Update LastVoucherNumber in database
-          // IMPORTANT: Use transaction.request() to ensure this update is within the transaction
-          // This ensures LastVoucherNumber is updated atomically with the invoice save
-          const updateRequest = transaction.request();
-          updateRequest.input('username', sql.VarChar(100), username);
-          updateRequest.input('nextNumber', sql.Int, nextNumber);
-          await updateRequest.query(`
-            UPDATE Employees 
-            SET LastVoucherNumber = @nextNumber, ModifiedDate = GETDATE()
-            WHERE Username = @username
-          `);
-          
-          console.log(`✅ Generated manually: ${finalVoucherSeries}-${finalVoucherNo}`);
-          console.log(`   🔢 LastVoucherNumber updated to: ${nextNumber} for employee: ${username}`);
         }
+        
+        // Validate that finalVoucherSeries and finalVoucherNo are set
+        if (!finalVoucherSeries || !finalVoucherNo) {
+          await transaction.rollback();
+          console.error('❌ Voucher generation failed: finalVoucherSeries or finalVoucherNo is missing');
+          console.error(`   finalVoucherSeries: ${finalVoucherSeries}`);
+          console.error(`   finalVoucherNo: ${finalVoucherNo}`);
+          return res.status(500).json({
+            success: false,
+            message: `Failed to generate voucher: voucherSeries or voucherNo is missing`,
+          });
+        }
+        
+        console.log(`📝 Final voucher to be stored: ${finalVoucherSeries}-${finalVoucherNo}`);
       } catch (error) {
         console.error('❌ Error generating voucher number:', error.message);
         console.error('   Error stack:', error.stack);
@@ -429,6 +483,11 @@ const createInvoice = async (req, res) => {
           MachineType = @machineType,
           Remarks = @remarks,
           GstBill = @gstBill,
+          MachinePurchasedDate = @machinePurchasedDate,
+          ContractExpiredOn = @contractExpiredOn,
+          RemainingDays = @remainingDays,
+          RemainingCopies = @remainingCopies,
+          SalesAccount = @salesAccount,
           CollectedCash = @collectedCash,
           CollectedCard = @collectedCard,
           CollectedUpi = @collectedUpi,
@@ -465,6 +524,12 @@ const createInvoice = async (req, res) => {
       updateRequest.input('machineType', header?.machineType || null);
       updateRequest.input('remarks', header?.remarks || null);
       updateRequest.input('gstBill', header?.gstBill || false);
+      // Additional fields for RentalMonthlyBill and other screens
+      updateRequest.input('machinePurchasedDate', header?.machinePurchasedDate || null);
+      updateRequest.input('contractExpiredOn', header?.contractExpiredOn || null);
+      updateRequest.input('remainingDays', header?.remainingDays ? parseInt(header.remainingDays) || null : null);
+      updateRequest.input('remainingCopies', header?.remainingCopies ? parseFloat(header.remainingCopies) || 0 : 0);
+      updateRequest.input('salesAccount', header?.salesAccount || null);
       // Ensure numeric fields are properly converted
       updateRequest.input('collectedCash', parseFloat(collections?.cash) || 0);
       updateRequest.input('collectedCard', parseFloat(collections?.card) || 0);
@@ -483,7 +548,7 @@ const createInvoice = async (req, res) => {
       await updateRequest.query(updateQuery);
       finalInvoiceID = existingInvoiceID;
       
-      // Delete existing items and adjustments for this invoice
+      // Delete existing items, adjustments, and readings for this invoice
       const deleteItemsRequest = new sql.Request(transaction);
       deleteItemsRequest.input('invoiceID', sql.Int, finalInvoiceID);
       await deleteItemsRequest.query(`DELETE FROM InvoiceItems WHERE InvoiceID = @invoiceID`);
@@ -491,6 +556,18 @@ const createInvoice = async (req, res) => {
       const deleteAdjustmentsRequest = new sql.Request(transaction);
       deleteAdjustmentsRequest.input('invoiceID', sql.Int, finalInvoiceID);
       await deleteAdjustmentsRequest.query(`DELETE FROM InvoiceAdjustments WHERE InvoiceID = @invoiceID`);
+      
+      // Delete readings if table exists
+      try {
+        const deleteReadingsRequest = new sql.Request(transaction);
+        deleteReadingsRequest.input('invoiceID', sql.Int, finalInvoiceID);
+        await deleteReadingsRequest.query(`DELETE FROM InvoiceReadings WHERE InvoiceID = @invoiceID`);
+      } catch (readingsDeleteError) {
+        // Table might not exist yet, ignore error
+        if (!readingsDeleteError.message.includes("Invalid object name 'InvoiceReadings'")) {
+          console.warn('⚠️ Could not delete readings:', readingsDeleteError.message);
+        }
+      }
     } else {
       // INSERT new invoice
       const insertQuery = `
@@ -500,6 +577,7 @@ const createInvoice = async (req, res) => {
           Branch, Location, EmployeeLocation, Username,
           HeaderDate, BillerName, EmployeeName, CustomerID, CustomerName,
           ReadingA4, ReadingA3, MachineType, Remarks, GstBill,
+          MachinePurchasedDate, ContractExpiredOn, RemainingDays, RemainingCopies, SalesAccount,
           CollectedCash, CollectedCard, CollectedUpi, Balance,
           ItemCount, TotalQty, TotalGross, TotalDiscount,
           TotalAdd, TotalLess, TotalBillValue, LedgerBalance,
@@ -511,6 +589,7 @@ const createInvoice = async (req, res) => {
           @branch, @location, @employeeLocation, @username,
           @headerDate, @billerName, @employeeName, @customerID, @customerName,
           @readingA4, @readingA3, @machineType, @remarks, @gstBill,
+          @machinePurchasedDate, @contractExpiredOn, @remainingDays, @remainingCopies, @salesAccount,
           @collectedCash, @collectedCard, @collectedUpi, @balance,
           @itemCount, @totalQty, @totalGross, @totalDiscount,
           @totalAdd, @totalLess, @totalBillValue, @ledgerBalance,
@@ -520,8 +599,14 @@ const createInvoice = async (req, res) => {
       `;
 
       const mainRequest = new sql.Request(transaction);
-      mainRequest.input('voucherSeries', finalVoucherSeries);
-      mainRequest.input('voucherNo', finalVoucherNo);
+      // Ensure voucherSeries is a string and not null/undefined
+      const voucherSeriesToStore = String(finalVoucherSeries || voucherSeries || 'RS').trim();
+      const voucherNoToStore = String(finalVoucherNo || voucherNo || '1').trim();
+      
+      console.log(`💾 Storing voucher in InvoiceMain: Series="${voucherSeriesToStore}", No="${voucherNoToStore}"`);
+      
+      mainRequest.input('voucherSeries', sql.VarChar(50), voucherSeriesToStore);
+      mainRequest.input('voucherNo', sql.VarChar(50), voucherNoToStore);
       mainRequest.input('voucherDatetime', voucherDatetime);
       mainRequest.input('transactionDate', transactionDetails?.date || null);
       mainRequest.input('transactionTime', transactionDetails?.time || null);
@@ -539,6 +624,12 @@ const createInvoice = async (req, res) => {
       mainRequest.input('machineType', header?.machineType || null);
       mainRequest.input('remarks', header?.remarks || null);
       mainRequest.input('gstBill', header?.gstBill || false);
+      // Additional fields for RentalMonthlyBill and other screens
+      mainRequest.input('machinePurchasedDate', header?.machinePurchasedDate || null);
+      mainRequest.input('contractExpiredOn', header?.contractExpiredOn || null);
+      mainRequest.input('remainingDays', header?.remainingDays ? parseInt(header.remainingDays) || null : null);
+      mainRequest.input('remainingCopies', header?.remainingCopies ? parseFloat(header.remainingCopies) || 0 : 0);
+      mainRequest.input('salesAccount', header?.salesAccount || null);
       mainRequest.input('collectedCash', collections?.cash || 0);
       mainRequest.input('collectedCard', collections?.card || 0);
       mainRequest.input('collectedUpi', collections?.upi || 0);
@@ -555,6 +646,22 @@ const createInvoice = async (req, res) => {
       
       const mainResult = await mainRequest.query(insertQuery);
       finalInvoiceID = mainResult.recordset[0].InvoiceID;
+      
+      // Verify the voucherSeries was stored correctly
+      const verifyRequest = new sql.Request(transaction);
+      verifyRequest.input('invoiceID', sql.Int, finalInvoiceID);
+      const verifyResult = await verifyRequest.query(`
+        SELECT VoucherSeries, VoucherNo 
+        FROM InvoiceMain 
+        WHERE InvoiceID = @invoiceID
+      `);
+      if (verifyResult.recordset && verifyResult.recordset.length > 0) {
+        const stored = verifyResult.recordset[0];
+        console.log(`✅ Verified stored voucher: ${stored.VoucherSeries}-${stored.VoucherNo} (InvoiceID: ${finalInvoiceID})`);
+        if (stored.VoucherSeries !== voucherSeriesToStore) {
+          console.warn(`⚠️ WARNING: VoucherSeries mismatch! Expected "${voucherSeriesToStore}", but database shows "${stored.VoucherSeries}"`);
+        }
+      }
     }
 
     // 2. Insert Items into InvoiceItems
@@ -579,8 +686,10 @@ const createInvoice = async (req, res) => {
         const itemRequest = new sql.Request(transaction);
         itemRequest.input('invoiceID', finalInvoiceID);
         // Common Voucher Fields: Same voucherSeries and voucherNo as main table
-        itemRequest.input('voucherSeries', finalVoucherSeries);
-        itemRequest.input('voucherNo', finalVoucherNo);
+        const voucherSeriesToStore = String(finalVoucherSeries || voucherSeries || 'RS').trim();
+        const voucherNoToStore = String(finalVoucherNo || voucherNo || '1').trim();
+        itemRequest.input('voucherSeries', sql.VarChar(50), voucherSeriesToStore);
+        itemRequest.input('voucherNo', sql.VarChar(50), voucherNoToStore);
         itemRequest.input('sno', item.sno || 0);
         itemRequest.input('productId', item.productId || null);
         itemRequest.input('productName', item.productName || '');
@@ -617,16 +726,87 @@ const createInvoice = async (req, res) => {
         const adjRequest = new sql.Request(transaction);
         adjRequest.input('invoiceID', finalInvoiceID);
         // Common Voucher Fields: Same voucherSeries and voucherNo as main table
-        adjRequest.input('voucherSeries', finalVoucherSeries);
-        adjRequest.input('voucherNo', finalVoucherNo);
+        const voucherSeriesToStore = String(finalVoucherSeries || voucherSeries || 'RS').trim();
+        const voucherNoToStore = String(finalVoucherNo || voucherNo || '1').trim();
+        adjRequest.input('voucherSeries', sql.VarChar(50), voucherSeriesToStore);
+        adjRequest.input('voucherNo', sql.VarChar(50), voucherNoToStore);
         adjRequest.input('accountId', adj.accountId || null);
         adjRequest.input('accountName', adj.accountName || '');
         adjRequest.input('accountType', adj.accountType || 'add');
-        adjRequest.input('addAmount', adj.addAmount || 0);
-        adjRequest.input('lessAmount', adj.lessAmount || 0);
+        adjRequest.input('addAmount', parseFloat(adj.addAmount) || 0);
+        adjRequest.input('lessAmount', parseFloat(adj.lessAmount) || 0);
         adjRequest.input('comments', adj.comments || '');
         
         await adjRequest.query(adjQuery);
+      }
+    }
+
+    // 4. Insert Readings into InvoiceReadings (if readings data exists)
+    // This stores readings data for RentalMonthlyBill, RentalService, etc.
+    const { readings } = req.body;
+    if (readings) {
+      // Delete existing readings for this invoice (if updating)
+      if (isUpdate) {
+        const deleteReadingsRequest = new sql.Request(transaction);
+        deleteReadingsRequest.input('invoiceID', sql.Int, finalInvoiceID);
+        await deleteReadingsRequest.query(`DELETE FROM InvoiceReadings WHERE InvoiceID = @invoiceID`);
+      }
+
+      // Check if InvoiceReadings table exists before inserting
+      try {
+        const readingsQuery = `
+          INSERT INTO InvoiceReadings (
+            InvoiceID, VoucherSeries, VoucherNo,
+            CurrentReading, PreviousReading,
+            A4, TotalA4, CA4,
+            A3, TotalA3, CA3,
+            MonthlyCharges, Months,
+            FreeCopies, ChargeableCopies, ContractCharges, TestedCopies,
+            ReadingsJSON
+          )
+          VALUES (
+            @invoiceID, @voucherSeries, @voucherNo,
+            @currentReading, @previousReading,
+            @a4, @totalA4, @ca4,
+            @a3, @totalA3, @ca3,
+            @monthlyCharges, @months,
+            @freeCopies, @chargeableCopies, @contractCharges, @testedCopies,
+            @readingsJSON
+          )
+        `;
+
+        const readingsRequest = new sql.Request(transaction);
+        readingsRequest.input('invoiceID', finalInvoiceID);
+        const voucherSeriesToStore = String(finalVoucherSeries || voucherSeries || 'RS').trim();
+        const voucherNoToStore = String(finalVoucherNo || voucherNo || '1').trim();
+        readingsRequest.input('voucherSeries', sql.VarChar(50), voucherSeriesToStore);
+        readingsRequest.input('voucherNo', sql.VarChar(50), voucherNoToStore);
+        readingsRequest.input('currentReading', readings.currentReading || null);
+        readingsRequest.input('previousReading', readings.previousReading || null);
+        readingsRequest.input('a4', readings.a4 || null);
+        readingsRequest.input('totalA4', readings.totalA4 || null);
+        readingsRequest.input('ca4', readings.ca4 || null);
+        readingsRequest.input('a3', readings.a3 || null);
+        readingsRequest.input('totalA3', readings.totalA3 || null);
+        readingsRequest.input('ca3', readings.ca3 || null);
+        readingsRequest.input('monthlyCharges', readings.monthlyCharges ? parseFloat(readings.monthlyCharges) || 0 : 0);
+        readingsRequest.input('months', readings.months || null);
+        readingsRequest.input('freeCopies', readings.freeCopies ? parseFloat(readings.freeCopies) || 0 : 0);
+        readingsRequest.input('chargeableCopies', readings.chargeableCopies ? parseFloat(readings.chargeableCopies) || 0 : 0);
+        readingsRequest.input('contractCharges', readings.contractCharges ? parseFloat(readings.contractCharges) || 0 : 0);
+        readingsRequest.input('testedCopies', readings.testedCopies ? parseFloat(readings.testedCopies) || 0 : 0);
+        // Store full readings object as JSON for flexibility
+        readingsRequest.input('readingsJSON', JSON.stringify(readings));
+        
+        await readingsRequest.query(readingsQuery);
+        console.log(`✅ Readings data saved for invoice ${finalInvoiceID}`);
+      } catch (readingsError) {
+        // If InvoiceReadings table doesn't exist, log warning but don't fail
+        if (readingsError.message.includes("Invalid object name 'InvoiceReadings'")) {
+          console.warn('⚠️ InvoiceReadings table does not exist. Run migration script to create it.');
+        } else {
+          console.warn('⚠️ Could not save readings data:', readingsError.message);
+        }
       }
     }
 

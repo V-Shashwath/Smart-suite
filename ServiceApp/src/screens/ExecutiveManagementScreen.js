@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   Alert,
   FlatList,
@@ -12,8 +12,10 @@ import {
   View,
   Platform,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { getScreenMeta } from '../constants/screenRegistry';
 import withScreenPermission from '../components/withScreenPermission';
@@ -33,29 +35,36 @@ const ExecutiveManagementScreen = ({ navigation }) => {
     updateExecutive,
     deleteExecutive,
     assignableScreens,
+    currentUser,
+    refreshExecutives,
   } = useAuth();
 
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [formState, setFormState] = useState(emptyForm);
   const [editingExecutive, setEditingExecutive] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const assignableScreenMetas = useMemo(
     () => assignableScreens.map((route) => getScreenMeta(route)),
     [assignableScreens]
   );
 
+  // Refresh executives when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (currentUser && currentUser.role === 'supervisor') {
+        setIsRefreshing(true);
+        refreshExecutives().finally(() => {
+          setIsRefreshing(false);
+        });
+      }
+    }, [refreshExecutives, currentUser])
+  );
+
   const resetForm = () => {
     setFormState(emptyForm);
     setEditingExecutive(null);
-  };
-
-  const openCreateModal = () => {
-    Alert.alert(
-      'Create Employee',
-      'Employees must be created in the Employees table first. Please create the employee in the database, then you can assign screens here.',
-      [{ text: 'OK' }]
-    );
   };
 
   const openEditModal = (executive) => {
@@ -92,19 +101,21 @@ const ExecutiveManagementScreen = ({ navigation }) => {
       return;
     }
 
-    try {
-      setIsSubmitting(true);
-      await updateExecutive(editingExecutive.id, {
-        assignedScreens: formState.assignedScreens,
-      });
-      Alert.alert('Updated', `Screen assignments for ${formState.username || editingExecutive.name} updated successfully.`);
-      setIsModalVisible(false);
-      resetForm();
-    } catch (error) {
-      Alert.alert('Unable to save', error.message || 'Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
+      try {
+        setIsSubmitting(true);
+        await updateExecutive(editingExecutive.id, {
+          assignedScreens: formState.assignedScreens,
+        });
+        // Refresh executives list after update
+        await refreshExecutives();
+        Alert.alert('Updated', `Screen assignments for ${formState.username || editingExecutive.name} updated successfully.`);
+        setIsModalVisible(false);
+        resetForm();
+      } catch (error) {
+        Alert.alert('Unable to save', error.message || 'Please try again.');
+      } finally {
+        setIsSubmitting(false);
+      }
   };
 
   const confirmDelete = (executive) => {
@@ -119,6 +130,8 @@ const ExecutiveManagementScreen = ({ navigation }) => {
           onPress: async () => {
             try {
               await updateExecutive(executive.id, { assignedScreens: [] });
+              // Refresh executives list after deletion
+              await refreshExecutives();
               Alert.alert('Success', 'Screen assignments removed.');
             } catch (error) {
               Alert.alert('Error', error.message || 'Failed to remove assignments.');
@@ -137,9 +150,7 @@ const ExecutiveManagementScreen = ({ navigation }) => {
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>{item.name || item.username}</Text>
-          <View style={styles.cardTags}>
-            <Text style={styles.roleBadge}>Executive</Text>
-          </View>
+          <Text style={styles.roleBadge}>Executive</Text>
         </View>
         <Text style={styles.cardSubtitle}>Username: {item.username}</Text>
         <Text style={styles.cardSubtitle}>Database: {item.databaseName}</Text>
@@ -174,12 +185,16 @@ const ExecutiveManagementScreen = ({ navigation }) => {
           <Text style={styles.navButtonText}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.screenTitle}>Executive Management</Text>
-          <Text style={styles.screenSubtitle}>Add, edit, assign screens</Text>
+          <Text style={styles.screenTitle} numberOfLines={1} ellipsizeMode="tail">
+            Executive Management
+          </Text>
+          <Text style={styles.screenSubtitle} numberOfLines={1}>
+            Manage screen assignments
+          </Text>
         </View>
-        <TouchableOpacity style={styles.navButton} onPress={openCreateModal}>
-          <Text style={styles.navButtonText}>＋</Text>
-        </TouchableOpacity>
+        <View style={styles.navButton}>
+          {isRefreshing && <ActivityIndicator size="small" color="#ff7043" />}
+        </View>
       </View>
 
       <View style={styles.content}>
@@ -323,17 +338,23 @@ const styles = StyleSheet.create({
   },
   headerCenter: {
     flex: 1,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 0,
   },
   screenTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#263238',
+    textAlign: 'center',
+    flexShrink: 1,
   },
   screenSubtitle: {
     fontSize: 12,
     color: '#78909c',
     marginTop: 2,
+    textAlign: 'center',
   },
   content: {
     flex: 1,
@@ -498,8 +519,9 @@ const styles = StyleSheet.create({
   },
   modalActions: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
     gap: 12,
+    marginTop: 8,
   },
   modalButton: {
     paddingHorizontal: 18,
