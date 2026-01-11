@@ -3,6 +3,6 @@
 
 const app = require('../src/server');
 
-// Export the app for Vercel
+// Export the app directly - Vercel will handle it
 module.exports = app;
 
