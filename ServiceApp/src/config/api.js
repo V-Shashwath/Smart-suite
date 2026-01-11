@@ -1,10 +1,10 @@
 // API Configuration for Mobile App
 // Frontend connects to Backend, Backend connects to Database
 
-// Backend API URL (backend runs on port 3000, database on port 59320)
+// Backend API URL (deployed on Vercel)
 // Priority: app.json config > default value
-// Using ngrok for cross-network access
-let API_BASE_URL = 'https://tenley-ophiologic-danielle.ngrok-free.dev/api'; // Default fallback (ngrok URL)
+// Replace YOUR_VERCEL_URL with your actual Vercel deployment URL
+let API_BASE_URL = 'https://YOUR_VERCEL_URL.vercel.app/api'; // Default fallback (Vercel URL)
 
 // Try to get from app.json config if available
 try {
@@ -58,9 +58,8 @@ export const apiCall = async (endpoint, options = {}) => {
     const defaultOptions = {
       headers: {
         'Content-Type': 'application/json',
-        'ngrok-skip-browser-warning': 'true', // Bypass ngrok browser warning page
       },
-      timeout: 15000, // 15 second timeout (increased for tunnel)
+      timeout: 30000, // 30 second timeout for serverless functions
     };
 
     const response = await fetch(endpoint, {
@@ -81,10 +80,10 @@ export const apiCall = async (endpoint, options = {}) => {
       if (response.status === 502 || response.status === 503) {
         const gatewayError = new Error(
           `Backend server is not reachable (${response.status}). Please check:\n` +
-          `1. Backend server is running on port 3000\n` +
-          `2. Ngrok tunnel is active and pointing to localhost:3000\n` +
-          `3. Restart ngrok if the tunnel expired\n` +
-          `4. Check ngrok dashboard: https://dashboard.ngrok.com/status/tunnels`
+          `1. Backend is deployed and running on Vercel\n` +
+          `2. API_BASE_URL is correctly configured\n` +
+          `3. Check Vercel deployment logs for errors\n` +
+          `4. Verify database connection is allowed from Vercel IPs`
         );
         gatewayError.status = response.status;
         console.error(`❌ Gateway Error: ${response.status}`, errorData);
@@ -111,7 +110,7 @@ export const apiCall = async (endpoint, options = {}) => {
     
     // Provide more helpful error messages
     if (error.message === 'Network request failed' || error.message.includes('Network')) {
-      throw new Error('Cannot connect to server. Please check:\n1. Backend server is running\n2. API_BASE_URL is correct\n3. For tunnel: Backend must be accessible from internet');
+      throw new Error('Cannot connect to server. Please check:\n1. Backend is deployed on Vercel\n2. API_BASE_URL is correctly configured\n3. Internet connection is active\n4. Vercel deployment is not paused');
     }
     throw error;
   }

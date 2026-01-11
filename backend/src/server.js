@@ -51,19 +51,28 @@ app.use((req, res) => {
   });
 });
 
-// Start server
+// Start server (only if not in Vercel/serverless environment)
 const startServer = async () => {
+  // Skip server startup in Vercel/serverless environment
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    console.log('🚀 Running in serverless mode (Vercel/Lambda)');
+    return;
+  }
+
   try {
     // Test database connection (non-blocking)
     testConnection().catch(() => {
       console.warn('⚠️  Database connection test failed - will retry on first API call');
     });
 
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Backend Server running on port ${PORT}`);
-      console.log(`🌐 Local API: http://localhost:${PORT}/api`);
-      console.log(`🌐 Public API: http://223.186.254.245:${PORT}/api`);
-      console.log(`📱 Accessible from internet on port ${PORT}`);
+    const port = process.env.PORT || PORT;
+    app.listen(port, '0.0.0.0', () => {
+      console.log(`🚀 Backend Server running on port ${port}`);
+      console.log(`🌐 Local API: http://localhost:${port}/api`);
+      if (process.env.PUBLIC_IP) {
+        console.log(`🌐 Public API: http://${process.env.PUBLIC_IP}:${port}/api`);
+      }
+      console.log(`📱 Accessible from internet on port ${port}`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
@@ -71,22 +80,24 @@ const startServer = async () => {
   }
 };
 
-// Handle graceful shutdown
-process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, shutting down gracefully...');
-  const { closePool } = require('./config/database');
-  await closePool();
-  process.exit(0);
-});
+// Handle graceful shutdown (only in non-serverless environments)
+if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  process.on('SIGTERM', async () => {
+    console.log('SIGTERM received, shutting down gracefully...');
+    const { closePool } = require('./config/database');
+    await closePool();
+    process.exit(0);
+  });
 
-process.on('SIGINT', async () => {
-  console.log('SIGINT received, shutting down gracefully...');
-  const { closePool } = require('./config/database');
-  await closePool();
-  process.exit(0);
-});
+  process.on('SIGINT', async () => {
+    console.log('SIGINT received, shutting down gracefully...');
+    const { closePool } = require('./config/database');
+    await closePool();
+    process.exit(0);
+  });
 
-startServer();
+  startServer();
+}
 
 module.exports = app;
 
