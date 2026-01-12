@@ -248,10 +248,17 @@ const authenticateEmployee = async (req, res) => {
     });
   } catch (error) {
     console.error('Error authenticating employee:', error);
+    
+    // Provide more helpful error messages for connection issues
+    let errorMessage = error.message;
+    if (error.message.includes('timeout') || error.message.includes('ETIMEDOUT') || error.message.includes('Failed to connect')) {
+      errorMessage = 'Database connection timeout. Please check if the database server is accessible and firewall rules allow connections from Vercel.';
+    }
+    
     return res.status(500).json({
       success: false,
       message: 'Error authenticating employee',
-      error: error.message,
+      error: errorMessage,
     });
   }
 };
@@ -327,10 +334,17 @@ const authenticateSupervisor = async (req, res) => {
     });
   } catch (error) {
     console.error('Error authenticating supervisor:', error);
+    
+    // Provide more helpful error messages for connection issues
+    let errorMessage = error.message;
+    if (error.message.includes('timeout') || error.message.includes('ETIMEDOUT') || error.message.includes('Failed to connect')) {
+      errorMessage = 'Database connection timeout. Please check if the database server is accessible and firewall rules allow connections from Vercel.';
+    }
+    
     return res.status(500).json({
       success: false,
       message: 'Error authenticating supervisor',
-      error: error.message,
+      error: errorMessage,
     });
   }
 };

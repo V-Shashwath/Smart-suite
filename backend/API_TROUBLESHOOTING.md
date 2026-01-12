@@ -112,13 +112,42 @@ After fixing configuration:
 - CORS is already configured in `server.js`
 - If still having issues, check mobile app API URL
 
-### Issue: Timeout errors
+### Issue: Timeout errors (Connection timeout to database)
 
-**Solution:**
-- Database connection might be slow
-- Check SQL Server is accessible
-- Verify firewall rules
-- Check Vercel function timeout settings
+**Symptoms:**
+- Error: "Failed to connect to 103.98.12.218:59320 in 15000ms" or "Connection timeout"
+- API returns 500 errors with timeout messages
+- Authentication endpoints fail with connection errors
+
+**Root Cause:**
+The SQL Server firewall is blocking Vercel's IP addresses. Vercel uses dynamic IP addresses that change, so you need to whitelist Vercel's IP ranges.
+
+**Solutions:**
+
+1. **Whitelist Vercel IP Ranges in SQL Server Firewall:**
+   - Vercel uses dynamic IPs, so you need to whitelist their IP ranges
+   - Contact your DBA/Network admin to add Vercel IP ranges to SQL Server firewall
+   - Vercel IP ranges can be found at: https://vercel.com/docs/security/deployment-protection#ip-addresses
+   - Common Vercel IP ranges (check Vercel docs for latest):
+     - `76.76.21.0/24`
+     - `76.223.126.0/24`
+     - And other ranges listed in Vercel documentation
+   
+2. **Alternative: Use a VPN or Proxy:**
+   - Set up a VPN or proxy server with a static IP
+   - Whitelist that IP in SQL Server firewall
+   - Route database connections through the VPN/proxy
+
+3. **Check Database Server Status:**
+   - Verify SQL Server is running and accessible
+   - Check if port 59320 is open and not blocked
+   - Test connection from another allowed IP to confirm database is accessible
+
+4. **Verify Environment Variables:**
+   - Ensure `DB_SERVER`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` are set correctly in Vercel
+   - Redeploy after changing environment variables
+
+**Note:** The connection timeout has been optimized to 30 seconds with retry logic. If you continue to see timeouts, it's almost certainly a firewall issue.
 
 ## Debugging Steps
 

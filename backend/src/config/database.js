@@ -12,48 +12,69 @@ const config = {
     encrypt: false,
     trustServerCertificate: true,
     enableArithAbort: true,
-    connectionTimeout: 60000,
-    requestTimeout: 30000,
+    connectionTimeout: 30000, // Reduced for serverless (30 seconds)
+    requestTimeout: 25000, // Reduced for serverless (25 seconds)
+    connectTimeout: 30000, // Explicit connect timeout
   },
   pool: {
-    max: 10,
+    max: 5, // Reduced for serverless
     min: 0,
     idleTimeoutMillis: 30000,
+    acquireTimeoutMillis: 30000, // Timeout for acquiring connection from pool
   },
 };
 
 let pool = null;
 
 // Initialize connection pool (works for both traditional and serverless)
-const getPool = async () => {
-  try {
-    // If pool exists, try to use it (will reconnect if needed)
-    if (pool) {
-      try {
-        // Test if pool is still valid by creating a request
-        const testRequest = pool.request();
-        // If this doesn't throw, pool is good
-        return pool;
-      } catch (err) {
-        // Pool is invalid, close it and create new one
+const getPool = async (retries = 2) => {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      // If pool exists, try to use it (will reconnect if needed)
+      if (pool) {
         try {
-          await pool.close();
-        } catch (closeErr) {
-          // Ignore close errors
+          // Test if pool is still valid by creating a request
+          const testRequest = pool.request();
+          // If this doesn't throw, pool is good
+          return pool;
+        } catch (err) {
+          // Pool is invalid, close it and create new one
+          try {
+            await pool.close();
+          } catch (closeErr) {
+            // Ignore close errors
+          }
+          pool = null;
         }
-        pool = null;
       }
+      
+      // Create new connection with timeout
+      console.log(`🔄 Attempting database connection (attempt ${attempt + 1}/${retries + 1})...`);
+      pool = await Promise.race([
+        sql.connect(config),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Connection timeout after 30 seconds')), 30000)
+        )
+      ]);
+      console.log('✅ Connected to database');
+      return pool;
+    } catch (error) {
+      console.error(`❌ Database connection error (attempt ${attempt + 1}/${retries + 1}):`, error.message);
+      
+      // Reset pool on error
+      pool = null;
+      
+      // If this is the last attempt, throw the error
+      if (attempt === retries) {
+        const errorMessage = error.message.includes('timeout') || error.message.includes('ETIMEDOUT')
+          ? `Failed to connect to ${config.server}:${config.port} in 30000ms. Check firewall rules and ensure the database server is accessible.`
+          : error.message;
+        throw new Error(errorMessage);
+      }
+      
+      // Wait before retrying (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
     }
-    
-    // Create new connection
-    pool = await sql.connect(config);
-    console.log('✅ Connected to database');
-    return pool;
-  } catch (error) {
-    console.error('❌ Database connection error:', error.message);
-    // Reset pool on error
-    pool = null;
-    throw error;
   }
 };
 
@@ -67,7 +88,7 @@ const testConnection = async () => {
 const executeQuery = async (query, params = {}, retries = 2) => {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const pool = await getPool();
+      const pool = await getPool(1); // Get pool with 1 retry
       const request = pool.request();
       
       // Add parameters if provided
@@ -75,13 +96,24 @@ const executeQuery = async (query, params = {}, retries = 2) => {
         request.input(key, params[key]);
       });
       
-      const result = await request.query(query);
+      // Execute query with timeout
+      const result = await Promise.race([
+        request.query(query),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Query timeout after 25 seconds')), 25000)
+        )
+      ]);
       return result.recordset;
     } catch (error) {
       console.error(`Query execution error (attempt ${attempt + 1}/${retries + 1}):`, error.message);
       
       // If connection error and we have retries left, reset pool and retry
-      if (attempt < retries && (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.message.includes('connection'))) {
+      if (attempt < retries && (
+        error.code === 'ECONNRESET' || 
+        error.code === 'ETIMEDOUT' || 
+        error.message.includes('connection') ||
+        error.message.includes('timeout')
+      )) {
         pool = null;
         await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1))); // Exponential backoff
         continue;
@@ -96,7 +128,7 @@ const executeQuery = async (query, params = {}, retries = 2) => {
 const executeProcedure = async (procedureName, params = {}, retries = 2) => {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const pool = await getPool();
+      const pool = await getPool(1); // Get pool with 1 retry
       const request = pool.request();
       
       // Add parameters
@@ -104,13 +136,24 @@ const executeProcedure = async (procedureName, params = {}, retries = 2) => {
         request.input(key, params[key]);
       });
       
-      const result = await request.execute(procedureName);
+      // Execute procedure with timeout
+      const result = await Promise.race([
+        request.execute(procedureName),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Stored procedure timeout after 25 seconds')), 25000)
+        )
+      ]);
       return result.recordset;
     } catch (error) {
       console.error(`Stored procedure execution error (attempt ${attempt + 1}/${retries + 1}):`, error.message);
       
       // If connection error and we have retries left, reset pool and retry
-      if (attempt < retries && (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.message.includes('connection'))) {
+      if (attempt < retries && (
+        error.code === 'ECONNRESET' || 
+        error.code === 'ETIMEDOUT' || 
+        error.message.includes('connection') ||
+        error.message.includes('timeout')
+      )) {
         pool = null;
         await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1))); // Exponential backoff
         continue;
