@@ -9,6 +9,7 @@ const customersRoutes = require('./routes/customers');
 const invoicesRoutes = require('./routes/invoices');
 const executivesRoutes = require('./routes/executives');
 const productsRoutes = require('./routes/products');
+const testRoutes = require('./routes/test');
 
 const app = express();
 const PORT = 3000;
@@ -32,6 +33,7 @@ app.use('/api/customers', customersRoutes);
 app.use('/api/invoices', invoicesRoutes);
 app.use('/api/executives', executivesRoutes);
 app.use('/api/products', productsRoutes);
+app.use('/api', testRoutes); // Test route (⚠️ Remove after testing!)
 
 // Error handling middleware
 app.use((err, req, res, next) => {
