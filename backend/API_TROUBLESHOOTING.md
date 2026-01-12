@@ -2,6 +2,31 @@
 
 ## Quick Fixes
 
+### Issue: Conflicting Configuration Files Error
+
+**Error Message:**
+"Conflicting configuration files - Both vercel.json and now.json exist" or similar
+
+**Solution:**
+1. **Check for conflicting files:**
+   - Delete `now.json` if it exists (use `vercel.json` instead)
+   - Delete `.now` directory if it exists (use `.vercel` instead)
+   - Delete `.nowignore` if it exists (use `.vercelignore` instead)
+
+2. **Check Vercel Environment Variables:**
+   - Go to Vercel Dashboard → Settings → Environment Variables
+   - Look for any variables starting with `NOW_` prefix
+   - Remove or rename them to use `VERCEL_` prefix instead
+   - Only keep variables with `VERCEL_` prefix
+
+3. **Verify `vercel.json` exists:**
+   - Ensure `backend/vercel.json` exists and is properly formatted
+   - The file should use modern Vercel v2 format (no `builds` key needed)
+
+4. **After fixing:**
+   - Commit and push changes
+   - Redeploy on Vercel
+
 ### Issue: API endpoints return 404 or no response
 
 **Common Causes:**
