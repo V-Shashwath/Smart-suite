@@ -11,8 +11,8 @@ router.get('/sql-test', async (req, res) => {
     const config = {
       user: process.env.DB_USER || 'Ikonuser',
       password: process.env.DB_PASSWORD || 'userikon',
-      server: process.env.DB_SERVER || '103.98.12.218',
-      port: parseInt(process.env.DB_PORT) || 59320,
+      server: process.env.DB_SERVER || '103.98.12.227',
+      port: parseInt(process.env.DB_PORT) || 52509,
       database: process.env.DB_NAME || 'CrystalCopier',
       options: {
         encrypt: false,
