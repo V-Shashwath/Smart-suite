@@ -149,25 +149,43 @@ const ExecutiveManagementScreen = ({ navigation }) => {
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>{item.name || item.username}</Text>
+          <View style={styles.cardTitleContainer}>
+            <MaterialIcons name="person" size={20} color="#1976D2" style={styles.cardIcon} />
+            <Text style={styles.cardTitle}>{item.name || item.username}</Text>
+          </View>
           <Text style={styles.roleBadge}>Executive</Text>
         </View>
-        <Text style={styles.cardSubtitle}>Username: {item.username}</Text>
-        <Text style={styles.cardSubtitle}>Database: {item.databaseName}</Text>
-        <Text style={styles.cardSubtitle}>
-          Screens: {assignedLabels.length ? assignedLabels.join(', ') : 'None'}
-        </Text>
+        <View style={styles.cardInfo}>
+          <View style={styles.infoRow}>
+            <MaterialIcons name="account-circle" size={16} color="#666" />
+            <Text style={styles.cardSubtitle}>Username: {item.username}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <MaterialIcons name="storage" size={16} color="#666" />
+            <Text style={styles.cardSubtitle}>Database: {item.databaseName}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <MaterialIcons name="apps" size={16} color="#666" />
+            <Text style={styles.cardSubtitle}>
+              Screens: {assignedLabels.length ? assignedLabels.join(', ') : 'None'}
+            </Text>
+          </View>
+        </View>
         <View style={styles.cardActions}>
           <TouchableOpacity
             style={[styles.actionButton, styles.editButton]}
             onPress={() => openEditModal(item)}
+            activeOpacity={0.8}
           >
+            <MaterialIcons name="edit" size={16} color="#fff" />
             <Text style={styles.actionButtonText}>Edit</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, styles.deleteButton]}
             onPress={() => confirmDelete(item)}
+            activeOpacity={0.8}
           >
+            <MaterialIcons name="delete" size={16} color="#fff" />
             <Text style={styles.actionButtonText}>Delete</Text>
           </TouchableOpacity>
         </View>
@@ -177,23 +195,27 @@ const ExecutiveManagementScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" backgroundColor="rgba(13, 72, 161, 0.95)" />
+      {Platform.OS === 'android' && (
+        <View style={styles.statusBarSpacer} />
+      )}
       <View style={styles.topBar}>
         <TouchableOpacity
           style={styles.navButton}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.navButtonText}>←</Text>
+          <MaterialIcons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.screenTitle} numberOfLines={1} ellipsizeMode="tail">
-            Executive Management
+            EXECUTIVE MANAGEMENT
           </Text>
           <Text style={styles.screenSubtitle} numberOfLines={1}>
             Manage screen assignments
           </Text>
         </View>
         <View style={styles.navButton}>
-          {isRefreshing && <ActivityIndicator size="small" color="#ff7043" />}
+          {isRefreshing && <ActivityIndicator size="small" color="#fff" />}
         </View>
       </View>
 
@@ -261,7 +283,7 @@ const ExecutiveManagementScreen = ({ navigation }) => {
                       <MaterialIcons 
                         name={screen.icon} 
                         size={18} 
-                        color={formState.assignedScreens.includes(screen.route) ? '#fff' : '#546e7a'} 
+                        color={formState.assignedScreens.includes(screen.route) ? '#fff' : '#1976D2'} 
                         style={styles.screenChipIcon}
                       />
                       <Text
@@ -310,31 +332,40 @@ const ExecutiveManagementScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
+    backgroundColor: '#fff',
+  },
+  statusBarSpacer: {
+    height: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
+    backgroundColor: 'rgba(13, 72, 161, 0.95)',
   },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eceff1',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    backgroundColor: 'rgba(13, 72, 161, 0.95)',
+    borderBottomWidth: 0,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
   },
   navButton: {
     width: 40,
     height: 40,
-    borderRadius: 12,
-    backgroundColor: '#ffe0d6',
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   navButtonText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#ff7043',
+    color: '#fff',
   },
   headerCenter: {
     flex: 1,
@@ -344,20 +375,26 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   screenTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#263238',
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#fff',
     textAlign: 'center',
     flexShrink: 1,
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   screenSubtitle: {
-    fontSize: 12,
-    color: '#78909c',
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.9)',
     marginTop: 2,
     textAlign: 'center',
+    fontWeight: '500',
   },
   content: {
     flex: 1,
+    backgroundColor: '#fff',
   },
   listContent: {
     paddingHorizontal: 16,
@@ -366,119 +403,185 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 10,
+    padding: 20,
+    marginBottom: 14,
+    borderWidth: 1.5,
+    borderColor: '#E3F2FD',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  cardTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  cardIcon: {
+    marginRight: 10,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#263238',
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#0D47A1',
+    letterSpacing: 0.5,
+    flex: 1,
   },
   cardTags: {
     flexDirection: 'row',
     gap: 6,
   },
   roleBadge: {
-    backgroundColor: '#ede7f6',
-    color: '#512da8',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    fontSize: 12,
-    fontWeight: '600',
+    backgroundColor: 'rgba(25, 118, 210, 0.2)',
+    color: '#0D47A1',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    borderWidth: 1,
+    borderColor: 'rgba(25, 118, 210, 0.3)',
+  },
+  cardInfo: {
+    marginBottom: 16,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
   },
   cardSubtitle: {
     fontSize: 14,
-    color: '#546e7a',
-    marginBottom: 2,
+    color: '#000',
+    marginLeft: 8,
+    fontWeight: '600',
+    flex: 1,
   },
   cardActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 10,
-    marginTop: 12,
+    gap: 12,
+    marginTop: 8,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F5F5F5',
   },
   actionButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: 8,
+    elevation: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    gap: 6,
   },
   editButton: {
-    backgroundColor: '#1976d2',
+    backgroundColor: '#1976D2',
+    shadowColor: '#1976D2',
   },
   deleteButton: {
-    backgroundColor: '#d32f2f',
+    backgroundColor: '#D32F2F',
+    shadowColor: '#D32F2F',
   },
   actionButtonText: {
     color: '#fff',
-    fontWeight: '600',
+    fontWeight: '800',
+    fontSize: 13,
+    letterSpacing: 0.5,
   },
   emptyState: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
+    paddingVertical: 60,
   },
   emptyStateTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#455a64',
-    marginBottom: 8,
+    fontWeight: '900',
+    color: '#0D47A1',
+    marginBottom: 12,
+    letterSpacing: 0.5,
+    textAlign: 'center',
   },
   emptyStateSubtitle: {
     fontSize: 15,
-    color: '#78909c',
+    color: '#666',
     textAlign: 'center',
+    fontWeight: '600',
+    lineHeight: 22,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     paddingHorizontal: 16,
   },
   modalContainer: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 18,
+    padding: 24,
     maxHeight: '90%',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#263238',
-    marginBottom: 12,
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#0D47A1',
+    marginBottom: 20,
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    paddingBottom: 16,
+    borderBottomWidth: 2,
+    borderBottomColor: '#E3F2FD',
   },
   label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#546e7a',
-    marginBottom: 4,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#000',
+    marginBottom: 8,
+    letterSpacing: 0.3,
   },
   input: {
+    backgroundColor: 'rgb(255, 255, 255)',
     borderWidth: 1,
-    borderColor: '#cfd8dc',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderColor: '#9e9e9e',
+    borderRadius: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 14,
     marginBottom: 12,
-    color: '#263238',
+    color: '#000',
+    fontWeight: '600',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   readOnlyInput: {
-    backgroundColor: '#f5f5f5',
-    color: '#78909c',
+    backgroundColor: 'rgba(236, 239, 241, 0.85)',
+    borderColor: '#B0B0B0',
+    color: '#000',
+    fontWeight: '700',
   },
   screenLabel: {
     marginTop: 4,
@@ -486,61 +589,92 @@ const styles = StyleSheet.create({
   screenGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 20,
+    gap: 10,
+    marginBottom: 24,
+    marginTop: 8,
   },
   screenChip: {
-    borderWidth: 1,
-    borderColor: '#cfd8dc',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     backgroundColor: '#fff',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    minWidth: 100,
   },
   screenChipSelected: {
-    backgroundColor: '#ff7043',
-    borderColor: '#ff7043',
+    backgroundColor: '#1976D2',
+    borderColor: '#1976D2',
+    elevation: 5,
+    shadowColor: '#1976D2',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    transform: [{ scale: 1.02 }],
   },
   screenChipContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
+    justifyContent: 'center',
   },
   screenChipIcon: {
     marginRight: 0,
   },
   screenChipText: {
-    color: '#546e7a',
-    fontWeight: '500',
+    color: '#000',
+    fontWeight: '700',
     fontSize: 13,
+    letterSpacing: 0.3,
   },
   screenChipTextSelected: {
     color: '#fff',
+    fontWeight: '900',
   },
   modalActions: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 12,
-    marginTop: 8,
+    gap: 14,
+    marginTop: 16,
+    paddingTop: 20,
+    borderTopWidth: 2,
+    borderTopColor: '#E3F2FD',
   },
   modalButton: {
-    paddingHorizontal: 18,
-    paddingVertical: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 15,
     borderRadius: 8,
+    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    minWidth: 120,
+    alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: '#eceff1',
+    backgroundColor: '#90A4AE',
+    shadowColor: '#90A4AE',
   },
   cancelButtonText: {
-    color: '#546e7a',
-    fontWeight: '600',
+    color: '#fff',
+    fontWeight: '900',
+    fontSize: 15,
+    letterSpacing: 0.5,
   },
   saveButton: {
-    backgroundColor: '#ff7043',
+    backgroundColor: '#4CAF50',
+    shadowColor: '#4CAF50',
   },
   saveButtonText: {
     color: '#fff',
-    fontWeight: '700',
+    fontWeight: '900',
+    fontSize: 15,
+    letterSpacing: 0.5,
   },
 });
 
