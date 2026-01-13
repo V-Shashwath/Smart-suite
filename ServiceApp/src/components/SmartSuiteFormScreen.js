@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Image } from 'react-native';
 
 import {
@@ -13,6 +13,8 @@ import {
   StatusBar,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useAuth } from '../context/AuthContext';
 import AccordionSection from './AccordionSection';
 
 const SmartSuiteFormScreen = ({
@@ -28,6 +30,17 @@ const SmartSuiteFormScreen = ({
   isSaving = false,
 }) => {
   const navigation = useNavigation();
+  const { currentUser } = useAuth();
+
+  const initials = useMemo(() => {
+    if (!currentUser?.username) return 'SS';
+    return currentUser.username
+      .split(' ')
+      .map((chunk) => chunk[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+  }, [currentUser]);
 
   const defaultActionBarActions = {
     onSave: () => console.log('Save'),
@@ -37,17 +50,25 @@ const SmartSuiteFormScreen = ({
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#0D47A1" />
+      {Platform.OS === 'android' && (
+        <View style={styles.statusBarSpacer} />
+      )}
       {/* Top Header */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.navigate('MenuModal')}
           style={styles.menuButton}
+          activeOpacity={0.8}
         >
-          <Text style={styles.menuIcon}>☰</Text>
+          <MaterialIcons name="menu" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{title}</Text>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>CC</Text>
+        <View style={styles.avatarContainer}>
+          <View style={styles.avatarGlow} />
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{initials}</Text>
+          </View>
         </View>
       </View>
 
@@ -202,21 +223,33 @@ const SmartSuiteFormScreen = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
+    backgroundColor: '#fff',
+  },
+  statusBarSpacer: {
+    height: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
+    backgroundColor: 'rgba(13, 71, 161, 0.7)',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#fff',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    backgroundColor: 'rgba(13, 72, 161, 0.95)',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   menuButton: {
-    padding: 8,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   menuIcon: {
     fontSize: 24,
@@ -225,36 +258,65 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  avatarContainer: {
+    position: 'relative',
+  },
+  avatarGlow: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#4CAF50',
+    opacity: 0.4,
+    top: 2,
+    left: 2,
   },
   avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#f44336',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#4CAF50',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
+    elevation: 6,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    borderWidth: 2.5,
+    borderColor: '#66BB6A',
   },
   avatarText: {
     color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 1,
   },
   actionBar: {
     flexDirection: 'row',
     backgroundColor: '#fff',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
     justifyContent: 'flex-end',
     gap: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   actionButton: {
-    padding: 8,
+    padding: 10,
     minWidth: 100,
     alignItems: 'center',
     borderRadius: 6,
@@ -275,6 +337,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    backgroundColor: '#fff',
   },
   titleContainer: {
     backgroundColor: '#fff',
