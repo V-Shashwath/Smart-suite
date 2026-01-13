@@ -5,7 +5,7 @@ import SmartSuiteFormScreen from '../components/SmartSuiteFormScreen';
 import AccordionSection from '../components/AccordionSection';
 import ItemTable from '../components/ItemTable';
 import QRScannerModal from '../components/QRScannerModal';
-import { sharePDFViaWhatsApp, sharePDFViaSMS, generateInvoicePDF, openWhatsAppContact } from '../utils/pdfUtils';
+import { sharePDFViaWhatsApp, sharePDFViaSMS, generateInvoicePDF, openWhatsAppContact, openSMSContact } from '../utils/pdfUtils';
 import PDFPreviewModal from '../components/PDFPreviewModal';
 import useScreenDraft from '../hooks/useScreenDraft';
 import withScreenPermission from '../components/withScreenPermission';
@@ -765,7 +765,7 @@ const BankReceiptsScreen = () => {
     if (!hasCustomer) {
       Alert.alert(
         'No Customer',
-        'Please add a customer by scanning QR code or searching by mobile number before opening WhatsApp.',
+        'Please add a customer by scanning QR code or searching by mobile number before sending the receipt.',
         [{ text: 'OK' }]
       );
       return;
@@ -773,17 +773,18 @@ const BankReceiptsScreen = () => {
     if (!customerData.whatsappNo) {
       Alert.alert(
         'WhatsApp Number Required',
-        'The customer does not have a WhatsApp number. Please add a customer with a WhatsApp number to open WhatsApp.',
+        'The customer does not have a WhatsApp number. Please add a customer with a WhatsApp number to send via WhatsApp.',
         [{ text: 'OK' }]
       );
       return;
     }
     try {
-      // Open WhatsApp directly with the contact number
-      await openWhatsAppContact(customerData.whatsappNo);
+      // Generate PDF and share via WhatsApp
+      const { uri } = await generateInvoicePDF(getInvoiceData());
+      await sharePDFViaWhatsApp(uri, customerData.whatsappNo);
     } catch (error) {
-      console.error('Error opening WhatsApp:', error);
-      Alert.alert('Error', 'Failed to open WhatsApp. Please try again.');
+      console.error('Error sending WhatsApp:', error);
+      Alert.alert('Error', 'Failed to send via WhatsApp. Please try again.');
     }
   };
 
@@ -793,7 +794,7 @@ const BankReceiptsScreen = () => {
     if (!hasCustomer) {
       Alert.alert(
         'No Customer',
-        'Please add a customer by scanning QR code or searching by mobile number before sending the receipt.',
+        'Please add a customer by scanning QR code or searching by mobile number before opening SMS.',
         [{ text: 'OK' }]
       );
       return;
@@ -801,17 +802,17 @@ const BankReceiptsScreen = () => {
     if (!customerData.mobileNo) {
       Alert.alert(
         'Mobile Number Required',
-        'The customer does not have a mobile number. Please add a customer with a mobile number to send SMS.',
+        'The customer does not have a mobile number. Please add a customer with a mobile number to open SMS.',
         [{ text: 'OK' }]
       );
       return;
     }
     try {
-      const invoiceData = getInvoiceData();
-      await sharePDFViaSMS(invoiceData, customerData.mobileNo);
+      // Open SMS directly with the contact number
+      await openSMSContact(customerData.mobileNo);
     } catch (error) {
-      console.error('Error sending SMS:', error);
-      Alert.alert('Error', 'Failed to send via SMS. Please try again.');
+      console.error('Error opening SMS:', error);
+      Alert.alert('Error', 'Failed to open SMS. Please try again.');
     }
   };
 

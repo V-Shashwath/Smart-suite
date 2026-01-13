@@ -11,7 +11,7 @@ import AddAdjustmentModal from '../components/AddAdjustmentModal';
 import PDFPreviewModal from '../components/PDFPreviewModal';
 import SerialNoSelectionModal from '../components/SerialNoSelectionModal';
 import { branches, employeeUsernames, productOptions, adjustmentAccounts, machineTypes, adjustmentsList, initialCustomer } from '../data/mockData';
-import { sharePDFViaWhatsApp, sharePDFViaSMS, generateInvoicePDF, openWhatsAppContact } from '../utils/pdfUtils';
+import { sharePDFViaWhatsApp, sharePDFViaSMS, generateInvoicePDF, openWhatsAppContact, openSMSContact } from '../utils/pdfUtils';
 import { API_ENDPOINTS, apiCall } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import useScreenDraft from '../hooks/useScreenDraft';
@@ -918,44 +918,54 @@ const RentalServiceScreen = () => {
   };
 
   const handleSendWhatsApp = async () => {
+    if (items.length === 0) {
+      Alert.alert('No Items', 'Please add at least one item before sending the service.', [{ text: 'OK' }]);
+      return;
+    }
     if (!customerData.customerName || customerData.customerName.trim() === '') {
-      Alert.alert('No Customer', 'Please select a customer before opening WhatsApp.', [{ text: 'OK' }]);
+      Alert.alert('No Customer', 'Please select a customer before sending.', [{ text: 'OK' }]);
       return;
     }
     const whatsappNumber = customerData.whatsappNo || customerData.mobileNo;
     if (!whatsappNumber) {
       Alert.alert(
         'WhatsApp Number Required',
-        'The customer does not have a WhatsApp or mobile number. Please add a customer with a WhatsApp number to open WhatsApp.',
+        'The customer does not have a WhatsApp or mobile number. Please add a customer with a WhatsApp number to send via WhatsApp.',
         [{ text: 'OK' }]
       );
       return;
     }
     try {
-      // Open WhatsApp directly with the contact number
-      await openWhatsAppContact(whatsappNumber);
+      // Generate PDF and share via WhatsApp
+      const data = getRentalServiceData();
+      const { uri } = await generateInvoicePDF(data);
+      await sharePDFViaWhatsApp(uri, whatsappNumber);
     } catch (error) {
-      console.error('Error opening WhatsApp:', error);
-      Alert.alert('Error', `Failed to open WhatsApp: ${error.message}`);
+      console.error('Error sending WhatsApp:', error);
+      Alert.alert('Error', `Failed to send WhatsApp: ${error.message}`);
     }
   };
 
   const handleSendSMS = async () => {
-    if (items.length === 0) {
-      Alert.alert('No Items', 'Please add at least one item before sending SMS.', [{ text: 'OK' }]);
+    if (!customerData.customerName || customerData.customerName.trim() === '') {
+      Alert.alert('No Customer', 'Please select a customer before opening SMS.', [{ text: 'OK' }]);
       return;
     }
-    if (!customerData.customerName || customerData.customerName.trim() === '') {
-      Alert.alert('No Customer', 'Please select a customer before sending SMS.', [{ text: 'OK' }]);
+    const mobileNumber = customerData.mobileNo || customerData.whatsappNo;
+    if (!mobileNumber) {
+      Alert.alert(
+        'Mobile Number Required',
+        'The customer does not have a mobile or WhatsApp number. Please add a customer with a mobile number to open SMS.',
+        [{ text: 'OK' }]
+      );
       return;
     }
     try {
-      const data = getRentalServiceData();
-      const { uri } = await generateInvoicePDF(data);
-      await sharePDFViaSMS(uri, customerData.mobileNo || customerData.whatsappNo);
+      // Open SMS directly with the contact number
+      await openSMSContact(mobileNumber);
     } catch (error) {
-      console.error('Error sending SMS:', error);
-      Alert.alert('Error', `Failed to send SMS: ${error.message}`);
+      console.error('Error opening SMS:', error);
+      Alert.alert('Error', `Failed to open SMS: ${error.message}`);
     }
   };
 

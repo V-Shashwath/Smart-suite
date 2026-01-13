@@ -10,7 +10,7 @@ import QRScannerModal from '../components/QRScannerModal';
 import AddAdjustmentModal from '../components/AddAdjustmentModal';
 import PDFPreviewModal from '../components/PDFPreviewModal';
 import { branches, employeeUsernames, adjustmentAccounts, machineTypes, accountsList, adjustmentsList } from '../data/mockData';
-import { sharePDFViaWhatsApp, sharePDFViaSMS, generateInvoicePDF, openWhatsAppContact } from '../utils/pdfUtils';
+import { sharePDFViaWhatsApp, sharePDFViaSMS, generateInvoicePDF, openWhatsAppContact, openSMSContact } from '../utils/pdfUtils';
 import { API_ENDPOINTS, apiCall } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import { getBranchShortName } from '../utils/branchMapping';
@@ -746,39 +746,41 @@ const RentalMonthlyBillScreen = () => {
 
   const handleSendWhatsApp = async () => {
     if (!customerData.customerName || !customerData.customerId) {
-      Alert.alert('Missing Data', 'Please fill in customer details before opening WhatsApp.', [{ text: 'OK' }]);
+      Alert.alert('Missing Data', 'Please fill in customer details before sending the bill.', [{ text: 'OK' }]);
       return;
     }
     const whatsappNumber = customerData.whatsappNo || customerData.mobileNo;
     if (!whatsappNumber) {
-      Alert.alert('WhatsApp Number Required', 'The customer does not have a WhatsApp or mobile number. Please add a customer with a WhatsApp number to open WhatsApp.', [{ text: 'OK' }]);
+      Alert.alert('WhatsApp Number Required', 'The customer does not have a WhatsApp or mobile number. Please add a customer with a WhatsApp number to send via WhatsApp.', [{ text: 'OK' }]);
       return;
     }
     try {
-      // Open WhatsApp directly with the contact number
-      await openWhatsAppContact(whatsappNumber);
+      // Generate PDF and share via WhatsApp
+      const data = getMonthlyBillData();
+      const { uri } = await generateInvoicePDF(data);
+      await sharePDFViaWhatsApp(uri, whatsappNumber);
     } catch (error) {
-      console.error('Error opening WhatsApp:', error);
-      Alert.alert('Error', `Failed to open WhatsApp: ${error.message}`);
+      console.error('Error sending WhatsApp:', error);
+      Alert.alert('Error', `Failed to send WhatsApp: ${error.message}`);
     }
   };
 
   const handleSendSMS = async () => {
     if (!customerData.customerName || !customerData.customerId) {
-      Alert.alert('Missing Data', 'Please fill in customer details before sending SMS.', [{ text: 'OK' }]);
+      Alert.alert('Missing Data', 'Please fill in customer details before opening SMS.', [{ text: 'OK' }]);
       return;
     }
-    if (!customerData.mobileNo) {
-      Alert.alert('Mobile Number Required', 'The customer does not have a mobile number. Please add a customer with a mobile number to send SMS.', [{ text: 'OK' }]);
+    const mobileNumber = customerData.mobileNo || customerData.whatsappNo;
+    if (!mobileNumber) {
+      Alert.alert('Mobile Number Required', 'The customer does not have a mobile or WhatsApp number. Please add a customer with a mobile number to open SMS.', [{ text: 'OK' }]);
       return;
     }
     try {
-      const data = getMonthlyBillData();
-      const { uri } = await generateInvoicePDF(data);
-      await sharePDFViaSMS(uri, customerData.mobileNo || customerData.whatsappNo);
+      // Open SMS directly with the contact number
+      await openSMSContact(mobileNumber);
     } catch (error) {
-      console.error('Error sending SMS:', error);
-      Alert.alert('Error', `Failed to send SMS: ${error.message}`);
+      console.error('Error opening SMS:', error);
+      Alert.alert('Error', `Failed to open SMS: ${error.message}`);
     }
   };
 

@@ -456,6 +456,48 @@ export const openWhatsAppContact = async (phoneNumber) => {
   }
 };
 
+/**
+ * Open SMS directly with a phone number
+ */
+export const openSMSContact = async (phoneNumber) => {
+  try {
+    if (!phoneNumber) {
+      Alert.alert('Error', 'Mobile number is required.');
+      return;
+    }
+
+    // Clean the phone number (remove non-numeric characters except +)
+    let cleanNumber = phoneNumber.replace(/[^\d+]/g, '');
+    
+    // Remove leading + if present
+    if (cleanNumber.startsWith('+')) {
+      cleanNumber = cleanNumber.substring(1);
+    }
+    
+    // Remove leading 0 if present
+    if (cleanNumber.startsWith('0')) {
+      cleanNumber = cleanNumber.substring(1);
+    }
+    
+    // For SMS, we typically use the number as-is (without country code for local numbers)
+    // But if it's 10 digits, we can use it directly
+    // SMS URL format: sms:<number> (works for both iOS and Android)
+    const smsUrl = `sms:${cleanNumber}`;
+
+    // Try to open SMS app
+    const canOpen = await Linking.canOpenURL(smsUrl);
+    
+    if (canOpen) {
+      await Linking.openURL(smsUrl);
+    } else {
+      Alert.alert('Error', 'SMS app is not available on this device.');
+    }
+  } catch (error) {
+    console.error('Error opening SMS:', error);
+    Alert.alert('Error', 'Failed to open SMS. Please try again.');
+  }
+};
+
 export const sharePDFViaWhatsApp = async (pdfUri, phoneNumber = null) => {
   try {
     let shareableUri = pdfUri;
@@ -485,14 +527,14 @@ export const sharePDFViaWhatsApp = async (pdfUri, phoneNumber = null) => {
       return;
     }
 
-    // Share via system share dialog (user can choose WhatsApp or any other app)
+    // Share the PDF via share dialog - when user selects WhatsApp, PDF will be attached
     await Sharing.shareAsync(shareableUri, {
       mimeType: 'application/pdf',
-      dialogTitle: phoneNumber ? 'Share Invoice PDF via WhatsApp' : 'Share Invoice PDF',
+      dialogTitle: phoneNumber ? `Share Invoice PDF to ${phoneNumber} via WhatsApp` : 'Share Invoice PDF via WhatsApp',
     });
     
-    // Note: On Android, WhatsApp can be selected from the share dialog
-    // Direct WhatsApp URL opening with file attachment is not supported
+    // Note: User can manually search for the contact in WhatsApp after PDF is attached
+    // We don't navigate to contact automatically to avoid opening WhatsApp twice
   } catch (error) {
     console.error('Error sharing PDF:', error);
     Alert.alert('Error', 'Failed to share PDF. Please try again.');

@@ -37,7 +37,7 @@ import BarcodeScannerModal from '../components/BarcodeScannerModal';
 import AddAdjustmentModal from '../components/AddAdjustmentModal';
 import PDFPreviewModal from '../components/PDFPreviewModal';
 import SerialNoSelectionModal from '../components/SerialNoSelectionModal';
-import { sharePDFViaWhatsApp, sharePDFViaSMS, generateInvoicePDF, openWhatsAppContact } from '../utils/pdfUtils';
+import { sharePDFViaWhatsApp, sharePDFViaSMS, generateInvoicePDF, openWhatsAppContact, openSMSContact } from '../utils/pdfUtils';
 import useScreenDraft from '../hooks/useScreenDraft';
 import withScreenPermission from '../components/withScreenPermission';
 import { useAuth } from '../context/AuthContext';
@@ -1253,24 +1253,6 @@ const EmployeeSaleInvoiceScreen = () => {
   };
 
   const handleSendWhatsApp = async () => {
-    if (!customerData.whatsappNo) {
-      Alert.alert(
-        'WhatsApp Number Required',
-        'Please add a customer with a WhatsApp number to open WhatsApp.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-    try {
-      // Open WhatsApp directly with the contact number
-      await openWhatsAppContact(customerData.whatsappNo);
-    } catch (error) {
-      console.error('Error opening WhatsApp:', error);
-      Alert.alert('Error', 'Failed to open WhatsApp. Please try again.');
-    }
-  };
-
-  const handleSendSMS = async () => {
     if (items.length === 0) {
       Alert.alert(
         'No Items',
@@ -1279,21 +1261,39 @@ const EmployeeSaleInvoiceScreen = () => {
       );
       return;
     }
-    if (!customerData.mobileNo) {
+    if (!customerData.whatsappNo) {
       Alert.alert(
-        'Mobile Number Required',
-        'Please add a customer with a mobile number to send SMS.',
+        'WhatsApp Number Required',
+        'Please add a customer with a WhatsApp number to send via WhatsApp.',
         [{ text: 'OK' }]
       );
       return;
     }
     try {
-      const invoiceData = getInvoiceData();
-      // Use MobileNo for SMS, send text format of invoice
-      await sharePDFViaSMS(invoiceData, customerData.mobileNo);
+      // Generate PDF and share via WhatsApp
+      const { uri } = await generateInvoicePDF(getInvoiceData());
+      await sharePDFViaWhatsApp(uri, customerData.whatsappNo);
     } catch (error) {
-      console.error('Error sending SMS:', error);
-      Alert.alert('Error', 'Failed to send via SMS. Please try again.');
+      console.error('Error sending WhatsApp:', error);
+      Alert.alert('Error', 'Failed to send via WhatsApp. Please try again.');
+    }
+  };
+
+  const handleSendSMS = async () => {
+    if (!customerData.mobileNo) {
+      Alert.alert(
+        'Mobile Number Required',
+        'Please add a customer with a mobile number to open SMS.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    try {
+      // Open SMS directly with the contact number
+      await openSMSContact(customerData.mobileNo);
+    } catch (error) {
+      console.error('Error opening SMS:', error);
+      Alert.alert('Error', 'Failed to open SMS. Please try again.');
     }
   };
 
