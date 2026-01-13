@@ -210,9 +210,11 @@ const SmartSuiteFormScreen = ({
 
         {/* Footer Logo */}
         <View style={styles.footer}>
-          <View style={styles.footerLogo}>
-            <Text style={styles.footerLogoText}>SS</Text>
-          </View>
+          <Image 
+            source={require('../../assets/applogo.png')} 
+            style={styles.footerLogo}
+            resizeMode="contain"
+          />
           <Text style={styles.footerText}>Smart Suite</Text>
         </View>
       </ScrollView>
@@ -322,14 +324,19 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   primaryActionButton: {
-    backgroundColor: '#FF7043',
+    backgroundColor: '#4CAF50',
+    elevation: 4,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
   },
   secondaryActionButton: {
-    backgroundColor: '#90A4AE',
+    backgroundColor: '#526670',
   },
   actionButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#fff',
   },
   disabledActionButton: {
@@ -351,23 +358,42 @@ const styles = StyleSheet.create({
     color: '#00BCD4',
   },
   summaryContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: '#2A3B4D',
     margin: 12,
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    padding: 0,
+    borderRadius: 10,
+    borderWidth: 0,
+    borderColor: 'transparent',
+    elevation: 4,
+    shadowColor: '#0D47A1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    overflow: 'hidden',
   },
   summaryTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 12,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    marginBottom: 0,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    backgroundColor: 'rgba(25, 118, 210, 0.9)',
+    letterSpacing: 1,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   summaryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+    padding: 11,
+    backgroundColor: 'rgba(22, 92, 150, 0.51)',
+    borderColor: 'rgba(25, 65, 98, 0.6)',
+    borderWidth: 1.5,
+    borderBottomRightRadius: 10,
+    borderBottomLeftRadius: 10,
   },
   summaryField: {
     width: '48%',
@@ -375,16 +401,20 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 13,
-    color: '#666',
-    marginBottom: 4,
+    color: '#fff',
+    marginBottom: 6,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   summaryInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: 'rgb(10, 62, 104)',
     borderRadius: 6,
-    padding: 10,
+    padding: 12,
     fontSize: 14,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: 'rgba(125, 185, 254, 0.41)',
+    color: '#fff',
+    fontWeight: '700',
   },
   footer: {
     alignItems: 'center',
@@ -392,18 +422,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   footerLogo: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: '#FF5722',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  footerLogoText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
+    width: 60,
+    height: 60,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 5,
+    paddingHorizontal: 40,
+    marginBottom: 4,
   },
   footerText: {
     fontSize: 14,
@@ -422,44 +447,52 @@ const styles = StyleSheet.create({
   },
   footerButton: {
     flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    borderRadius: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
+    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
   },
   footerButtonFullWidth: {
     flex: 0,
     width: '100%',
   },
   previewFooterButton: {
-    backgroundColor: '#3949AB',
+    backgroundColor: '#d14600',
+    shadowColor: '#d14600',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   whatsappFooterButton: {
-    backgroundColor: '#25D366',
+    backgroundColor: '#06c74e',
+    shadowColor: '#06c74e',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   smsFooterButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: '#e0bd0d',
+    shadowColor: '#e0bd0d',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
 
   pdfIcon: {
-    width: 24,
-    height: 24,
+    width: 26,
+    height: 26,
     tintColor: '#fff',
   },
   whatsappIcon: {
-    width: 24,
-    height: 24,
+    width: 26,
+    height: 26,
     tintColor: '#fff',
   },
   smsIcon: {
-    width: 24,
-    height: 24,
+    width: 26,
+    height: 26,
     tintColor: '#fff',
   },
 
@@ -469,16 +502,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 10,
   },
   footerButtonIcon: {
     fontSize: 18,
     color: '#fff',
   },
   footerButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
     color: '#fff',
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 });
 

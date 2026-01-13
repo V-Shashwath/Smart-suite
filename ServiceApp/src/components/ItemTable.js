@@ -103,6 +103,7 @@ const ItemTable = ({
                 style={[
                   styles.headerCell,
                   { width: column.width || 120 },
+                  idx === 0 && styles.firstColumn,
                 ]}
               >
                 <Text style={styles.headerText}>
@@ -112,7 +113,7 @@ const ItemTable = ({
               </View>
             ))}
             {onDeleteRow && (
-              <View style={[styles.headerCell, { width: 60 }]}>
+              <View style={[styles.headerCell, { width: 75 }]}>
                 <Text style={styles.headerText}>Actions</Text>
               </View>
             )}
@@ -120,25 +121,32 @@ const ItemTable = ({
 
           {/* Table Rows */}
           {currentData.map((row, rowIndex) => (
-            <View key={rowIndex} style={styles.tableRow}>
+            <View 
+              key={rowIndex} 
+              style={[
+                styles.tableRow,
+                rowIndex % 2 === 0 ? styles.tableRowEven : styles.tableRowOdd
+              ]}
+            >
               {columns.map((column, colIndex) => (
                 <View
                   key={colIndex}
                   style={[
                     styles.cellContainer,
                     { width: column.width || 120 },
+                    colIndex === 0 && styles.firstColumn,
                   ]}
                 >
                   {renderCell(row, column, rowIndex)}
                 </View>
               ))}
               {onDeleteRow && (
-                <View style={[styles.cellContainer, { width: 60 }]}>
+                <View style={[styles.cellContainer, { width: 75 }]}>
                   <TouchableOpacity
                     style={styles.deleteButton}
                     onPress={() => onDeleteRow(startIndex + rowIndex)}
                   >
-                    <MaterialIcons name="delete" size={24} color="red" />
+                    <MaterialIcons name="delete" size={22} color="#D32F2F" />
                   </TouchableOpacity>
                 </View>
               )}
@@ -159,10 +167,10 @@ const ItemTable = ({
             }}
             style={styles.pageSizePicker}
           >
-            <Picker.Item label="5" value={5} />
-            <Picker.Item label="10" value={10} />
-            <Picker.Item label="20" value={20} />
-            <Picker.Item label="50" value={50} />
+            <Picker.Item label="        5" value={5} style={styles.pageSizePickerItem} />
+            <Picker.Item label="        10" value={10} style={styles.pageSizePickerItem} />
+            <Picker.Item label="        20" value={20} style={styles.pageSizePickerItem} />
+            <Picker.Item label="        50" value={50} style={styles.pageSizePickerItem} />
           </Picker>
         </View>
 
@@ -221,73 +229,114 @@ const ItemTable = ({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
+    borderRadius: 0,
+    padding: 0,
+    marginBottom: 0,
   },
   addButtonContainer: {
     alignItems: 'flex-end',
     marginBottom: 12,
+    paddingHorizontal: 8,
   },
   addButton: {
-    backgroundColor: '#00BCD4',
+    backgroundColor: '#30302d',
     paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 6,
+    elevation: 3,
+    shadowColor: '#1976D2',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   addButtonText: {
     color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
+    fontWeight: '700',
+    fontSize: 13,
+    letterSpacing: 0.5,
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#f5f5f5',
-    borderBottomWidth: 2,
-    borderBottomColor: '#ddd',
+    backgroundColor: '#E3F2FD',
+    borderBottomWidth: 1,
+    borderBottomColor: '#0D47A1',
+    borderTopWidth: 1,
+    borderTopColor: '#0D47A1',
+    shadowColor: '#0D47A1',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   headerCell: {
     padding: 12,
     borderRightWidth: 1,
-    borderRightColor: '#ddd',
+    borderRightColor: '#0D47A1',
     justifyContent: 'center',
+    alignItems: 'center',
   },
   headerText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#0D47A1',
+    letterSpacing: 1,
+    textAlign: 'center',
+  },
+  firstColumn: {
+    borderLeftWidth: 1,
+    borderLeftColor: '#0D47A1',
   },
   required: {
-    color: '#f44336',
+    color: '#FFEB3B',
+    fontWeight: '900',
   },
   tableRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#0D47A1',
+    backgroundColor: '#fff',
+  },
+  tableRowEven: {
+    backgroundColor: '#fff',
+  },
+  tableRowOdd: {
+    backgroundColor: '#fff',
   },
   cellContainer: {
     borderRightWidth: 1,
-    borderRightColor: '#e0e0e0',
+    borderRightColor: '#0D47A1',
     minHeight: 50,
     justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 2,
   },
   cell: {
-    padding: 8,
+    padding: 4,
     minHeight: 50,
     justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
   },
   cellInput: {
-    padding: 8,
-    fontSize: 13,
-    color: '#333',
-    minHeight: 40,
+    padding: 6,
+    fontSize: 12,
+    color: '#0D47A1',
+    minHeight: 50,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    backgroundColor: 'transparent',
+    textAlign: 'center',
+    width: '100%',
   },
   picker: {
-    height: 50,
+    height: 60,
     width: '100%',
+    backgroundColor: 'transparent',
   },
   pickerItem: {
     fontSize: 14,
+    color: '#0D47A1',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   deleteButton: {
     padding: 8,
@@ -303,44 +352,60 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 12,
     paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    paddingHorizontal: 2,
+    borderTopWidth: 1.5,
+    borderTopColor: '#E3F2FD',
   },
   paginationLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
   },
   paginationText: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: 11,
+    color: '#0D47A1',
+    fontWeight: '700',
   },
   pageSizePicker: {
-    width: 60,
+    width: 35,
     height: 30,
+    backgroundColor: 'rgba(234, 233, 233, 0.8)',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#BBDEFB',
+  },
+  pageSizePickerItem: {
+    fontSize: 15,
+    color: '#0D47A1',
   },
   paginationRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 4,
   },
   paginationButtons: {
     flexDirection: 'row',
     gap: 4,
   },
   paginationButton: {
-    padding: 6,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 4,
-    minWidth: 32,
+    padding: 8,
+    backgroundColor: '#E3F2FD',
+    borderRadius: 6,
+    minWidth: 36,
     alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#BBDEFB',
   },
   paginationButtonDisabled: {
-    opacity: 0.5,
+    opacity: 0.4,
+    backgroundColor: '#F5F5F5',
+    borderColor: '#E0E0E0',
   },
   paginationButtonText: {
     fontSize: 14,
-    color: '#333',
+    color: '#0D47A1',
+    fontWeight: '700',
   },
 });
 
