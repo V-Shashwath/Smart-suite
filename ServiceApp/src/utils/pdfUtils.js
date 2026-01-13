@@ -403,6 +403,59 @@ export const generateInvoicePDF = async (invoiceData, includeBase64 = false) => 
  * Share PDF via WhatsApp
  * Uses WhatsAppNo from customer data
  */
+/**
+ * Open WhatsApp directly with a phone number
+ */
+export const openWhatsAppContact = async (phoneNumber) => {
+  try {
+    if (!phoneNumber) {
+      Alert.alert('Error', 'WhatsApp number is required.');
+      return;
+    }
+
+    // Clean the phone number (remove non-numeric characters except +)
+    let cleanNumber = phoneNumber.replace(/[^\d+]/g, '');
+    
+    // Remove leading + if present and ensure country code format
+    if (cleanNumber.startsWith('+')) {
+      cleanNumber = cleanNumber.substring(1);
+    }
+    
+    // If number doesn't start with country code, assume it's Indian (+91)
+    // Remove leading 0 if present
+    if (cleanNumber.startsWith('0')) {
+      cleanNumber = cleanNumber.substring(1);
+    }
+    
+    // If number is 10 digits, add India country code (91)
+    if (cleanNumber.length === 10) {
+      cleanNumber = '91' + cleanNumber;
+    }
+
+    // WhatsApp URL format: whatsapp://send?phone=<number> or https://wa.me/<number>
+    const whatsappUrl = `whatsapp://send?phone=${cleanNumber}`;
+    const whatsappWebUrl = `https://wa.me/${cleanNumber}`;
+
+    // Try to open WhatsApp app first
+    const canOpen = await Linking.canOpenURL(whatsappUrl);
+    
+    if (canOpen) {
+      await Linking.openURL(whatsappUrl);
+    } else {
+      // Fallback to web WhatsApp if app is not installed
+      const canOpenWeb = await Linking.canOpenURL(whatsappWebUrl);
+      if (canOpenWeb) {
+        await Linking.openURL(whatsappWebUrl);
+      } else {
+        Alert.alert('Error', 'WhatsApp is not installed on this device.');
+      }
+    }
+  } catch (error) {
+    console.error('Error opening WhatsApp:', error);
+    Alert.alert('Error', 'Failed to open WhatsApp. Please try again.');
+  }
+};
+
 export const sharePDFViaWhatsApp = async (pdfUri, phoneNumber = null) => {
   try {
     let shareableUri = pdfUri;

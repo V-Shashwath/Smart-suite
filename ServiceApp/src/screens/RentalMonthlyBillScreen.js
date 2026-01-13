@@ -10,7 +10,7 @@ import QRScannerModal from '../components/QRScannerModal';
 import AddAdjustmentModal from '../components/AddAdjustmentModal';
 import PDFPreviewModal from '../components/PDFPreviewModal';
 import { branches, employeeUsernames, adjustmentAccounts, machineTypes, accountsList, adjustmentsList } from '../data/mockData';
-import { sharePDFViaWhatsApp, sharePDFViaSMS, generateInvoicePDF } from '../utils/pdfUtils';
+import { sharePDFViaWhatsApp, sharePDFViaSMS, generateInvoicePDF, openWhatsAppContact } from '../utils/pdfUtils';
 import { API_ENDPOINTS, apiCall } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import { getBranchShortName } from '../utils/branchMapping';
@@ -746,20 +746,20 @@ const RentalMonthlyBillScreen = () => {
 
   const handleSendWhatsApp = async () => {
     if (!customerData.customerName || !customerData.customerId) {
-      Alert.alert('Missing Data', 'Please fill in customer details before sending the bill.', [{ text: 'OK' }]);
+      Alert.alert('Missing Data', 'Please fill in customer details before opening WhatsApp.', [{ text: 'OK' }]);
       return;
     }
-    if (!customerData.whatsappNo) {
-      Alert.alert('WhatsApp Number Required', 'The customer does not have a WhatsApp number. Please add a customer with a WhatsApp number to send via WhatsApp.', [{ text: 'OK' }]);
+    const whatsappNumber = customerData.whatsappNo || customerData.mobileNo;
+    if (!whatsappNumber) {
+      Alert.alert('WhatsApp Number Required', 'The customer does not have a WhatsApp or mobile number. Please add a customer with a WhatsApp number to open WhatsApp.', [{ text: 'OK' }]);
       return;
     }
     try {
-      const data = getMonthlyBillData();
-      const { uri } = await generateInvoicePDF(data);
-      await sharePDFViaWhatsApp(uri, customerData.whatsappNo || customerData.mobileNo);
+      // Open WhatsApp directly with the contact number
+      await openWhatsAppContact(whatsappNumber);
     } catch (error) {
-      console.error('Error sending WhatsApp:', error);
-      Alert.alert('Error', `Failed to send WhatsApp: ${error.message}`);
+      console.error('Error opening WhatsApp:', error);
+      Alert.alert('Error', `Failed to open WhatsApp: ${error.message}`);
     }
   };
 

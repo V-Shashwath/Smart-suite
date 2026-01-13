@@ -37,7 +37,7 @@ import BarcodeScannerModal from '../components/BarcodeScannerModal';
 import AddAdjustmentModal from '../components/AddAdjustmentModal';
 import PDFPreviewModal from '../components/PDFPreviewModal';
 import SerialNoSelectionModal from '../components/SerialNoSelectionModal';
-import { sharePDFViaWhatsApp, sharePDFViaSMS, generateInvoicePDF } from '../utils/pdfUtils';
+import { sharePDFViaWhatsApp, sharePDFViaSMS, generateInvoicePDF, openWhatsAppContact } from '../utils/pdfUtils';
 import useScreenDraft from '../hooks/useScreenDraft';
 import withScreenPermission from '../components/withScreenPermission';
 import { useAuth } from '../context/AuthContext';
@@ -1270,29 +1270,20 @@ const SalesReturnsScreen = () => {
   };
 
   const handleSendWhatsApp = async () => {
-    if (items.length === 0) {
-      Alert.alert(
-        'No Items',
-        'Please add at least one item before sending the invoice.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
     if (!customerData.whatsappNo) {
       Alert.alert(
         'WhatsApp Number Required',
-        'Please add a customer with a WhatsApp number to send via WhatsApp.',
+        'Please add a customer with a WhatsApp number to open WhatsApp.',
         [{ text: 'OK' }]
       );
       return;
     }
     try {
-      const { uri } = await generateInvoicePDF(getInvoiceData());
-      // Use WhatsAppNo for WhatsApp
-      await sharePDFViaWhatsApp(uri, customerData.whatsappNo);
+      // Open WhatsApp directly with the contact number
+      await openWhatsAppContact(customerData.whatsappNo);
     } catch (error) {
-      console.error('Error sending WhatsApp:', error);
-      Alert.alert('Error', 'Failed to send via WhatsApp. Please try again.');
+      console.error('Error opening WhatsApp:', error);
+      Alert.alert('Error', 'Failed to open WhatsApp. Please try again.');
     }
   };
 

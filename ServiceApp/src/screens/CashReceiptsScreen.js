@@ -5,7 +5,7 @@ import SmartSuiteFormScreen from '../components/SmartSuiteFormScreen';
 import AccordionSection from '../components/AccordionSection';
 import ItemTable from '../components/ItemTable';
 import QRScannerModal from '../components/QRScannerModal';
-import { sharePDFViaWhatsApp, sharePDFViaSMS, generateInvoicePDF } from '../utils/pdfUtils';
+import { sharePDFViaWhatsApp, sharePDFViaSMS, generateInvoicePDF, openWhatsAppContact } from '../utils/pdfUtils';
 import PDFPreviewModal from '../components/PDFPreviewModal';
 import useScreenDraft from '../hooks/useScreenDraft';
 import withScreenPermission from '../components/withScreenPermission';
@@ -665,7 +665,7 @@ const CashReceiptsScreen = () => {
     if (bodyItems.length === 0 || !bodyItems[0].account || bodyItems[0].account.trim() === '') {
       Alert.alert(
         'No Customer',
-        'Please add a customer by scanning QR code or searching by mobile number before sending the receipt.',
+        'Please add a customer by scanning QR code or searching by mobile number before opening WhatsApp.',
         [{ text: 'OK' }]
       );
       return;
@@ -673,17 +673,17 @@ const CashReceiptsScreen = () => {
     if (!customerData.whatsappNo) {
       Alert.alert(
         'WhatsApp Number Required',
-        'The customer does not have a WhatsApp number. Please add a customer with a WhatsApp number to send via WhatsApp.',
+        'The customer does not have a WhatsApp number. Please add a customer with a WhatsApp number to open WhatsApp.',
         [{ text: 'OK' }]
       );
       return;
     }
     try {
-      const { uri } = await generateInvoicePDF(getInvoiceData());
-      await sharePDFViaWhatsApp(uri, customerData.whatsappNo);
+      // Open WhatsApp directly with the contact number
+      await openWhatsAppContact(customerData.whatsappNo);
     } catch (error) {
-      console.error('Error sending WhatsApp:', error);
-      Alert.alert('Error', 'Failed to send via WhatsApp. Please try again.');
+      console.error('Error opening WhatsApp:', error);
+      Alert.alert('Error', 'Failed to open WhatsApp. Please try again.');
     }
   };
 
