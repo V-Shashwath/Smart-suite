@@ -168,9 +168,9 @@ const createInvoice = async (req, res) => {
           
           if (voucherNoParam && voucherNoParam.value !== null && voucherNoParam.value !== undefined) {
             // Check if the frontend already sent a complete voucher series format
-            // If it matches the expected format (e.g., RS-25NAM-JD, RMB-25NAM-JD, SRS-25PAT-JD), use it directly
+            // If it matches the expected format (e.g., RS-25NAM-JD, RMB-25NAM-JD, SRS-25PAT-JD, CR-26NAM-JD, BR-26NAM-JD), use it directly
             const trimmedVoucherSeries = voucherSeries ? voucherSeries.trim() : '';
-            const isCompleteFormat = trimmedVoucherSeries.match(/^(RS|RMB|SRS)-\d{2}[A-Z]{2,4}-[A-Z]{1,3}$/);
+            const isCompleteFormat = trimmedVoucherSeries.match(/^(RS|RMB|SRS|CR|BR)-\d{2}[A-Z]{2,4}-[A-Z]{1,3}$/);
             
             if (isCompleteFormat) {
               // Frontend already sent the complete format, use it as-is
@@ -186,15 +186,19 @@ const createInvoice = async (req, res) => {
               let basePrefix = 'RS'; // Default
               if (voucherSeries) {
                 const upperVoucherSeries = voucherSeries.trim().toUpperCase();
-                // Check in order: SRS, RMB, RS (order matters for prefix matching)
+                // Check in order: SRS, RMB, CR, BR, RS (order matters for prefix matching)
                 if (upperVoucherSeries.startsWith('SRS')) {
                   basePrefix = 'SRS';
                 } else if (upperVoucherSeries.startsWith('RMB')) {
                   basePrefix = 'RMB';
+                } else if (upperVoucherSeries.startsWith('CR')) {
+                  basePrefix = 'CR';
+                } else if (upperVoucherSeries.startsWith('BR')) {
+                  basePrefix = 'BR';
                 } else if (upperVoucherSeries.startsWith('RS')) {
                   basePrefix = 'RS';
                 } else {
-                  // If it's just a prefix like 'SRS', 'RMB', or 'RS', use it directly
+                  // If it's just a prefix like 'SRS', 'RMB', 'CR', 'BR', or 'RS', use it directly
                   basePrefix = upperVoucherSeries;
                 }
               }
@@ -226,6 +230,8 @@ const createInvoice = async (req, res) => {
             // Check if the voucherSeries from frontend already has the RentalService format (RS-...)
             const isRentalServiceFormat = voucherSeries && voucherSeries.trim().match(/^RS-\d{2}/);
             const isRentalMonthlyBillFormat = voucherSeries && voucherSeries.trim().match(/^RMB-\d{2}/);
+            const isCashReceiptFormat = voucherSeries && voucherSeries.trim().match(/^CR-\d{2}/);
+            const isBankReceiptFormat = voucherSeries && voucherSeries.trim().match(/^BR-\d{2}/);
             
             if (basePrefix === 'SRS') {
               // Sales Returns format: SRS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
@@ -240,6 +246,28 @@ const createInvoice = async (req, res) => {
               }
             } else if (basePrefix === 'RMB' || isRentalMonthlyBillFormat) {
               // Rental Monthly Bill format: RMB-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
+              if (branchShortName && shortName) {
+                finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}-${shortName}`;
+              } else if (branchShortName) {
+                finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}`;
+              } else if (shortName) {
+                finalVoucherSeries = `${basePrefix}-${currentYearSuffix}-${shortName}`;
+              } else {
+                finalVoucherSeries = `${basePrefix}-${currentYearSuffix}`;
+              }
+            } else if (basePrefix === 'CR' || isCashReceiptFormat) {
+              // Cash Receipt format: CR-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
+              if (branchShortName && shortName) {
+                finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}-${shortName}`;
+              } else if (branchShortName) {
+                finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}`;
+              } else if (shortName) {
+                finalVoucherSeries = `${basePrefix}-${currentYearSuffix}-${shortName}`;
+              } else {
+                finalVoucherSeries = `${basePrefix}-${currentYearSuffix}`;
+              }
+            } else if (basePrefix === 'BR' || isBankReceiptFormat) {
+              // Bank Receipt format: BR-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
               if (branchShortName && shortName) {
                 finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}-${shortName}`;
               } else if (branchShortName) {
@@ -281,6 +309,10 @@ const createInvoice = async (req, res) => {
               formatDescription = 'SRS-{Year}{Branch}-{Employee}';
             } else if (basePrefix === 'RMB') {
               formatDescription = 'RMB-{Year}{Branch}-{Employee}';
+            } else if (basePrefix === 'CR') {
+              formatDescription = 'CR-{Year}{Branch}-{Employee}';
+            } else if (basePrefix === 'BR') {
+              formatDescription = 'BR-{Year}{Branch}-{Employee}';
             } else if (basePrefix === 'RS' && isRentalServiceFormat) {
               formatDescription = 'RS-{Year}{Branch}-{Employee}';
             }
@@ -296,7 +328,7 @@ const createInvoice = async (req, res) => {
         if (!voucherGenerated) {
           // Check if the frontend already sent a complete voucher series format
           const trimmedVoucherSeries = voucherSeries ? voucherSeries.trim() : '';
-          const isCompleteFormat = trimmedVoucherSeries.match(/^(RS|RMB|SRS)-\d{2}[A-Z]{2,4}-[A-Z]{1,3}$/);
+          const isCompleteFormat = trimmedVoucherSeries.match(/^(RS|RMB|SRS|CR|BR)-\d{2}[A-Z]{2,4}-[A-Z]{1,3}$/);
           
           if (isCompleteFormat) {
             // Frontend already sent the complete format, use it as-is
@@ -328,15 +360,19 @@ const createInvoice = async (req, res) => {
             let basePrefix = 'RS'; // Default
             if (voucherSeries) {
               const upperVoucherSeries = voucherSeries.trim().toUpperCase();
-              // Check in order: SRS, RMB, RS (order matters for prefix matching)
+              // Check in order: SRS, RMB, CR, BR, RS (order matters for prefix matching)
               if (upperVoucherSeries.startsWith('SRS')) {
                 basePrefix = 'SRS';
               } else if (upperVoucherSeries.startsWith('RMB')) {
                 basePrefix = 'RMB';
+              } else if (upperVoucherSeries.startsWith('CR')) {
+                basePrefix = 'CR';
+              } else if (upperVoucherSeries.startsWith('BR')) {
+                basePrefix = 'BR';
               } else if (upperVoucherSeries.startsWith('RS')) {
                 basePrefix = 'RS';
               } else {
-                // If it's just a prefix like 'SRS', 'RMB', or 'RS', use it directly
+                // If it's just a prefix like 'SRS', 'RMB', 'CR', 'BR', or 'RS', use it directly
                 basePrefix = upperVoucherSeries;
               }
             }
@@ -360,6 +396,10 @@ const createInvoice = async (req, res) => {
           // Example: SRS-25PAT-JD
           // For 'RMB' (RentalMonthlyBill): RMB-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
           // Example: RMB-25NAM-JD
+          // For 'CR' (CashReceipt): CR-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
+          // Example: CR-26NAM-JD
+          // For 'BR' (BankReceipt): BR-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
+          // Example: BR-26NAM-JD
           // For 'RS' with dash format (RentalService): RS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
           // Example: RS-25PAT-Mo
           // For 'RS' without dash (EmployeeSaleInvoice): RS{CurrentYear}-{NextYear}{BranchShortName}-{EmployeeShortName}
@@ -368,6 +408,8 @@ const createInvoice = async (req, res) => {
           // Check if the voucherSeries from frontend already has the RentalService format (RS-...)
           const isRentalServiceFormat = voucherSeries && voucherSeries.trim().match(/^RS-\d{2}/);
           const isRentalMonthlyBillFormat = voucherSeries && voucherSeries.trim().match(/^RMB-\d{2}/);
+          const isCashReceiptFormat = voucherSeries && voucherSeries.trim().match(/^CR-\d{2}/);
+          const isBankReceiptFormat = voucherSeries && voucherSeries.trim().match(/^BR-\d{2}/);
           
           if (basePrefix === 'SRS') {
             // Sales Returns format: SRS-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
@@ -382,6 +424,28 @@ const createInvoice = async (req, res) => {
             }
           } else if (basePrefix === 'RMB' || isRentalMonthlyBillFormat) {
             // Rental Monthly Bill format: RMB-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
+            if (branchShortName && shortName) {
+              finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}-${shortName}`;
+            } else if (branchShortName) {
+              finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}`;
+            } else if (shortName) {
+              finalVoucherSeries = `${basePrefix}-${currentYearSuffix}-${shortName}`;
+            } else {
+              finalVoucherSeries = `${basePrefix}-${currentYearSuffix}`;
+            }
+          } else if (basePrefix === 'CR' || isCashReceiptFormat) {
+            // Cash Receipt format: CR-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
+            if (branchShortName && shortName) {
+              finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}-${shortName}`;
+            } else if (branchShortName) {
+              finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}`;
+            } else if (shortName) {
+              finalVoucherSeries = `${basePrefix}-${currentYearSuffix}-${shortName}`;
+            } else {
+              finalVoucherSeries = `${basePrefix}-${currentYearSuffix}`;
+            }
+          } else if (basePrefix === 'BR' || isBankReceiptFormat) {
+            // Bank Receipt format: BR-{CurrentYearLast2}{BranchShortName}-{EmployeeShortName}
             if (branchShortName && shortName) {
               finalVoucherSeries = `${basePrefix}-${currentYearSuffix}${branchShortName}-${shortName}`;
             } else if (branchShortName) {
