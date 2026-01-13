@@ -834,7 +834,7 @@ const RentalMonthlyBillScreen = () => {
 
   return (
       <SmartSuiteFormScreen
-      title="Rental Monthly Bill"
+      title="RENTAL MONTHLY BILL"
       summaryFields={summaryFields()}
       onPreview={handlePreviewInvoice}
       onWhatsApp={handleSendWhatsApp}
@@ -938,7 +938,7 @@ const RentalMonthlyBillScreen = () => {
         </View>
       </AccordionSection>
 
-      <AccordionSection title="VOUCHER" defaultExpanded={false}>
+      <AccordionSection title="VOUCHER" defaultExpanded={true}>
         {/* Voucher Series, No, Datetime */}
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
@@ -1077,7 +1077,7 @@ const RentalMonthlyBillScreen = () => {
                 onPress={() => setShowScanner(true)}
                 disabled={isLoadingCustomer}
               >
-                <MaterialIcons name="qr-code-scanner" size={24} color="#30302d" />
+                <MaterialIcons name="qr-code-scanner" size={24} color="#fff" />
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.iconButton, { marginLeft: 4, backgroundColor: '#30302d' }]}
@@ -1435,7 +1435,7 @@ const RentalMonthlyBillScreen = () => {
         </View>
       </AccordionSection>
 
-      <AccordionSection title="ADJUSTMENTS" defaultExpanded={false}>
+      <AccordionSection title="ADJUSTMENTS" defaultExpanded={true}>
         <ItemTable
           columns={adjustmentColumns}
           data={adjustments.map((adj, index) => ({
@@ -1753,59 +1753,73 @@ const mobileSearchStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
     marginBottom: 12,
   },
   fieldContainer: {
     flex: 1,
-    minWidth: '45%',
-    marginBottom: 12,
+    marginHorizontal: 4,
   },
   fullWidthField: {
-    width: '100%',
     marginBottom: 12,
   },
   label: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#333',
-    marginBottom: 6,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#000',
+    marginBottom: 8,
+    letterSpacing: 0.3,
   },
   required: {
     color: '#f44336',
   },
   input: {
+    backgroundColor: 'rgb(255, 255, 255)',
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#9e9e9e',
     borderRadius: 6,
-    padding: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 14,
-    backgroundColor: '#fff',
+    color: '#000',
+    fontWeight: '600',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   pickerContainer: {
-    borderWidth: 1,
-    borderColor: '#ddd',
+    borderWidth: 1.5,
+    borderColor: '#D0D0D0',
     borderRadius: 6,
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(240, 240, 240, 0.6)',
+    overflow: 'hidden',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   picker: {
-    height: 45,
+    height: 50,
+    width: '100%',
   },
   checkboxContainer: {
-    marginTop: 12,
+    marginTop: 8,
   },
   checkbox: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   checkboxIcon: {
-    fontSize: 20,
+    fontSize: 24,
     marginRight: 8,
+    color: '#1976D2',
   },
   checkboxLabel: {
     fontSize: 14,
-    color: '#333',
+    color: '#000',
+    fontWeight: '700',
   },
   readingsGrid: {
     gap: 12,
@@ -1830,57 +1844,85 @@ const styles = StyleSheet.create({
     flex: 1.5,
   },
   readingInput: {
+    backgroundColor: 'rgb(255, 255, 255)',
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#9e9e9e',
     borderRadius: 6,
-    padding: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 14,
-    backgroundColor: '#fff',
+    color: '#000',
+    fontWeight: '600',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   balanceText: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 18,
     color: '#4CAF50',
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    textShadowColor: 'rgba(76, 175, 80, 0.5)',
   },
   displayBox: {
+    backgroundColor: 'rgba(236, 239, 241, 0.85)',
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#B0B0B0',
     borderRadius: 6,
-    padding: 12,
-    backgroundColor: '#f9f9f9',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   displayText: {
     fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
+    color: '#000',
+    fontWeight: '700',
   },
   readOnlyInput: {
-    backgroundColor: '#f5f5f5',
-    borderColor: '#bbb',
+    backgroundColor: 'rgba(236, 239, 241, 0.85)',
+    borderColor: '#B0B0B0',
     justifyContent: 'center',
   },
   readOnlyText: {
     fontSize: 14,
-    color: '#555',
-    fontStyle: 'italic',
+    color: '#000',
+    fontWeight: '700',
+    fontStyle: 'normal',
   },
   inputWithIcon: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   iconButton: {
-    backgroundColor: '#2196F3',
-    paddingHorizontal: 16,
+    backgroundColor: '#1976D2',
+    paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#1976D2',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  iconButtonText: {
+    fontSize: 20,
   },
   helperText: {
-    fontSize: 11,
-    color: '#2196F3',
-    marginTop: 4,
-    fontStyle: 'italic',
+    fontSize: 10,
+    color: '#666',
+    marginTop: 6,
+    fontWeight: '500',
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+    paddingTop: 10,
   },
 });
 

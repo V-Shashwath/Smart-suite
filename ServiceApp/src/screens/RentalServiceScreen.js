@@ -957,7 +957,7 @@ const RentalServiceScreen = () => {
 
   return (
     <SmartSuiteFormScreen
-      title="Rental Service"
+      title="RENTAL SERVICE"
       summaryFields={summaryFields}
       onPreview={handlePreviewInvoice}
       onWhatsApp={handleSendWhatsApp}
@@ -1061,7 +1061,7 @@ const RentalServiceScreen = () => {
         </View>
       </AccordionSection>
 
-      <AccordionSection title="VOUCHER" defaultExpanded={false}>
+      <AccordionSection title="VOUCHER" defaultExpanded={true}>
         {/* Voucher Series, No, Datetime */}
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
@@ -1200,7 +1200,7 @@ const RentalServiceScreen = () => {
                 onPress={() => setShowScanner(true)}
                 disabled={isLoadingCustomer}
               >
-                <MaterialIcons name="qr-code-scanner" size={24} color="#30302d" />
+                <MaterialIcons name="qr-code-scanner" size={24} color="#fff" />
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.iconButton, { marginLeft: 4, backgroundColor: '#30302d' }]}
@@ -1495,7 +1495,7 @@ const RentalServiceScreen = () => {
         )}
       </AccordionSection>
 
-      <AccordionSection title="ADJUSTMENTS" defaultExpanded={false}>
+      <AccordionSection title="ADJUSTMENTS" defaultExpanded={true}>
         <ItemTable
           columns={adjustmentColumns}
           data={adjustments.map((adj, index) => ({
@@ -1692,57 +1692,70 @@ const RentalServiceScreen = () => {
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
     marginBottom: 12,
-    alignItems: 'flex-end',
   },
   fieldContainer: {
     flex: 1,
-    minWidth: '45%',
-    marginBottom: 12,
+    marginHorizontal: 4,
   },
   fullWidthField: {
-    width: '100%',
     marginBottom: 12,
   },
   label: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#333',
-    marginBottom: 6,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#000',
+    marginBottom: 8,
+    letterSpacing: 0.3,
   },
   input: {
+    backgroundColor: 'rgb(255, 255, 255)',
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#9e9e9e',
     borderRadius: 6,
-    padding: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 14,
-    backgroundColor: '#fff',
+    color: '#000',
+    fontWeight: '600',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   pickerContainer: {
-    borderWidth: 1,
-    borderColor: '#ddd',
+    borderWidth: 1.5,
+    borderColor: '#D0D0D0',
     borderRadius: 6,
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(240, 240, 240, 0.6)',
+    overflow: 'hidden',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   picker: {
-    height: 45,
+    height: 50,
+    width: '100%',
   },
   checkboxContainer: {
-    marginTop: 12,
+    marginTop: 8,
   },
   checkbox: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   checkboxIcon: {
-    fontSize: 20,
+    fontSize: 24,
     marginRight: 8,
+    color: '#1976D2',
   },
   checkboxLabel: {
     fontSize: 14,
-    color: '#333',
+    color: '#000',
+    fontWeight: '700',
   },
   readingsGrid: {
     gap: 12,
@@ -1759,83 +1772,120 @@ const styles = StyleSheet.create({
     maxWidth: '32%',
   },
   readingInput: {
+    backgroundColor: 'rgb(255, 255, 255)',
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#9e9e9e',
     borderRadius: 6,
-    padding: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 14,
-    backgroundColor: '#fff',
+    color: '#000',
+    fontWeight: '600',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   escButton: {
-    backgroundColor: '#00BCD4',
+    backgroundColor: '#1976D2',
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 6,
     marginBottom: 12,
+    elevation: 3,
+    shadowColor: '#1976D2',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   escButtonText: {
     color: '#fff',
-    fontWeight: '600',
+    fontWeight: '800',
     fontSize: 14,
+    letterSpacing: 0.5,
   },
   barcodeButton: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#1976D2',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 6,
     marginBottom: 12,
+    elevation: 3,
+    shadowColor: '#1976D2',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   barcodeButtonText: {
-    color: '#333',
-    fontWeight: '600',
+    color: '#fff',
+    fontWeight: '800',
     fontSize: 14,
+    letterSpacing: 0.5,
   },
   getButton: {
-    backgroundColor: '#00BCD4',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
     borderRadius: 6,
     marginBottom: 12,
+    elevation: 3,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   getButtonText: {
     color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
+    fontWeight: '700',
+    fontSize: 13,
+    letterSpacing: 0.5,
   },
   displayBox: {
+    backgroundColor: 'rgba(236, 239, 241, 0.85)',
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#B0B0B0',
     borderRadius: 6,
-    padding: 12,
-    backgroundColor: '#f9f9f9',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   displayText: {
     fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
+    color: '#000',
+    fontWeight: '700',
   },
   readOnlyInput: {
-    backgroundColor: '#f5f5f5',
-    borderColor: '#bbb',
+    backgroundColor: 'rgba(236, 239, 241, 0.85)',
+    borderColor: '#B0B0B0',
     justifyContent: 'center',
   },
   readOnlyText: {
     fontSize: 14,
-    color: '#555',
-    fontStyle: 'italic',
+    color: '#000',
+    fontWeight: '700',
+    fontStyle: 'normal',
   },
   balanceText: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 18,
     color: '#4CAF50',
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    textShadowColor: 'rgba(76, 175, 80, 0.5)',
   },
   barcodeSection: {
     marginBottom: 16,
-    padding: 12,
-    backgroundColor: '#e3f2fd',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2196F3',
+    padding: 16,
+    backgroundColor: 'rgba(167, 200, 238, 0.42)',
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: '#567cb3',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
   },
   barcodeInputRow: {
     flexDirection: 'row',
@@ -1843,42 +1893,63 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   scanBarcodeButton: {
-    backgroundColor: '#2196F3',
-    paddingHorizontal: 12,
+    backgroundColor: '#1976D2',
+    paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
+    shadowColor: '#1976D2',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   emptyState: {
-    padding: 20,
+    paddingVertical: 40,
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    marginTop: 12,
   },
   emptyStateText: {
-    fontSize: 16,
+    fontSize: 14,
+    color: '#90CAF9',
     fontWeight: '600',
-    color: '#666',
-    marginBottom: 4,
   },
   emptyStateSubtext: {
     fontSize: 12,
-    color: '#999',
+    color: '#BBDEFB',
+    marginTop: 4,
+    fontWeight: '500',
   },
   inputWithIcon: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   iconButton: {
-    backgroundColor: '#2196F3',
-    paddingHorizontal: 16,
+    backgroundColor: '#1976D2',
+    paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#1976D2',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  iconButtonText: {
+    fontSize: 20,
+  },
+  helperText: {
+    fontSize: 10,
+    color: '#666',
+    marginTop: 6,
+    fontWeight: '500',
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+    paddingTop: 10,
   },
   helperText: {
     fontSize: 11,
