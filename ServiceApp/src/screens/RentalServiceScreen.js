@@ -17,6 +17,7 @@ import { useAuth } from '../context/AuthContext';
 import useScreenDraft from '../hooks/useScreenDraft';
 import withScreenPermission from '../components/withScreenPermission';
 import { getBranchShortName } from '../utils/branchMapping';
+import { getDisplayTime } from '../utils/timeUtils';
 
 const RentalServiceScreen = () => {
   const { currentUser } = useAuth();
@@ -996,7 +997,7 @@ const RentalServiceScreen = () => {
               />
             ) : (
               <View style={styles.displayBox}>
-                <Text style={styles.displayText}>{transactionData?.time || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</Text>
+                <Text style={styles.displayText}>{getDisplayTime(transactionData?.time)}</Text>
             </View>
             )}
           </View>

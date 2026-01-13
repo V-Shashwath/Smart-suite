@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import { getBranchShortName } from '../utils/branchMapping';
 import useScreenDraft from '../hooks/useScreenDraft';
 import withScreenPermission from '../components/withScreenPermission';
+import { getDisplayTime } from '../utils/timeUtils';
 
 const RentalMonthlyBillScreen = () => {
   const { currentUser } = useAuth();
@@ -702,9 +703,11 @@ const RentalMonthlyBillScreen = () => {
         }
         
         const action = savedInvoiceID ? 'updated' : 'saved';
+        console.log(`✅ Invoice ${action}: ID=${newInvoiceID}, Voucher=${result.data.voucherSeries}-${result.data.voucherNo}`);
+        
         Alert.alert(
           'Success! ✓',
-          `Invoice ${action} successfully!\n\nVoucher: ${result.data.voucherSeries}-${result.data.voucherNo}`,
+          `Invoice ${action} successfully!\n\nVoucher: ${result.data.voucherSeries}-${result.data.voucherNo}\nInvoice ID: ${result.data.invoiceID}`,
           [{ text: 'OK' }]
         );
       }
@@ -871,7 +874,7 @@ const RentalMonthlyBillScreen = () => {
               />
             ) : (
               <View style={styles.displayBox}>
-                <Text style={styles.displayText}>{transactionData?.time || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</Text>
+                <Text style={styles.displayText}>{getDisplayTime(transactionData?.time)}</Text>
             </View>
             )}
           </View>

@@ -4,7 +4,7 @@
 // Backend API URL (deployed on Vercel)
 // Priority: app.json config > default value
 // Replace YOUR_VERCEL_URL with your actual Vercel deployment URL
-let API_BASE_URL = 'https://smart-suite-eight.vercel.app/api'; // Default fallback (Vercel URL)
+let API_BASE_URL = 'https://smart-suite-947y.vercel.app/api'; // Default fallback (Vercel URL)
 
 // Try to get from app.json config if available
 try {

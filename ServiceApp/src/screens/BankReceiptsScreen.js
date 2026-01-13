@@ -14,6 +14,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { API_ENDPOINTS, apiCall } from '../config/api';
 import { getBranchShortName } from '../utils/branchMapping';
 import { accountsList } from '../data/mockData';
+import { getDisplayTime } from '../utils/timeUtils';
 
 const BankReceiptsScreen = () => {
   const { currentUser } = useAuth();
@@ -588,19 +589,105 @@ const BankReceiptsScreen = () => {
     setIsSavingInvoice(true);
     
     try {
-      // TODO: Implement backend API call for saving bank receipt
-      // For now, just mark as saved
-      setIsInvoiceSaved(true);
-      setHasPreviewed(false);
+      const invoiceData = getInvoiceData();
+      const voucherSeries = invoiceData.voucherDetails.voucherSeries;
+      const voucherNo = invoiceData.voucherDetails.voucherNo;
+      const voucherDatetime = invoiceData.voucherDetails.voucherDatetime;
       
-      Alert.alert(
-        'Success! ✓',
-        'Bank receipt saved successfully!',
-        [{ text: 'OK' }]
-      );
+      if (!voucherSeries || !voucherNo || !voucherDatetime) {
+        throw new Error('Voucher information is missing. Please refresh the screen and try again.');
+      }
+
+      // Map receipt bodyItems to invoice items format
+      // For receipts, we'll use the account name as product name and amount as the item value
+      const items = bodyItems.map((item, index) => ({
+        sno: index + 1,
+        productId: null,
+        productName: item.account || '',
+        barcode: '',
+        productSerialNo: null,
+        quantity: 1,
+        freeQty: 0,
+        rate: parseFloat(item.amount) || 0,
+        net: (parseFloat(item.amount) || 0) - (parseFloat(item.discount) || 0),
+        comments1: item.comments1 || item.instrumentDetails || '',
+      }));
+
+      const apiData = {
+        invoiceID: savedReceiptID,
+        voucherSeries: voucherSeries,
+        voucherNo: voucherNo,
+        voucherDatetime: voucherDatetime,
+        transactionDetails: {
+          date: invoiceData.transactionDetails.date,
+          time: invoiceData.transactionDetails.time,
+          branch: invoiceData.transactionDetails.branch,
+          location: '',
+          employeeLocation: '',
+          username: invoiceData.transactionDetails.username,
+        },
+        header: {
+          date: invoiceData.customerData.date,
+          billerName: '',
+          employeeName: transactionData.employeeName || transactionData.username,
+          customerId: customerData.customerId || null,
+          customerName: bodyItems[0]?.account || '',
+          readingA4: '',
+          readingA3: '',
+          machineType: '',
+          remarks: remarks || '',
+          gstBill: false,
+        },
+        collections: invoiceData.collections,
+        items: items,
+        adjustments: [],
+        summary: {
+          itemCount: items.length,
+          totalQty: items.length,
+          totalGross: parseFloat(totalAmount) || 0,
+          totalDiscount: parseFloat(totalDiscount) || 0,
+          totalAdd: 0,
+          totalLess: 0,
+          totalBillValue: parseFloat(totalValue) || 0,
+          ledgerBalance: parseFloat(ledgerBalance) || 0,
+        },
+      };
+
+      const result = await apiCall(API_ENDPOINTS.CREATE_INVOICE, {
+        method: 'POST',
+        body: JSON.stringify(apiData),
+      });
+
+      if (result.success) {
+        setIsInvoiceSaved(true);
+        const newReceiptID = result.data.invoiceID;
+        setSavedReceiptID(newReceiptID);
+        setHasPreviewed(false);
+        
+        if (result.data.voucherSeries && result.data.voucherNo) {
+          setVoucherData({
+            voucherSeries: result.data.voucherSeries,
+            voucherNo: result.data.voucherNo,
+            voucherDatetime: result.data.voucherDatetime || voucherData.voucherDatetime,
+          });
+        }
+        
+        const action = savedReceiptID ? 'updated' : 'saved';
+        console.log(`✅ Bank receipt ${action}: ID=${newReceiptID}, Voucher=${result.data.voucherSeries}-${result.data.voucherNo}`);
+        
+        Alert.alert(
+          'Success! ✓',
+          `Bank receipt ${action} successfully!\n\nVoucher: ${result.data.voucherSeries}-${result.data.voucherNo}\nReceipt ID: ${result.data.invoiceID}`,
+          [{ text: 'OK' }]
+        );
+      }
     } catch (error) {
       console.error('Error saving receipt:', error);
-      Alert.alert('Error', `Failed to save receipt: ${error.message}`);
+      let errorMessage = error.message || 'Unknown error occurred';
+      if (error.message.includes('502') || error.message.includes('503')) {
+        errorMessage = 'Cannot connect to backend server. Please check your connection.';
+      }
+      Alert.alert('Error', `Failed to save receipt: ${errorMessage}`);
     } finally {
       setIsSavingInvoice(false);
     }
@@ -832,7 +919,7 @@ const BankReceiptsScreen = () => {
             ) : (
               <View style={styles.displayBox}>
                 <Text style={styles.displayText}>
-                  {isLoadingExecutiveData ? 'Loading...' : transactionData.time || 'Loading...'}
+                  {isLoadingExecutiveData ? 'Loading...' : getDisplayTime(transactionData.time)}
                 </Text>
             </View>
             )}

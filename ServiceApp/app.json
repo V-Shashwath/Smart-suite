@@ -22,19 +22,26 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.ServiceApp"
+      "package": "com.anonymous.ServiceApp",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "apiBaseUrl": "https://smart-suite-eight.vercel.app/api",
+      "apiBaseUrl": "https://smart-suite-947y.vercel.app/api",
       "eas": {
-        "projectId": "8c038637-a140-4f5d-afc8-560e726ec851"
+        "projectId": "d435d401-3eb1-4c35-aed3-a6836f38af76"
       }
     },
     "updates": {
       "fallbackToCacheTimeout": 0
-    }
+    },
+    "owner": "cyrusbiz"
   }
 }

@@ -43,6 +43,7 @@ import withScreenPermission from '../components/withScreenPermission';
 import { useAuth } from '../context/AuthContext';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { getBranchShortName } from '../utils/branchMapping';
+import { getDisplayTime } from '../utils/timeUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -1368,7 +1369,7 @@ const SalesReturnsScreen = () => {
               />
             ) : (
               <View style={styles.displayBox}>
-                <Text style={styles.displayText}>{transactionData.time}</Text>
+                <Text style={styles.displayText}>{getDisplayTime(transactionData.time)}</Text>
               </View>
             )}
           </View>
