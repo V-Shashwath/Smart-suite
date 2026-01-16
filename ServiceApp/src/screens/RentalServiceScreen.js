@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, Image, TextInput, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Modal } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import SmartSuiteFormScreen from '../components/SmartSuiteFormScreen';
@@ -22,6 +22,7 @@ import { getDisplayTime } from '../utils/timeUtils';
 const RentalServiceScreen = () => {
   const { currentUser } = useAuth();
   const navigation = useNavigation();
+  const [isLoadingExecutiveData, setIsLoadingExecutiveData] = useState(false);
 
   // Transaction state
   const [transactionData, setTransactionData] = useState({
@@ -75,7 +76,8 @@ const RentalServiceScreen = () => {
   );
 
   // Barcode state
-  const [barcode, setBarcode] = useState('0');
+  const [barcode, setBarcode] = useState('');
+  const [isLoadingBarcode, setIsLoadingBarcode] = useState(false);
 
   // Auto-populate executive data on mount and when screen comes into focus
   // This ensures we always have the latest LastVoucherNumber and correct voucher format when navigating between screens
@@ -133,6 +135,7 @@ const RentalServiceScreen = () => {
         }
         
         if (currentUser?.username) {
+          setIsLoadingExecutiveData(true);
           try {
             // Clear voucher data first to avoid showing stale data
             setVoucherData({
@@ -244,7 +247,11 @@ const RentalServiceScreen = () => {
               voucherDatetime: datetimeStr,
             });
           }
+        } finally {
+          setIsLoadingExecutiveData(false);
         }
+      } else {
+        setIsLoadingExecutiveData(false);
       }
       };
 
@@ -644,7 +651,12 @@ const RentalServiceScreen = () => {
       Alert.alert('Error', 'Please enter or scan a barcode', [{ text: 'OK' }]);
       return;
     }
-    await processBarcode(barcode);
+    setIsLoadingBarcode(true);
+    try {
+      await processBarcode(barcode);
+    } finally {
+      setIsLoadingBarcode(false);
+    }
   };
 
   // Handle add adjustment from modal
@@ -981,6 +993,7 @@ const RentalServiceScreen = () => {
         onClose: handleExit
       }}
       isSaving={isSaving || isSavingInvoice}
+      isLoading={isLoadingExecutiveData}
     >
       <AccordionSection title="TRANSACTION DETAILS" defaultExpanded={true}>
         {/* Date and Time */}
@@ -1466,20 +1479,29 @@ const RentalServiceScreen = () => {
               style={[styles.input, { flex: 1, marginRight: 8 }]}
               value={barcode}
               onChangeText={setBarcode}
-              placeholder="Enter or scan barcode"
+              placeholder="Enter or Scan"
             />
             <TouchableOpacity
               style={styles.scanBarcodeButton}
               onPress={() => setShowBarcodeScanner(true)}
             >
-              <MaterialIcons name="qr-code-scanner" size={24} color="#fff" />
-          </TouchableOpacity>
+              <Image
+                source={require('../../assets/barcode-scanner.png')}
+                style={styles.barcodeScannerIcon}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
             <TouchableOpacity
-              style={styles.getButton}
+              style={[styles.getButton, isLoadingBarcode && styles.getButtonDisabled]}
               onPress={handleBarcodeGet}
+              disabled={isLoadingBarcode}
             >
-            <Text style={styles.getButtonText}>Get</Text>
-          </TouchableOpacity>
+              {isLoadingBarcode ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.getButtonText}>Get</Text>
+              )}
+            </TouchableOpacity>
         </View>
           <Text style={styles.helperText}>
             Scan barcode with camera or enter manually, then click "Get" to add/update item.
@@ -1851,7 +1873,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderRadius: 6,
-    marginBottom: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
     elevation: 3,
     shadowColor: '#4CAF50',
     shadowOffset: { width: 0, height: 2 },
@@ -1863,6 +1886,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 13,
     letterSpacing: 0.5,
+  },
+  getButtonDisabled: {
+    opacity: 0.7,
   },
   displayBox: {
     backgroundColor: 'rgba(236, 239, 241, 0.85)',
@@ -1974,12 +2000,6 @@ const styles = StyleSheet.create({
     minHeight: 80,
     textAlignVertical: 'top',
     paddingTop: 10,
-  },
-  helperText: {
-    fontSize: 11,
-    color: '#2196F3',
-    marginTop: 4,
-    fontStyle: 'italic',
   },
 });
 

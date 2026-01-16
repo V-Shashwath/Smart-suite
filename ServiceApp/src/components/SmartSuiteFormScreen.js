@@ -11,6 +11,8 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
+  ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -28,6 +30,7 @@ const SmartSuiteFormScreen = ({
   onSMS,
   children,
   isSaving = false,
+  isLoading = false,
 }) => {
   const navigation = useNavigation();
   const { currentUser } = useAuth();
@@ -218,6 +221,22 @@ const SmartSuiteFormScreen = ({
           <Text style={styles.footerText}>Smart Suite</Text>
         </View>
       </ScrollView>
+
+      {/* Loading Overlay */}
+      {isLoading && (
+        <Modal
+          transparent={true}
+          visible={isLoading}
+          animationType="fade"
+        >
+          <View style={styles.loadingOverlay}>
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#1976D2" />
+              <Text style={styles.loadingText}>Loading...</Text>
+            </View>
+          </View>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 };
@@ -516,6 +535,23 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+  },
+  loadingOverlay: {
+    flex: 1,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 18,
+    color: '#1976D2',
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
 });
 

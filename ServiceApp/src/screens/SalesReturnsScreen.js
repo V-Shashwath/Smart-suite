@@ -118,6 +118,7 @@ const SalesReturnsScreen = () => {
   // Modals state
   const [showScanner, setShowScanner] = useState(false);
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [isLoadingBarcode, setIsLoadingBarcode] = useState(false);
   const [showAddAdjustmentModal, setShowAddAdjustmentModal] = useState(false);
   const [showPDFPreview, setShowPDFPreview] = useState(false);
   const [showMobileSearchModal, setShowMobileSearchModal] = useState(false);
@@ -773,7 +774,12 @@ const SalesReturnsScreen = () => {
       return;
     }
 
-    await processBarcode(barcode);
+    setIsLoadingBarcode(true);
+    try {
+      await processBarcode(barcode);
+    } finally {
+      setIsLoadingBarcode(false);
+    }
   };
 
 
@@ -1328,6 +1334,7 @@ const SalesReturnsScreen = () => {
         onClose: handleExit
       }}
       isSaving={isSaving || isSavingInvoice}
+      isLoading={isLoadingExecutiveData}
     >
 
       <AccordionSection title="TRANSACTION DETAILS" defaultExpanded={true}>
@@ -1742,7 +1749,7 @@ const SalesReturnsScreen = () => {
               style={[styles.input, { flex: 1, marginRight: 8 }]}
               value={barcode}
               onChangeText={setBarcode}
-              placeholder="Enter or scan barcode"
+              placeholder="Enter or Scan"
             />
             <TouchableOpacity
               style={styles.scanBarcodeButton}
@@ -1755,10 +1762,15 @@ const SalesReturnsScreen = () => {
               />
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.getButton}
+              style={[styles.getButton, isLoadingBarcode && styles.getButtonDisabled]}
               onPress={handleBarcodeGet}
+              disabled={isLoadingBarcode}
             >
-              <Text style={styles.getButtonText}>Get</Text>
+              {isLoadingBarcode ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.getButtonText}>Get</Text>
+              )}
             </TouchableOpacity>
           </View>
           <Text style={styles.helperText}>
@@ -2404,6 +2416,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
     letterSpacing: 0.5,
+  },
+  getButtonDisabled: {
+    opacity: 0.7,
   },
   addButton: {
     backgroundColor: '#1976D2',

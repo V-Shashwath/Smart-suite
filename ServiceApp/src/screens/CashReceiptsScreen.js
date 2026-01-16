@@ -727,6 +727,7 @@ const CashReceiptsScreen = () => {
         onClose: handleExit
       }}
       isSaving={isSaving || isSavingInvoice}
+      isLoading={isLoadingExecutiveData}
     >
       {/* VOUCHER Section */}
       <AccordionSection title="VOUCHER" defaultExpanded={true}>

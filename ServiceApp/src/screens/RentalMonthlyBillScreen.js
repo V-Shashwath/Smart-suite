@@ -21,6 +21,7 @@ import { getDisplayTime } from '../utils/timeUtils';
 const RentalMonthlyBillScreen = () => {
   const { currentUser } = useAuth();
   const navigation = useNavigation();
+  const [isLoadingExecutiveData, setIsLoadingExecutiveData] = useState(false);
 
   // Transaction state
   const [transactionData, setTransactionData] = useState({
@@ -102,6 +103,7 @@ const RentalMonthlyBillScreen = () => {
         }
         
         if (currentUser?.username) {
+          setIsLoadingExecutiveData(true);
           try {
             // Clear voucher data first to avoid showing stale data
             setVoucherData({
@@ -213,7 +215,11 @@ const RentalMonthlyBillScreen = () => {
                 voucherDatetime: datetimeStr,
               });
             }
+          } finally {
+            setIsLoadingExecutiveData(false);
           }
+        } else {
+          setIsLoadingExecutiveData(false);
         }
       };
 
@@ -846,6 +852,7 @@ const RentalMonthlyBillScreen = () => {
         onClose: handleExit
       }}
       isSaving={isSaving}
+      isLoading={isLoadingExecutiveData}
     >
       <AccordionSection title="TRANSACTION DETAILS" defaultExpanded={true}>
         {/* Date and Time */}

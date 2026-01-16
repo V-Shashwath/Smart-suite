@@ -92,6 +92,7 @@ const EmployeeSaleInvoiceScreen = () => {
   
   // Barcode state (integrated into ITEM BODY)
   const [barcode, setBarcode] = useState('');
+  const [isLoadingBarcode, setIsLoadingBarcode] = useState(false);
   
   // Items state with extended fields
   const [items, setItems] = useState([]);
@@ -767,7 +768,12 @@ const EmployeeSaleInvoiceScreen = () => {
       return;
     }
 
-    await processBarcode(barcode);
+    setIsLoadingBarcode(true);
+    try {
+      await processBarcode(barcode);
+    } finally {
+      setIsLoadingBarcode(false);
+    }
   };
 
 
@@ -1311,6 +1317,7 @@ const EmployeeSaleInvoiceScreen = () => {
         onClose: handleExit
       }}
       isSaving={isSaving || isSavingInvoice}
+      isLoading={isLoadingExecutiveData}
     >
 
       <AccordionSection title="TRANSACTION DETAILS" defaultExpanded={true}>
@@ -1738,10 +1745,15 @@ const EmployeeSaleInvoiceScreen = () => {
               />
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.getButton}
+              style={[styles.getButton, isLoadingBarcode && styles.getButtonDisabled]}
               onPress={handleBarcodeGet}
+              disabled={isLoadingBarcode}
             >
-              <Text style={styles.getButtonText}>Get</Text>
+              {isLoadingBarcode ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.getButtonText}>Get</Text>
+              )}
             </TouchableOpacity>
           </View>
           <Text style={styles.helperText}>
@@ -2387,6 +2399,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
     letterSpacing: 0.5,
+  },
+  getButtonDisabled: {
+    opacity: 0.7,
   },
   addButton: {
     backgroundColor: '#1976D2',
