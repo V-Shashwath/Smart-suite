@@ -149,39 +149,6 @@ const MenuModalScreen = ({ navigation }) => {
 
         {expandedSections.transactions && (
           <View style={styles.subMenu}>
-            {hasAccessToScreen('CashReceipts') && (
-              <>
-                <TouchableOpacity
-                  style={styles.subMenuItem}
-                  onPress={() => toggleSection('cash')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.subMenuIconContainer}>
-                    <MaterialIcons name="paid" size={20} color="#fff" />
-                  </View>
-                  <Text style={styles.subMenuLabel}>Cash</Text>
-                  <MaterialIcons 
-                    name={expandedSections.cash ? 'keyboard-arrow-down' : 'keyboard-arrow-right'} 
-                    size={22} 
-                    color="#4CAF50" 
-                    style={styles.arrowIcon}
-                  />
-                </TouchableOpacity>
-
-                {expandedSections.cash && (
-                  <View style={styles.subSubMenu}>
-                    <TouchableOpacity
-                      style={styles.subSubMenuItem}
-                      onPress={() => navigateToScreen('CashReceipts')}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.subSubMenuLabel}>Cash Receipts</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </>
-            )}
-
             {hasAccessToScreen('BankReceipts') && (
               <>
                 <TouchableOpacity
@@ -209,6 +176,39 @@ const MenuModalScreen = ({ navigation }) => {
                       activeOpacity={0.7}
                     >
                       <Text style={styles.subSubMenuLabel}>Bank Receipts</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
+            )}
+
+            {hasAccessToScreen('CashReceipts') && (
+              <>
+                <TouchableOpacity
+                  style={styles.subMenuItem}
+                  onPress={() => toggleSection('cash')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.subMenuIconContainer}>
+                    <MaterialIcons name="paid" size={20} color="#fff" />
+                  </View>
+                  <Text style={styles.subMenuLabel}>Cash</Text>
+                  <MaterialIcons 
+                    name={expandedSections.cash ? 'keyboard-arrow-down' : 'keyboard-arrow-right'} 
+                    size={22} 
+                    color="#4CAF50" 
+                    style={styles.arrowIcon}
+                  />
+                </TouchableOpacity>
+
+                {expandedSections.cash && (
+                  <View style={styles.subSubMenu}>
+                    <TouchableOpacity
+                      style={styles.subSubMenuItem}
+                      onPress={() => navigateToScreen('CashReceipts')}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.subSubMenuLabel}>Cash Receipts</Text>
                     </TouchableOpacity>
                   </View>
                 )}

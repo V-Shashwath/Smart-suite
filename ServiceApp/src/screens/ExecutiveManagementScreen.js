@@ -46,7 +46,10 @@ const ExecutiveManagementScreen = ({ navigation }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const assignableScreenMetas = useMemo(
-    () => assignableScreens.map((route) => getScreenMeta(route)),
+    () => assignableScreens
+      .map((route) => getScreenMeta(route))
+      .filter(Boolean)
+      .sort((a, b) => a.title.localeCompare(b.title)),
     [assignableScreens]
   );
 
@@ -466,7 +469,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#000',
     marginLeft: 8,
-    fontWeight: '600',
+    fontWeight: '800',
     flex: 1,
   },
   cardActions: {
@@ -537,7 +540,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginHorizontal: 14,
     padding: 20,
-    maxHeight: '95%',
+    maxHeight: '90%',
     elevation: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 5 },
@@ -591,15 +594,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-    marginBottom: 24,
+    marginBottom: 4,
     marginTop: 8,
   },
   screenChip: {
     borderWidth: 2,
     borderColor: '#E0E0E0',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     backgroundColor: '#fff',
     elevation: 2,
     shadowColor: '#000',
@@ -607,6 +610,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     minWidth: 100,
+    marginLeft: 10,
   },
   screenChipSelected: {
     backgroundColor: '#1976D2',

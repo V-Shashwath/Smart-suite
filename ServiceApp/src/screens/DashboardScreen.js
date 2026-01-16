@@ -12,13 +12,25 @@ const DashboardScreen = () => {
 
   const menuItems = useMemo(() => {
     const routes = getAccessibleScreens();
-    return routes
+    const items = routes
       .map((route) => {
         const meta = getScreenMeta(route);
         if (!meta) return null;
         return { title: meta.title, screen: meta.route, icon: meta.icon, category: meta.category };
       })
       .filter(Boolean);
+    
+    // Separate Executive Management from other items
+    const executiveManagement = items.find(item => item.screen === 'ExecutiveManagement');
+    const otherItems = items.filter(item => item.screen !== 'ExecutiveManagement');
+    
+    // Sort other items alphabetically
+    otherItems.sort((a, b) => a.title.localeCompare(b.title));
+    
+    // Put Executive Management at the end
+    return executiveManagement 
+      ? [...otherItems, executiveManagement]
+      : otherItems;
   }, [getAccessibleScreens]);
 
   const initials = useMemo(() => {
@@ -86,28 +98,31 @@ const DashboardScreen = () => {
           </View>
         ) : (
           <View style={styles.grid}>
-            {menuItems.map((item, index) => (
-              <TouchableOpacity
-                key={item.screen}
-                style={styles.card}
-                onPress={() => navigation.navigate(item.screen)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.cardInner}>
-                  <View style={styles.iconContainer}>
-                    <LinearGradient
-                      colors={['#1976D2', '#42A5F5', '#4CAF50']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.iconGradient}
-                    >
-                      <MaterialIcons name={item.icon} size={32} color="#fff" />
-                    </LinearGradient>
+            {menuItems.map((item, index) => {
+              const isExecutiveManagement = item.screen === 'ExecutiveManagement';
+              return (
+                <TouchableOpacity
+                  key={item.screen}
+                  style={[styles.card, isExecutiveManagement && styles.cardFullWidth]}
+                  onPress={() => navigation.navigate(item.screen)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.cardInner}>
+                    <View style={styles.iconContainer}>
+                      <LinearGradient
+                        colors={['#1976D2', '#42A5F5', '#4CAF50']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.iconGradient}
+                      >
+                        <MaterialIcons name={item.icon} size={32} color="#fff" />
+                      </LinearGradient>
+                    </View>
+                    <Text style={styles.cardTitle}>{item.title}</Text>
                   </View>
-                  <Text style={styles.cardTitle}>{item.title}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
       </ScrollView>
@@ -286,6 +301,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.5)',
     overflow: 'hidden',
+  },
+  cardFullWidth: {
+    width: '100%',
   },
   cardInner: {
     padding: 12,

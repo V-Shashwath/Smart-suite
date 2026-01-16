@@ -374,7 +374,7 @@ const RentalServiceScreen = () => {
           }));
           
           Alert.alert(
-            'Customer Details Loaded! ✓',
+            'Customer Details Loaded',
             `Customer ID: ${customer.CustomerID}\nName: ${customer.CustomerName}\nMobile: ${customer.MobileNo}\nType: ${customer.CustomerType}`,
             [{ text: 'OK' }]
           );
@@ -408,7 +408,7 @@ const RentalServiceScreen = () => {
                 party: prev.party || prev.employeeName,
               }));
               Alert.alert(
-                'Customer Details Loaded! ✓',
+                'Customer Details Loaded',
                 `Customer ID: ${customer.CustomerID}\nName: ${customer.CustomerName}\nMobile: ${customer.MobileNo}\nType: ${customer.CustomerType}`,
                 [{ text: 'OK' }]
               );
@@ -491,7 +491,7 @@ const RentalServiceScreen = () => {
         setShowMobileSearchModal(false);
 
         Alert.alert(
-          'Customer Found! ✓',
+          'Customer Found',
           `Customer ID: ${customer.CustomerID}\nName: ${customer.CustomerName}\nMobile: ${customer.MobileNo}\nType: ${customer.CustomerType}`,
           [{ text: 'OK' }]
         );
@@ -579,7 +579,7 @@ const RentalServiceScreen = () => {
         commitItems([...items, newItem]);
         
         Alert.alert(
-          'New Item Added! ✓',
+          'New Item Added',
           `${product.name}\nSerial No: ${serialNo}\nRate: ₹${(product.rate || 0).toFixed(2)}`,
           [{ text: 'OK' }]
         );
@@ -599,7 +599,7 @@ const RentalServiceScreen = () => {
           commitItems(updatedItems);
           
           Alert.alert(
-            'Quantity Updated! ✓',
+            'Quantity Updated',
             `${product.name}\nBarcode: ${trimmedBarcode}\nNew Qty: ${existingItem.quantity}`,
             [{ text: 'OK' }]
           );
@@ -620,7 +620,7 @@ const RentalServiceScreen = () => {
           commitItems([...items, newItem]);
           
           Alert.alert(
-            'New Item Added! ✓',
+            'New Item Added',
             `${product.name}\nBarcode: ${trimmedBarcode}\nRate: ₹${(product.rate || 0).toFixed(2)}`,
             [{ text: 'OK' }]
           );
@@ -654,7 +654,7 @@ const RentalServiceScreen = () => {
     const amountType = newAdjustment.addAmount > 0 ? 'Add' : 'Less';
     const amount = newAdjustment.addAmount > 0 ? newAdjustment.addAmount : newAdjustment.lessAmount;
     Alert.alert(
-      'Adjustment Added Successfully! ✓',
+      'Adjustment Added Successfully',
       `${newAdjustment.accountName}\n${amountType}: ₹${amount.toFixed(2)}`,
       [{ text: 'OK' }]
     );
@@ -829,7 +829,7 @@ const RentalServiceScreen = () => {
         
         const action = savedInvoiceID ? 'updated' : 'saved';
         Alert.alert(
-          'Success! ✓',
+          'Success',
           `Invoice ${action} successfully!\n\nVoucher: ${result.data.voucherSeries}-${result.data.voucherNo}`,
           [{ text: 'OK' }]
         );
@@ -1121,7 +1121,17 @@ const RentalServiceScreen = () => {
             />
           ) : (
             <View style={styles.displayBox}>
-              <Text style={styles.displayText}>{voucherData.voucherDatetime || `${transactionData?.date || ''} ${transactionData?.time || ''}`}</Text>
+              <Text style={styles.displayText}>
+                {voucherData.voucherDatetime 
+                  ? (() => {
+                      // Extract date from voucherDatetime and combine with transaction time
+                      const dateMatch = voucherData.voucherDatetime.match(/^(\d{2}\/\d{2}\/\d{4})/);
+                      const date = dateMatch ? dateMatch[1] : transactionData?.date || '';
+                      const time = getDisplayTime(transactionData?.time);
+                      return date ? `${date} ${time}` : voucherData.voucherDatetime;
+                    })()
+                  : `${transactionData?.date || ''} ${getDisplayTime(transactionData?.time)}`}
+              </Text>
           </View>
           )}
         </View>
@@ -1692,7 +1702,7 @@ const RentalServiceScreen = () => {
             message = `${removeSerialNos.length} item(s) removed`;
           }
           
-          Alert.alert('Items Updated! ✓', message, [{ text: 'OK' }]);
+          Alert.alert('Items Updated', message, [{ text: 'OK' }]);
           
           setShowSerialNoModal(false);
           setIssuedProductsData(null);
@@ -2052,14 +2062,11 @@ const MobileSearchModal = ({ isVisible, onSearch, onClose }) => {
               {isSearching ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={mobileSearchStyles.searchButtonText}>🔍 Search</Text>
+                <Text style={mobileSearchStyles.searchButtonText}>Search</Text>
               )}
             </TouchableOpacity>
           </View>
 
-          <Text style={mobileSearchStyles.note}>
-            💡 Searches both Mobile Number and WhatsApp Number
-          </Text>
         </View>
       </View>
     </Modal>
@@ -2069,7 +2076,7 @@ const MobileSearchModal = ({ isVisible, onSearch, onClose }) => {
 const mobileSearchStyles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.58)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -2077,83 +2084,103 @@ const mobileSearchStyles = StyleSheet.create({
     width: '85%',
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 20,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    padding: 24,
+    shadowColor: '#0D47A1',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#000',
     marginBottom: 8,
     textAlign: 'center',
+    letterSpacing: 0.3,
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   modalSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#666',
     marginBottom: 20,
     textAlign: 'center',
+    fontWeight: '500',
+    letterSpacing: 0.2,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
+    borderColor: '#9e9e9e',
+    borderRadius: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
     marginBottom: 10,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: 'rgba(240, 240, 240, 0.6)',
+    color: '#000',
+    fontWeight: '600',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   inputError: {
     borderColor: '#d32f2f',
-    borderWidth: 2,
+    borderWidth: 1.5,
+    backgroundColor: 'rgba(255, 235, 238, 0.6)',
   },
   errorText: {
     color: '#d32f2f',
     fontSize: 12,
     marginBottom: 10,
     paddingHorizontal: 4,
+    fontWeight: '700',
   },
   buttonRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 10,
+    gap: 12,
+    marginTop: 8,
   },
   button: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 6,
     alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   cancelButton: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: 'rgb(89, 87, 87)',
+    borderWidth: 1,
+    borderColor: '#9e9e9e',
   },
   cancelButtonText: {
-    color: '#666',
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   searchButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: '#4CAF50',
+    borderWidth: 1,
+    borderColor: '#388E3C',
   },
   searchButtonDisabled: {
-    backgroundColor: '#90CAF9',
+    backgroundColor: '#81C784',
     opacity: 0.7,
   },
   searchButtonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
-  note: {
-    fontSize: 12,
-    color: '#999',
-    textAlign: 'center',
-    marginTop: 12,
-    fontStyle: 'italic',
-  },
+ 
 });
 
 export default withScreenPermission('RentalService')(RentalServiceScreen);

@@ -93,8 +93,8 @@ const BankReceiptsScreen = () => {
   const [hasPreviewed, setHasPreviewed] = useState(false);
   const [savedReceiptID, setSavedReceiptID] = useState(null);
   
-  // Instrument type options - lowercase as per requirement
-  const instrumentTypeOptions = ['upi', 'card', 'cheque', 'dd', 'neft', 'rtgs'];
+  // Instrument type options - uppercase display
+  const instrumentTypeOptions = ['UPI', 'CARD', 'CHEQUE', 'DD', 'NEFT', 'RTGS'];
 
   // Check if user is supervisor - supervisors get blank, editable fields
   const isSupervisor = currentUser?.role === 'supervisor';
@@ -372,7 +372,7 @@ const BankReceiptsScreen = () => {
               setBodyItems(updatedItems);
           
           Alert.alert(
-            'Customer Added! ✓',
+            'Customer Added',
             `Customer: ${customer.CustomerName}\nMobile: ${customer.MobileNo}`,
             [{ text: 'OK' }]
           );
@@ -421,7 +421,7 @@ const BankReceiptsScreen = () => {
               setBodyItems(updatedItems);
               
               Alert.alert(
-                'Customer Added! ✓',
+                'Customer Added',
                 `Customer: ${customer.CustomerName}\nMobile: ${customer.MobileNo}`,
                 [{ text: 'OK' }]
               );
@@ -506,7 +506,7 @@ const BankReceiptsScreen = () => {
         setShowMobileSearchModal(false);
 
         Alert.alert(
-          'Customer Added! ✓',
+          'Customer Added',
           `Customer: ${customer.CustomerName}\nMobile: ${customer.MobileNo}`,
           [{ text: 'OK' }]
         );
@@ -676,7 +676,7 @@ const BankReceiptsScreen = () => {
         console.log(`✅ Bank receipt ${action}: ID=${newReceiptID}, Voucher=${result.data.voucherSeries}-${result.data.voucherNo}`);
         
         Alert.alert(
-          'Success! ✓',
+          'Success',
           `Bank receipt ${action} successfully!\n\nVoucher: ${result.data.voucherSeries}-${result.data.voucherNo}\nReceipt ID: ${result.data.invoiceID}`,
           [{ text: 'OK' }]
         );
@@ -881,7 +881,16 @@ const BankReceiptsScreen = () => {
           ) : (
             <View style={styles.displayBox}>
               <Text style={styles.displayText}>
-                {isLoadingExecutiveData ? 'Loading...' : voucherData.voucherDatetime || 'Loading...'}
+                {isLoadingExecutiveData ? 'Loading...' : 
+                  voucherData.voucherDatetime 
+                    ? (() => {
+                        // Extract date from voucherDatetime and combine with transaction time
+                        const dateMatch = voucherData.voucherDatetime.match(/^(\d{2}\/\d{2}\/\d{4})/);
+                        const date = dateMatch ? dateMatch[1] : transactionData.date || '';
+                        const time = getDisplayTime(transactionData.time);
+                        return date ? `${date} ${time}` : voucherData.voucherDatetime;
+                      })()
+                    : `${transactionData.date || ''} ${getDisplayTime(transactionData.time)}`}
               </Text>
           </View>
           )}
@@ -1170,14 +1179,11 @@ const MobileSearchModal = ({ isVisible, onSearch, onClose }) => {
               {isSearching ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-              <Text style={mobileSearchStyles.searchButtonText}>🔍 Search</Text>
+              <Text style={mobileSearchStyles.searchButtonText}>Search</Text>
               )}
             </TouchableOpacity>
           </View>
 
-          <Text style={mobileSearchStyles.note}>
-            💡 Searches both Mobile Number and WhatsApp Number
-          </Text>
         </View>
       </View>
     </Modal>
@@ -1334,82 +1340,111 @@ const styles = StyleSheet.create({
 const mobileSearchStyles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.58)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContainer: {
+    width: '85%',
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 24,
-    width: '90%',
-    maxWidth: 400,
+    shadowColor: '#0D47A1',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#000',
     marginBottom: 8,
+    textAlign: 'center',
+    letterSpacing: 0.3,
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   modalSubtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
     marginBottom: 20,
+    textAlign: 'center',
+    fontWeight: '500',
+    letterSpacing: 0.2,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#9e9e9e',
     borderRadius: 6,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: '#fff',
-    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    marginBottom: 10,
+    backgroundColor: 'rgba(240, 240, 240, 0.6)',
+    color: '#000',
+    fontWeight: '600',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   inputError: {
-    borderColor: '#f44336',
+    borderColor: '#d32f2f',
+    borderWidth: 1.5,
+    backgroundColor: 'rgba(255, 235, 238, 0.6)',
   },
   errorText: {
-    color: '#f44336',
+    color: '#d32f2f',
     fontSize: 12,
-    marginBottom: 12,
+    marginBottom: 10,
+    paddingHorizontal: 4,
+    fontWeight: '700',
   },
   buttonRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     gap: 12,
-    marginTop: 12,
+    marginTop: 8,
   },
   button: {
     flex: 1,
-    padding: 14,
+    paddingVertical: 14,
     borderRadius: 6,
     alignItems: 'center',
-    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   cancelButton: {
-    backgroundColor: '#e0e0e0',
+    backgroundColor: 'rgb(89, 87, 87)',
+    borderWidth: 1,
+    borderColor: '#9e9e9e',
   },
   cancelButtonText: {
-    color: '#333',
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   searchButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: '#4CAF50',
+    borderWidth: 1,
+    borderColor: '#388E3C',
   },
   searchButtonDisabled: {
-    opacity: 0.6,
+    backgroundColor: '#81C784',
+    opacity: 0.7,
   },
   searchButtonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
-  note: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 12,
-    textAlign: 'center',
-  },
+ 
 });
 
 export default withScreenPermission('BankReceipts')(BankReceiptsScreen);

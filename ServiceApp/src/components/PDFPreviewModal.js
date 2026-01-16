@@ -69,7 +69,7 @@ const PDFPreviewModal = ({ isVisible, onClose, invoiceData }) => {
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>📄 PDF Preview</Text>
+          <Text style={styles.headerTitle}>  PDF Preview</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <Text style={styles.closeButtonText}>✕ Close</Text>
           </TouchableOpacity>
@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 15,
-    backgroundColor: '#FF5722',
+    backgroundColor: '#023966',
     borderBottomWidth: 2,
     borderBottomColor: '#C62828',
   },

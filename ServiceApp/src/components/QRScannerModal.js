@@ -118,7 +118,7 @@ const QRScannerModal = ({ isVisible, onScan, onClose }) => {
             {/* Bottom overlay */}
             <View style={styles.overlayBottom}>
               <Text style={styles.tipText}>
-                💡 Tip: Hold your device steady and ensure good lighting
+                Tip: Hold your device steady and ensure good lighting
               </Text>
             </View>
           </View>

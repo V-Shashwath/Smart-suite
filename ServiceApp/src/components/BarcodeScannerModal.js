@@ -128,7 +128,7 @@ const BarcodeScannerModal = ({ isVisible, onScan, onClose }) => {
 
             <View style={styles.bottomOverlay}>
               <Text style={styles.instruction}>
-                ✓ Supports all standard barcodes{'\n'}
+                Supports all standard barcodes{'\n'}
                 (EAN, UPC, Code128, Code39, etc.)
               </Text>
               {scanned && (
@@ -245,6 +245,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     textAlign: 'center',
     lineHeight: 20,
+    marginBottom: 60,
   },
   scannedBadge: {
     marginTop: 16,

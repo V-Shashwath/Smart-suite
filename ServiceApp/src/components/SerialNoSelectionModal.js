@@ -213,9 +213,9 @@ const SerialNoSelectionModal = ({
                   if (newCount > 0 && removeCount > 0) {
                     return `Add ${newCount} / Remove ${removeCount}`;
                   } else if (newCount > 0) {
-                    return `Add Selected (${newCount})`;
+                    return `Add (${newCount})`;
                   } else if (removeCount > 0) {
-                    return `Remove Selected (${removeCount})`;
+                    return `Remove (${removeCount})`;
                   }
                   return 'Confirm';
                 })()}
@@ -237,8 +237,8 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     width: '95%',
-    maxHeight: '82%',
-    height: '85%',
+    maxHeight: '85%',
+    height: '77%',
     backgroundColor: '#fff',
     borderRadius: 10,
     overflow: 'hidden',
@@ -250,9 +250,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 15,
-    backgroundColor: '#FF5722',
+    backgroundColor: '#023966',
     borderBottomWidth: 2,
-    borderBottomColor: '#C62828',
+    borderBottomColor: '#4CAF50',
   },
   headerTitle: {
     fontSize: 18,
@@ -429,16 +429,16 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
   },
   cancelButton: {
-    backgroundColor: '#e0e0e0',
+    backgroundColor: '#526670',
   },
   confirmButton: {
-    backgroundColor: '#FF5722',
+    backgroundColor: '#4CAF50',
   },
   buttonDisabled: {
     backgroundColor: '#ccc',
   },
   cancelButtonText: {
-    color: '#333',
+    color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
   },

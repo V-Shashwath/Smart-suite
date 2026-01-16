@@ -110,7 +110,7 @@ export const products = [
 ];
 
 export const adjustmentsList = [
-  { id: 2, name: 'Discount - Flat Amount', type: 'less' },
+  { id: 2, name: 'Discount Amount', type: 'less' },
   { id: 8, name: 'Service Charge', type: 'add' },
   { id: 9, name: 'Delivery Charge', type: 'add' },
   { id: 10, name: 'Handling Fee', type: 'add' },
