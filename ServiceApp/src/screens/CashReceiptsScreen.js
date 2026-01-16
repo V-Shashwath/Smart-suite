@@ -1110,8 +1110,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   label: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '900',
     color: '#000',
     marginBottom: 8,
     letterSpacing: 0.3,
